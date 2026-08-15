@@ -1,0 +1,11 @@
+const r = require('express').Router();
+const c = require('../controllers/documentController');
+const { authenticate } = require('../middleware/auth');
+const { upload } = require('../middleware/upload');
+r.use(authenticate);
+r.post('/upload', upload.array('files', 10), c.upload);
+r.get('/', c.list);
+r.get('/stats', c.stats);
+r.get('/:id', c.get);
+r.delete('/:id', c.remove);
+module.exports = r;
