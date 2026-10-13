@@ -123,7 +123,9 @@ const PORT = process.env.PORT || 5000;
 mongoose.set('bufferCommands', false);
 
 const MONGODB_URI = process.env.MONGODB_URI;
-if (MONGODB_URI) {
+const isPlaceholderUri = MONGODB_URI && (MONGODB_URI.includes('<username>') || MONGODB_URI.includes('<password>') || MONGODB_URI.includes('YOUR_'));
+
+if (MONGODB_URI && !isPlaceholderUri && !MONGODB_URI.includes('localhost')) {
   console.log('🔄 Connecting to MongoDB Atlas...');
   mongoose.connect(MONGODB_URI, {
     serverSelectionTimeoutMS: 5000,
@@ -137,22 +139,24 @@ if (MONGODB_URI) {
       console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
       console.warn('ℹ️  Running in Demo Mode.');
     });
-} else {
-  if (process.env.NODE_ENV !== 'production') {
-    mongoose.connect('mongodb://localhost:27017/notivexa', {
-      serverSelectionTimeoutMS: 2000,
+} else if (MONGODB_URI && MONGODB_URI.includes('localhost') && process.env.NODE_ENV !== 'production') {
+  mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 2000,
+  })
+    .then(async () => {
+      console.log('✅ Local MongoDB connected');
+      await require('./utils/seed').seedUsers();
     })
-      .then(async () => {
-        console.log('✅ Local MongoDB connected');
-        await require('./utils/seed').seedUsers();
-      })
-      .catch(() => {
-        console.log('ℹ️  Local MongoDB not running. Running in Demo Mode.');
-      });
+    .catch(() => {
+      console.log('ℹ️  Local MongoDB not running. Running in Demo Mode.');
+    });
+} else {
+  if (isPlaceholderUri) {
+    console.log('ℹ️  Please replace <username> and <password> in MONGODB_URI with your MongoDB Atlas credentials.');
   } else {
-    console.log('ℹ️  No MONGODB_URI provided in production. Running in Demo Mode.');
-    console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent storage.');
+    console.log('ℹ️  No MONGODB_URI provided. Running in Demo Mode.');
   }
+  console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent storage.');
 }
 
 app.listen(PORT, () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
