@@ -2,6 +2,7 @@ const r = require('express').Router();
 const mongoose = require('mongoose');
 const { Plan } = require('../models');
 const { authenticate } = require('../middleware/auth');
+const localStore = require('../utils/localStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -25,7 +26,8 @@ r.use(authenticate);
 r.get('/', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, plans: [SAMPLE_PLAN] });
+      const plans = localStore.getPlans().filter(p => (!p.user || p.user === req.user?.id) && p.isActive !== false);
+      return res.json({ success: true, plans: plans.length ? plans : [SAMPLE_PLAN] });
     }
     const plans = await Plan.find({ user: req.user.id, isActive: true }).sort({ createdAt: -1 });
     if (plans.length === 0) {
@@ -54,7 +56,10 @@ r.post('/generate', async (req, res, next) => {
     }
 
     if (!isDbConnected()) {
-      const plan = { _id: 'plan_' + Date.now(), user: req.user.id, title, examDate, subjects, dailyHours, isActive: true, tasks };
+      const plan = { _id: 'plan_' + Date.now(), id: 'plan_' + Date.now(), user: req.user.id, title, examDate, subjects, dailyHours, isActive: true, tasks, createdAt: new Date().toISOString() };
+      const plans = localStore.getPlans();
+      plans.unshift(plan);
+      localStore.savePlans(plans);
       return res.status(201).json({ success: true, plan });
     }
 
@@ -66,6 +71,14 @@ r.post('/generate', async (req, res, next) => {
 r.patch('/:planId/tasks/:taskId', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
+      const plans = localStore.getPlans();
+      const plan = plans.find(p => p._id === req.params.planId || p.id === req.params.planId);
+      if (plan) {
+        const task = (plan.tasks || []).find((t, idx) => (t._id && t._id.toString() === req.params.taskId) || (t.id && t.id.toString() === req.params.taskId) || idx.toString() === req.params.taskId);
+        if (task) Object.assign(task, req.body);
+        localStore.savePlans(plans);
+        return res.json({ success: true, plan });
+      }
       return res.json({ success: true, plan: SAMPLE_PLAN });
     }
     const plan = await Plan.findOne({ _id: req.params.planId, user: req.user.id });
@@ -80,7 +93,13 @@ r.patch('/:planId/tasks/:taskId', async (req, res, next) => {
 
 r.delete('/:id', async (req, res, next) => {
   try {
-    if (!isDbConnected()) return res.json({ success: true });
+    if (!isDbConnected()) {
+      const plans = localStore.getPlans();
+      const plan = plans.find(p => p._id === req.params.id || p.id === req.params.id);
+      if (plan) plan.isActive = false;
+      localStore.savePlans(plans);
+      return res.json({ success: true });
+    }
     await Plan.findOneAndUpdate({ _id: req.params.id, user: req.user.id }, { isActive: false });
     res.json({ success: true });
   } catch(e) { next(e); }

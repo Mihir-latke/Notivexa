@@ -3,18 +3,35 @@ const { Document, Flashcard, User } = require('../models');
 const ai = require('../services/aiService');
 const { notesPDF, handwrittenPDF, questionPaperPDF, slidePDF } = require('../services/pdfGenerator');
 const { SAMPLE_DEMO_DOCS } = require('./documentController');
+const localStore = require('../utils/localStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
 async function safeDocSave(doc) {
   if (doc && typeof doc.save === 'function' && isDbConnected()) {
     try { await doc.save(); } catch (err) { console.warn('Could not save document output to DB:', err.message); }
+  } else if (doc && (doc._id || doc.id)) {
+    try { localStore.updateDoc(doc._id || doc.id, { outputs: doc.outputs }); } catch (err) {}
   }
 }
 
 async function safeUserStatsUpdate(userId, updateObj) {
   if (isDbConnected() && userId) {
     try { await User.findByIdAndUpdate(userId, updateObj); } catch (err) {}
+  } else if (userId) {
+    try {
+      const u = localStore.findUserById(userId);
+      if (u) {
+        u.studyStats = u.studyStats || {};
+        if (updateObj['$inc']) {
+          for (const [k, v] of Object.entries(updateObj['$inc'])) {
+            const prop = k.replace('studyStats.', '');
+            u.studyStats[prop] = (u.studyStats[prop] || 0) + v;
+          }
+        }
+        localStore.updateUser(userId, { studyStats: u.studyStats });
+      }
+    } catch (err) {}
   }
 }
 
@@ -28,6 +45,10 @@ async function getDocText(docId, userId, secIdx) {
       doc = await Document.findOne({ _id: docId, user: userId });
       if (!doc) doc = await Document.findById(docId);
     } catch {}
+  }
+  
+  if (!doc) {
+    doc = localStore.getDocById(docId);
   }
   
   if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
@@ -107,15 +128,22 @@ exports.flashcards = async (req, res, next) => {
     if (!set) {
       set = {
         _id: 'fc_' + Date.now(),
-        documentId: doc._id,
+        user: req.user?.id,
+        documentId: doc._id || doc.id,
         documentTitle: doc.title,
         title: `${doc.title} — Flashcards`,
         subject: doc.subject || doc.title,
         language,
         cards,
         totalCards: cards.length,
-        masteredCards: 0
+        masteredCards: 0,
+        createdAt: new Date().toISOString()
       };
+      try {
+        const existingSets = localStore.getFlashcards();
+        existingSets.unshift(set);
+        localStore.saveFlashcards(existingSets);
+      } catch (err) {}
     }
     await safeUserStatsUpdate(req.user?.id, { $inc: { 'studyStats.flashcardsCreated': cards.length } });
     res.json({ success: true, flashcardSet: set });

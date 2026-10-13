@@ -4,6 +4,7 @@ const { Document, User } = require('../models');
 const { extractFromPDF } = require('../services/pdfEngine');
 const { extractFromImage } = require('../services/aiService');
 const { extractFromUrl } = require('../services/urlEngine');
+const localStore = require('../utils/localStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -55,12 +56,74 @@ exports.upload = async (req, res, next) => {
   try {
     if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded.' });
     
+    // 1. Fallback when MongoDB is not connected
     if (!isDbConnected()) {
-      return res.status(503).json({
-        error: 'Database is not connected. To save uploaded files permanently, please add MONGODB_URI in Render Environment Variables. You can explore the sample JDBC document in the AI Notebook.'
+      const results = [];
+      for (const file of req.files) {
+        const isImage = file.mimetype.startsWith('image/');
+        const docTitle = req.body.title || file.originalname.replace(/\.[^/.]+$/, '');
+        const subject = req.body.subject || 'General';
+        
+        try {
+          let ext;
+          if (isImage) {
+            ext = await extractFromImage(file.path, file.mimetype);
+          } else {
+            ext = await extractFromPDF(file.path);
+          }
+          const doc = localStore.createDoc({
+            user: req.user.id,
+            title: docTitle,
+            originalName: file.originalname,
+            fileType: isImage ? 'image' : 'pdf',
+            mimeType: file.mimetype,
+            size: file.size,
+            filePath: file.path,
+            subject,
+            extractedText: ext.text,
+            sections: ext.sections,
+            pageCount: ext.pages,
+            wordCount: ext.words,
+            status: 'ready'
+          });
+          console.log(`[Upload Local OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
+          results.push({ doc, ok: true });
+        } catch(e) {
+          console.error(`[Upload Local FAIL] ${file.originalname}:`, e.message);
+          const doc = localStore.createDoc({
+            user: req.user.id,
+            title: docTitle,
+            originalName: file.originalname,
+            fileType: isImage ? 'image' : 'pdf',
+            mimeType: file.mimetype,
+            size: file.size,
+            filePath: file.path,
+            subject,
+            status: 'error',
+            errorMessage: e.message
+          });
+          results.push({ doc, ok: false, error: e.message });
+        }
+      }
+      
+      const user = localStore.findUserById(req.user.id);
+      if (user) {
+        user.studyStats = user.studyStats || {};
+        user.studyStats.documentsUploaded = (user.studyStats.documentsUploaded || 0) + req.files.length;
+        localStore.updateUser(req.user.id, { studyStats: user.studyStats });
+      }
+
+      const ok = results.filter(r => r.ok).length;
+      const err = results.filter(r => !r.ok);
+      return res.status(201).json({
+        success: true,
+        message: `${ok}/${results.length} file(s) processed successfully`,
+        documents: results.map(r => r.doc),
+        errors: err.map(e => ({ file: e.doc.originalName, error: e.error }))
       });
     }
 
+    // 2. Connected MongoDB
     const results = [];
     for (const file of req.files) {
       const isImage = file.mimetype.startsWith('image/');
@@ -115,15 +178,48 @@ exports.importUrl = async (req, res, next) => {
       return res.status(400).json({ error: 'Please provide a valid URL.' });
     }
 
-    if (!isDbConnected()) {
-      return res.status(503).json({
-        error: 'Database is not connected. To import and save web content, please configure MONGODB_URI in Render Environment Variables.'
-      });
-    }
-
     const trimmedUrl = url.trim();
     console.log(`[Import URL] User ${req.user.id} requested: ${trimmedUrl}`);
 
+    // 1. Fallback when MongoDB is not connected
+    if (!isDbConnected()) {
+      try {
+        const ext = await extractFromUrl(trimmedUrl, subject?.trim() || 'General');
+        const doc = localStore.createDoc({
+          user: req.user.id,
+          title: title?.trim() || ext.title || 'Web Link',
+          originalName: ext.originalName || trimmedUrl,
+          fileType: ext.fileType || 'url',
+          filePath: ext.filePath || trimmedUrl,
+          size: ext.size || 0,
+          status: 'ready',
+          subject: subject?.trim() || 'General',
+          extractedText: ext.text,
+          sections: ext.sections,
+          pageCount: ext.pages,
+          wordCount: ext.words
+        });
+        
+        const user = localStore.findUserById(req.user.id);
+        if (user) {
+          user.studyStats = user.studyStats || {};
+          user.studyStats.documentsUploaded = (user.studyStats.documentsUploaded || 0) + 1;
+          localStore.updateUser(req.user.id, { studyStats: user.studyStats });
+        }
+
+        console.log(`[Import URL Local OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
+        return res.status(201).json({
+          success: true,
+          message: 'Content successfully extracted from link!',
+          document: doc
+        });
+      } catch (e) {
+        console.error(`[Import URL Local FAIL] ${trimmedUrl}:`, e.message);
+        return res.status(422).json({ error: e.message });
+      }
+    }
+
+    // 2. Connected MongoDB
     const doc = await Document.create({
       user: req.user.id,
       title: title?.trim() || 'Fetching link content...',
@@ -175,10 +271,10 @@ exports.list = async (req, res, next) => {
   try {
     if (!isDbConnected()) {
       const { search, status } = req.query;
-      let docs = [...SAMPLE_DEMO_DOCS];
-      if (search) docs = docs.filter(d => d.title.toLowerCase().includes(search.toLowerCase()));
+      let docs = localStore.getDocsByUser(req.user?.id);
+      if (search) docs = docs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
       if (status) docs = docs.filter(d => d.status === status);
-      return res.json({ success: true, documents: docs, isOfflineDemo: true });
+      return res.json({ success: true, documents: docs, isLocalStore: true });
     }
     const { search, status } = req.query;
     const filter = { user: req.user.id };
@@ -196,10 +292,17 @@ exports.list = async (req, res, next) => {
 exports.get = async (req, res, next) => {
   try {
     if (!isDbConnected()) {
-      const d = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id) || SAMPLE_DEMO_DOCS[0];
+      let d = localStore.getDocById(req.params.id);
+      if (!d) {
+        d = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id);
+      }
+      if (!d) return res.status(404).json({ error: 'Document not found.' });
       return res.json({ success: true, document: d });
     }
     let doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
+    if (!doc) {
+      doc = localStore.getDocById(req.params.id);
+    }
     if (!doc) {
       doc = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id);
     }
@@ -210,9 +313,19 @@ exports.get = async (req, res, next) => {
 
 exports.remove = async (req, res, next) => {
   try {
-    if (!isDbConnected()) return res.json({ success: true });
+    if (!isDbConnected()) {
+      const doc = localStore.getDocById(req.params.id);
+      if (doc && doc.filePath && fs.existsSync(doc.filePath)) {
+        try { fs.unlinkSync(doc.filePath); } catch {}
+      }
+      localStore.deleteDoc(req.params.id);
+      return res.json({ success: true });
+    }
     const doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
-    if (!doc) return res.status(404).json({ error: 'Not found.' });
+    if (!doc) {
+      localStore.deleteDoc(req.params.id);
+      return res.json({ success: true });
+    }
     if (fs.existsSync(doc.filePath)) { try { fs.unlinkSync(doc.filePath); } catch {} }
     await doc.deleteOne();
     res.json({ success: true });
@@ -222,9 +335,15 @@ exports.remove = async (req, res, next) => {
 exports.stats = async (req, res, next) => {
   try {
     if (!isDbConnected()) {
+      const docs = localStore.getDocsByUser(req.user?.id);
+      const total = docs.length;
+      const ready = docs.filter(d => d.status === 'ready').length;
+      const processing = docs.filter(d => d.status === 'processing').length;
+      const error = docs.filter(d => d.status === 'error').length;
+      const totalSize = docs.reduce((acc, d) => acc + (d.size || 0), 0);
       return res.json({
         success: true,
-        stats: { total: 1, ready: 1, processing: 0, error: 0, totalSize: 245800 }
+        stats: { total, ready, processing, error, totalSize }
       });
     }
     const [total, ready, processing, error] = await Promise.all([

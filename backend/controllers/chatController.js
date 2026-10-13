@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const { Document, Chat } = require('../models');
 const { answerChat } = require('../services/aiService');
 const { SAMPLE_DEMO_DOCS } = require('./documentController');
+const localStore = require('../utils/localStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -17,6 +18,9 @@ exports.message = async (req, res, next) => {
       let doc = null;
       if (isDbConnected()) {
         try { doc = await Document.findOne({ _id: documentId, user: req.user.id }); } catch {}
+      }
+      if (!doc) {
+        doc = localStore.getDocById(documentId);
       }
       if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
         doc = SAMPLE_DEMO_DOCS.find(d => (d._id && d._id.toString() === documentId.toString()) || d.id === documentId);

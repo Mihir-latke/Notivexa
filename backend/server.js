@@ -10,7 +10,8 @@ const fs = require('fs');
 
 const app = express();
 
-// Ensure upload directories exist
+// Ensure upload and local data directories exist
+fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 ['pdfs','images','audio','generated'].forEach(d => {
   fs.mkdirSync(path.join(__dirname, 'uploads', d), { recursive: true });
 });

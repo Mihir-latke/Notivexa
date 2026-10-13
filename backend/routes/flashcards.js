@@ -2,6 +2,7 @@ const r = require('express').Router();
 const mongoose = require('mongoose');
 const { Flashcard } = require('../models');
 const { authenticate } = require('../middleware/auth');
+const localStore = require('../utils/localStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -28,7 +29,8 @@ r.use(authenticate);
 r.get('/', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, flashcardSets: SAMPLE_FLASHCARDS });
+      const sets = localStore.getFlashcards().filter(s => !s.user || s.user === req.user?.id);
+      return res.json({ success: true, flashcardSets: sets.length ? sets : SAMPLE_FLASHCARDS });
     }
     const sets = await Flashcard.find({ user: req.user.id }).sort({ createdAt: -1 });
     if (sets.length === 0) {
@@ -41,8 +43,10 @@ r.get('/', async (req, res, next) => {
 r.get('/:id', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
-      const s = SAMPLE_FLASHCARDS.find(f => f._id === req.params.id || f.id === req.params.id) || SAMPLE_FLASHCARDS[0];
-      return res.json({ success: true, flashcardSet: s });
+      const sets = localStore.getFlashcards();
+      let s = sets.find(f => (f._id && f._id.toString() === req.params.id) || (f.id && f.id.toString() === req.params.id));
+      if (!s) s = SAMPLE_FLASHCARDS.find(f => f._id === req.params.id || f.id === req.params.id);
+      return res.json({ success: true, flashcardSet: s || SAMPLE_FLASHCARDS[0] });
     }
     let s = await Flashcard.findOne({ _id: req.params.id, user: req.user.id });
     if (!s) s = SAMPLE_FLASHCARDS.find(f => f._id === req.params.id || f.id === req.params.id);
@@ -54,6 +58,15 @@ r.get('/:id', async (req, res, next) => {
 r.patch('/:sid/cards/:cid', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
+      const sets = localStore.getFlashcards();
+      const s = sets.find(f => f._id === req.params.sid || f.id === req.params.sid);
+      if (s) {
+        const card = (s.cards || []).find(c => c._id === req.params.cid || c.id === req.params.cid);
+        if (card) Object.assign(card, req.body);
+        s.masteredCards = (s.cards || []).filter(c => c.isKnown).length;
+        localStore.saveFlashcards(sets);
+        return res.json({ success: true, flashcardSet: s });
+      }
       return res.json({ success: true, flashcardSet: SAMPLE_FLASHCARDS[0] });
     }
     const s = await Flashcard.findOne({ _id: req.params.sid, user: req.user.id });
@@ -69,7 +82,12 @@ r.patch('/:sid/cards/:cid', async (req, res, next) => {
 
 r.delete('/:id', async (req, res, next) => {
   try {
-    if (!isDbConnected()) return res.json({ success: true });
+    if (!isDbConnected()) {
+      let sets = localStore.getFlashcards();
+      sets = sets.filter(f => f._id !== req.params.id && f.id !== req.params.id);
+      localStore.saveFlashcards(sets);
+      return res.json({ success: true });
+    }
     await Flashcard.findOneAndDelete({ _id: req.params.id, user: req.user.id });
     res.json({ success: true });
   } catch(e) { next(e); }

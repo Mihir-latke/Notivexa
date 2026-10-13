@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const { Document } = require('../models');
 const { authenticate } = require('../middleware/auth');
 const { SAMPLE_DEMO_DOCS } = require('../controllers/documentController');
+const localStore = require('../utils/localStore');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -11,7 +12,8 @@ r.use(authenticate);
 r.get('/', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, documents: SAMPLE_DEMO_DOCS });
+      const docs = localStore.getDocsByUser(req.user?.id);
+      return res.json({ success: true, documents: docs.length ? docs : SAMPLE_DEMO_DOCS });
     }
     const docs = await Document.find({ user: req.user.id })
       .select('title originalName fileType size status subject createdAt outputs wordCount pageCount')
@@ -26,7 +28,16 @@ r.get('/', async (req, res, next) => {
 r.get('/outputs', async (req, res, next) => {
   try {
     if (!isDbConnected()) {
-      return res.json({ success: true, outputs: [] });
+      const docs = localStore.getDocsByUser(req.user?.id);
+      const out = [];
+      docs.forEach(d => (d.outputs || []).forEach(o => out.push({
+        documentId: d._id || d.id,
+        documentTitle: d.title,
+        subject: d.subject,
+        ...o
+      })));
+      out.sort((a,b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+      return res.json({ success: true, outputs: out.slice(0, 60) });
     }
     const docs = await Document.find({ user: req.user.id, 'outputs.0': { $exists: true } }).select('title subject outputs');
     const out = [];

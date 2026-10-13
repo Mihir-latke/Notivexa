@@ -1,18 +1,9 @@
 const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const { User } = require('../models');
-const { DEMO_USERS } = require('../controllers/authController');
+const localStore = require('../utils/localStore');
 
 const SECRET = process.env.JWT_SECRET || 'notivexa_secret';
-
-const DEMO_USERS_MAP = {
-  '507f191e810c19729de860ea': DEMO_USERS ? DEMO_USERS['student@demo.com'] : {
-    _id: '507f191e810c19729de860ea', id: '507f191e810c19729de860ea', name: 'Aryan Sharma', email: 'student@demo.com', role: 'student', isActive: true
-  },
-  '507f191e810c19729de860eb': DEMO_USERS ? DEMO_USERS['teacher@demo.com'] : {
-    _id: '507f191e810c19729de860eb', id: '507f191e810c19729de860eb', name: 'Prof. Meera Joshi', email: 'teacher@demo.com', role: 'teacher', isActive: true
-  }
-};
 
 const authenticate = async (req, res, next) => {
   try {
@@ -20,28 +11,35 @@ const authenticate = async (req, res, next) => {
     if (!h?.startsWith('Bearer ')) return res.status(401).json({ error: 'No token provided.' });
     const decoded = jwt.verify(h.split(' ')[1], SECRET);
     
-    // Check if known demo user ID
-    if (DEMO_USERS_MAP[decoded.id]) {
-      req.user = DEMO_USERS_MAP[decoded.id];
+    // 1. Check MongoDB if connected
+    if (mongoose.connection.readyState === 1) {
+      try {
+        const user = await User.findById(decoded.id);
+        if (user && user.isActive) {
+          req.user = user;
+          return next();
+        }
+      } catch (err) {}
+    }
+
+    // 2. Check local store (demo users or users registered in local store)
+    const localUser = localStore.findUserById(decoded.id);
+    if (localUser && localUser.isActive) {
+      const safe = { ...localUser };
+      delete safe.passwordHash;
+      req.user = safe;
       return next();
     }
 
-    // If database is not connected, fallback to decoded identity so requests do not block
-    if (mongoose.connection.readyState !== 1) {
-      req.user = {
-        _id: decoded.id,
-        id: decoded.id,
-        name: 'Demo User',
-        email: 'user@demo.com',
-        role: 'student',
-        isActive: true
-      };
-      return next();
-    }
-
-    const user = await User.findById(decoded.id);
-    if (!user || !user.isActive) return res.status(401).json({ error: 'Invalid or inactive user token.' });
-    req.user = user;
+    // 3. Fallback identity if valid token signature
+    req.user = {
+      _id: decoded.id,
+      id: decoded.id,
+      name: 'User',
+      email: 'user@notivexa.com',
+      role: 'student',
+      isActive: true
+    };
     next();
   } catch(e) {
     if (e.name === 'TokenExpiredError') return res.status(401).json({ error: 'Token expired. Please sign in again.' });
@@ -49,4 +47,4 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-module.exports = { authenticate, DEMO_USERS_MAP };
+module.exports = { authenticate };
