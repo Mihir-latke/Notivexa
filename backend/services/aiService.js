@@ -64,7 +64,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
 
 async function callGemini(system, user, maxTokens) {
   const key = process.env.GEMINI_API_KEY;
-  const models = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview'];
+  const models = ['gemini-3.1-flash-lite-preview', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview'];
   let lastErr;
   for (const model of models) {
     try {
@@ -77,7 +77,7 @@ async function callGemini(system, user, maxTokens) {
             contents: [{ parts: [{ text: `${system}\n\n${user}` }] }],
             generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 }
           }),
-          timeout: 30000
+          timeout: 25000
         }
       );
       if (!res.ok) {
@@ -97,7 +97,7 @@ async function callGemini(system, user, maxTokens) {
 
 async function callGroq(system, user, maxTokens) {
   const key = process.env.GROQ_API_KEY;
-  const models = ['qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
+  const models = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
   let lastErr;
   for (const model of models) {
     try {
