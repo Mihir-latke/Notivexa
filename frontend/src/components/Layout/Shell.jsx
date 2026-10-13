@@ -80,17 +80,36 @@ const THEME_ICONS = { default:'🌈', light:'☀️', dark:'🌙' }
 const THEME_CYCLE = { default:'light', light:'dark', dark:'default' }
 export default function Shell(){
   const[col,setCol]=useState(false)
+  const[mobileOpen,setMobileOpen]=useState(false)
   const{user,logout}=useAuth()
   const{theme,setTheme}=useTheme()
   const nav=useNavigate()
   const{pathname}=useLocation()
   const m=META[pathname]||{t:'Notivexa',s:''}
+
   return(
     <div className="shell">
-      <nav className={`sb${col?' col':''}`}>
+      {/* Mobile Drawer Backdrop */}
+      {mobileOpen && (
+        <div 
+          className="sb-backdrop" 
+          onClick={()=>setMobileOpen(false)} 
+          aria-hidden="true" 
+        />
+      )}
+
+      {/* Sidebar / Mobile Drawer */}
+      <nav className={`sb${col?' col':''}${mobileOpen?' mobile-open':''}`}>
         <div className="sb-head">
           <div className="sb-logo">📖</div>
           {!col&&<div><div className="sb-name">Notivexa</div><div className="sb-tag">AI Academic Intelligence</div></div>}
+          <button 
+            className="mobile-close-btn" 
+            onClick={()=>setMobileOpen(false)}
+            aria-label="Close menu"
+          >
+            ✕
+          </button>
         </div>
         <button className="tgl" onClick={()=>setCol(c=>!c)}>{col?'→':'←'}</button>
         <div style={{flex:1,overflowY:'auto',overflowX:'hidden',paddingBottom:8}}>
@@ -98,7 +117,12 @@ export default function Shell(){
             if(item.s) return <div key={i} className="sb-sec">{item.s}</div>
             const on=pathname===item.p
             return(
-              <div key={item.p} className={`nav${on?' on':''}`} onClick={()=>nav(item.p)} title={col?item.l:''}>
+              <div 
+                key={item.p} 
+                className={`nav${on?' on':''}`} 
+                onClick={()=>{nav(item.p);setMobileOpen(false)}} 
+                title={col?item.l:''}
+              >
                 <span className="ni">{item.i}</span>
                 <span className="nl">{item.l}</span>
                 {item.b&&!col&&<span className="nb">{item.b}</span>}
@@ -119,16 +143,28 @@ export default function Shell(){
           </div>
         </div>
       </nav>
+
+      {/* Main Content Area */}
       <div className="main">
         <SEOHead title={m.t} description={m.d || m.s} canonical={pathname} />
         <header className="topbar">
-          <div>
-            <h1 className="pg-t" style={{ margin: 0, padding: 0 }}>{m.t}</h1>
-            <div className="pg-s">{m.s}</div>
+          <div style={{display:'flex',alignItems:'center',gap:8,minWidth:0}}>
+            <button 
+              className="mobile-menu-btn" 
+              onClick={()=>setMobileOpen(true)}
+              aria-label="Open navigation menu"
+              title="Open menu"
+            >
+              ☰
+            </button>
+            <div style={{minWidth:0}}>
+              <h1 className="pg-t" style={{ margin: 0, padding: 0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{m.t}</h1>
+              <div className="pg-s">{m.s}</div>
+            </div>
           </div>
-          <div style={{display:'flex',alignItems:'center',gap:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
             <button onClick={()=>setTheme(THEME_CYCLE[theme])} title={'Switch theme'} style={{background:'var(--bg2)',border:'1px solid var(--bdr2)',borderRadius:8,padding:'5px 10px',cursor:'pointer',display:'flex',alignItems:'center',gap:5,fontFamily:'Inter,sans-serif',fontWeight:600,color:'var(--ink2)',fontSize:12}}>
-              {THEME_ICONS[theme]} {theme.charAt(0).toUpperCase()+theme.slice(1)}
+              {THEME_ICONS[theme]} <span className="theme-name">{theme.charAt(0).toUpperCase()+theme.slice(1)}</span>
             </button>
             <div className="chip">🇮🇳 Indian English</div>
             <div className="av" title={user?.name} role="img" aria-label={`Profile avatar of ${user?.name || 'User'}`}>{inits(user?.name)}</div>

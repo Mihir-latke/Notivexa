@@ -38,7 +38,7 @@ export default function Register() {
           <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:800, margin: 0, padding: 0 }}>Create Account</h1>
           <div style={{ fontSize:12, color:'var(--ink3)', marginTop:3 }}>Join Notivexa — AI Academic Intelligence</div>
         </div>
-        <div className="g2" style={{ gap:9, marginBottom:14 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:9, marginBottom:14 }}>
           {['student','teacher'].map(r => (
             <div key={r} onClick={() => set('role',r)} style={{ border:`1.5px solid ${form.role===r?'var(--brand)':'var(--bdr2)'}`, borderRadius:9, padding:10, textAlign:'center', cursor:'pointer', background:form.role===r?'rgba(79,70,229,.05)':'#fff', transition:'.15s' }}>
               <div style={{ fontSize:20, marginBottom:3 }}>{r==='student'?'🎒':'👩‍🏫'}</div>

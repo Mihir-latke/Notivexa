@@ -104,17 +104,20 @@ function AutonomousExamPaper({ paper }) {
 
   return (
     <div
+      className="exam-paper-container"
       style={{
         background: '#FFFFFF',
         color: '#000000',
-        padding: '36px 36px',
+        padding: 'clamp(14px, 3.5vw, 36px)',
         borderRadius: 4,
         boxShadow: '0 4px 25px rgba(0,0,0,0.12)',
         border: '1.5px solid #000000',
         fontFamily: '"Times New Roman", Times, Georgia, serif',
         maxWidth: 820,
+        width: '100%',
         margin: '0 auto',
-        lineHeight: 1.35
+        lineHeight: 1.35,
+        boxSizing: 'border-box'
       }}
     >
       {/* 1. Centered 5-Line Autonomous College Header */}
@@ -138,11 +141,11 @@ function AutonomousExamPaper({ paper }) {
 
       {/* 2. Metadata Two Rows */}
       <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
           <span>Subject: {paper.subject || 'Big Data Analytics and Visualization'}</span>
           <span>Class: {paper.class || 'SY-MCA'}</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
           <span>Date: {paper.date || '22/8/2026'}</span>
           <span style={{ textAlign: 'center' }}>Time: {paper.time || '10.30am - 11.30am'}</span>
           <span>Duration: {paper.duration || '1Hr'} &nbsp; Marks: {paper.marks || '20'}</span>
@@ -150,14 +153,17 @@ function AutonomousExamPaper({ paper }) {
       </div>
 
       {/* 3. Boxed Grid Table */}
-      <table
-        style={{
-          width: '100%',
-          borderCollapse: 'collapse',
-          border: '1.5px solid #000',
-          fontSize: 12.5
-        }}
-      >
+      <div className="exam-table-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '10px 0' }}>
+        <table
+          className="exam-table"
+          style={{
+            minWidth: 540,
+            width: '100%',
+            borderCollapse: 'collapse',
+            border: '1.5px solid #000',
+            fontSize: 12.5
+          }}
+        >
         <thead>
           {/* Top Note Row */}
           <tr>
@@ -317,7 +323,8 @@ function AutonomousExamPaper({ paper }) {
         </tbody>
       </table>
     </div>
-  );
+  </div>
+);
 }
 
 export default function Notebook() {
@@ -1652,7 +1659,7 @@ export default function Notebook() {
         <div className="card" style={{ marginBottom:16 }}>
           <div className="ch"><div className="ct">🛠️ 2. Choose Output</div></div>
           <div className="cb">
-            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+            <div className="output-tools-grid">
               {TOOLS.map(t => (
                 <div key={t.id} className={'to'+(tool===t.id?' on':'')} onClick={()=>setTool(t.id)} style={{ flexDirection:'column', alignItems:'flex-start', gap:4, padding:'10px 11px' }}>
                   <span style={{ fontSize:16 }}>{t.icon}</span>
@@ -1687,7 +1694,7 @@ export default function Notebook() {
               {/* Paper Type */}
               <div className="fg">
                 <label className="fl">Exam Type</label>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginTop:6 }}>
+                <div className="g2" style={{ marginTop:6 }}>
                   <div onClick={()=>setPaperType('20_MARKS')}
                     style={{ border:'2px solid '+(paperType==='20_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='20_MARKS'?'rgba(79,70,229,0.06)':'var(--bg)', textAlign:'center' }}>
                     <div style={{ fontSize:20, marginBottom:4 }}>📝</div>
@@ -1826,7 +1833,7 @@ export default function Notebook() {
               </div>
 
               {/* Page overview */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginTop:14, marginBottom:8 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(70px, 1fr))', gap:8, marginTop:14, marginBottom:8 }}>
                 {[1,2,3,4].map(p => (
                   <div key={p} style={{ border:'1px solid var(--bdr)', borderRadius:8, padding:'8px 4px', textAlign:'center', background:'#FEFDE8', fontFamily:HANDWRITING_FONTS.find(f=>f.id===hwFont)?.fontFamily || 'Caveat,cursive' }}>
                     <div style={{ fontSize:10, fontWeight:700, color:'var(--ink3)' }}>Page {p}</div>

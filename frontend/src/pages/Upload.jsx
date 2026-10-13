@@ -88,17 +88,17 @@ export default function Upload() {
     <div className="tc" style={{ alignItems:'start' }}>
       <div>
         {/* Source Switcher Tabs */}
-        <div style={{ display:'flex', gap:8, marginBottom:14 }}>
+        <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
           <button 
             className={`btn ${tab === 'file' ? 'btn-p' : 'btn-s'}`}
-            style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
+            style={{ flex:'1 1 160px', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
             onClick={() => setTab('file')}
           >
             📁 Upload PDF / Image
           </button>
           <button 
             className={`btn ${tab === 'url' ? 'btn-p' : 'btn-s'}`}
-            style={{ flex:1, display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
+            style={{ flex:'1 1 160px', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
             onClick={() => setTab('url')}
           >
             🔗 Paste Link (YouTube / PDF)

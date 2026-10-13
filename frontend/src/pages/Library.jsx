@@ -31,8 +31,8 @@ export default function Library() {
         <div className={`tab${tab==='out'?' on':''}`} onClick={()=>setTab('out')}>✨ Generated Files ({outputs.length})</div>
       </div>
       {tab==='docs'&&<>
-        <div style={{display:'flex',gap:10,marginBottom:14}}>
-          <input className="fi" style={{flex:1}} placeholder="🔍 Search documents..." value={search} onChange={e=>setSearch(e.target.value)}/>
+        <div style={{display:'flex',gap:10,marginBottom:14,flexWrap:'wrap'}}>
+          <input className="fi" style={{flex:'1 1 200px'}} placeholder="🔍 Search documents..." value={search} onChange={e=>setSearch(e.target.value)}/>
           <button className="btn btn-p" onClick={()=>navigate('/upload')}>➕ Upload / Link</button>
         </div>
         <div className="card"><div style={{overflowX:'auto'}}>

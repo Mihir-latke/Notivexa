@@ -70,7 +70,7 @@ export default function Dashboard() {
       <div className="sec" style={{ marginBottom:12 }}>
         <h2 className="st" style={{ margin:0, padding:0, fontSize:14 }}>🤖 AI Tools — All powered by your PDF</h2>
       </div>
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, marginBottom:20 }}>
+      <div className="tools-grid">
         {TOOLS.map((t,i) => (
           <div key={i} className="fc" onClick={() => navigate(t.path)}>
             {t.badge && <span className={t.badge==='START'||t.badge==='CORE'?'bn':'bh'} style={{ position:'absolute', top:11, right:11 }}>{t.badge}</span>}

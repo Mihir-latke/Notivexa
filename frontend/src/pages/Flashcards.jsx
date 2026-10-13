@@ -136,7 +136,7 @@ export default function Flashcards() {
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:10, marginBottom:16 }}>
         <div>
           <div style={{ fontFamily:'Sora,sans-serif', fontSize:15, fontWeight:700 }}>{active?.title||'Flashcards'}</div>
           <div style={{ fontSize:12, color:'var(--ink3)', marginTop:2 }}>
@@ -144,7 +144,7 @@ export default function Flashcards() {
             {active?._id === 'demo' && <span style={{ marginLeft:8, background:'#FEF9C3', color:'#854D0E', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20 }}>DEMO</span>}
           </div>
         </div>
-        <div style={{ display:'flex', gap:8 }}>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {cards.length > 0 && <button className="btn btn-p btn-sm" onClick={()=>{setStudyMode(true);setIdx(0);setFlipped(new Set());setKnown(new Set())}}>📖 Study Mode</button>}
           <button className="btn btn-s btn-sm" onClick={() => navigate('/notebook')}>✨ Generate from PDF</button>
         </div>
@@ -153,9 +153,9 @@ export default function Flashcards() {
       
 
       
-      <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:16, background:'var(--bg)', padding:'10px 14px', borderRadius:10 }}>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginBottom:16, background:'var(--bg)', padding:'10px 14px', borderRadius:10 }}>
         <span style={{fontSize:13, fontWeight:600}}>Generate New:</span>
-        <select className="fi" style={{margin:0, maxWidth:300, padding:'6px 10px', height:'auto'}} value={selectedDoc} onChange={e=>setSelectedDoc(e.target.value)}>
+        <select className="fi" style={{margin:0, flex:'1 1 200px', maxWidth:'100%', padding:'6px 10px', height:'auto'}} value={selectedDoc} onChange={e=>setSelectedDoc(e.target.value)}>
           <option value="">-- Select PDF / Image --</option>
           {docs.map(d=><option key={d._id} value={d._id}>{d.title}</option>)}
         </select>
