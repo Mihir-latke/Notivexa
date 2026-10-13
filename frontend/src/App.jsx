@@ -13,19 +13,11 @@ import Library from './pages/Library'
 import Ebooks from './pages/Ebooks'
 import Planner from './pages/Planner'
 import Settings from './pages/Settings'
-import Features from './pages/Features'
-import Performance from './pages/Performance'
+import NotFound from './pages/NotFound'
 
 function Protected({ children }) {
   const { user, loading } = useAuth()
-  if (loading) return (
-    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)'}}>
-      <div style={{textAlign:'center'}}>
-        <div style={{fontSize:44,marginBottom:14}}>📖</div>
-        <div style={{fontFamily:'Sora,sans-serif',fontSize:13,color:'var(--ink3)',letterSpacing:.5}}>Loading Notivexa...</div>
-      </div>
-    </div>
-  )
+  if (loading) return <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center'}}><div style={{textAlign:'center'}}><div style={{fontSize:42,marginBottom:12}}>📖</div><div style={{fontFamily:'Sora,sans-serif',fontSize:13,color:'#6E6C8A'}}>Loading Notivexa...</div></div></div>
   return user ? children : <Navigate to="/login" replace />
 }
 function Public({ children }) {
@@ -41,20 +33,21 @@ export default function App() {
         <Route path="/register" element={<Public><Register/></Public>}/>
         <Route path="/" element={<Protected><Shell/></Protected>}>
           <Route index element={<Navigate to="/dashboard" replace/>}/>
-          <Route path="dashboard"   element={<Dashboard/>}/>
-          <Route path="upload"      element={<Upload/>}/>
-          <Route path="notebook"    element={<Notebook/>}/>
-          <Route path="flashcards"  element={<Flashcards/>}/>
-          <Route path="podcast"     element={<Podcast/>}/>
-          <Route path="chatbot"     element={<Chatbot/>}/>
-          <Route path="library"     element={<Library/>}/>
-          <Route path="ebooks"      element={<Ebooks/>}/>
-          <Route path="planner"     element={<Planner/>}/>
-          <Route path="features"    element={<Features/>}/>
-          <Route path="performance" element={<Performance/>}/>
-          <Route path="settings"    element={<Settings/>}/>
+          <Route path="dashboard"  element={<Dashboard/>}/>
+          <Route path="upload"     element={<Upload/>}/>
+          <Route path="notebook"   element={<Notebook/>}/>
+          <Route path="flashcards" element={<Flashcards/>}/>
+          <Route path="podcast"    element={<Podcast/>}/>
+          <Route path="chatbot"    element={<Chatbot/>}/>
+          <Route path="library"    element={<Library/>}/>
+          <Route path="ebooks"     element={<Ebooks/>}/>
+          <Route path="planner"    element={<Planner/>}/>
+          <Route path="settings"   element={<Settings/>}/>
+          <Route path="404"        element={<NotFound/>}/>
+          <Route path="*"          element={<NotFound/>}/>
         </Route>
-        <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
+        <Route path="/404" element={<NotFound/>}/>
+        <Route path="*"    element={<NotFound/>}/>
       </Routes>
     </AuthProvider>
   )

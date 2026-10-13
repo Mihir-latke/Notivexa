@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
+import SEOHead from '../components/SEOHead'
 
 export default function Register() {
   const [form, setForm] = useState({ name:'', email:'', password:'', role:'student', institution:'' })
@@ -26,10 +27,15 @@ export default function Register() {
 
   return (
     <div className="auth-bg">
+      <SEOHead
+        title="Create Free Student or Teacher Account"
+        description="Sign up for Notivexa. Convert textbooks and lectures into handwritten notes in 15 fonts, Bloom's Taxonomy exams, flashcards, and audio lectures."
+        canonical="/register"
+      />
       <div className="auth-c">
         <div style={{ textAlign:'center', marginBottom:22 }}>
           <div style={{ width:50, height:50, background:'linear-gradient(135deg,#4F46E5,#7C3AED)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, margin:'0 auto 12px' }}>📖</div>
-          <div style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:800 }}>Create Account</div>
+          <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:20, fontWeight:800, margin: 0, padding: 0 }}>Create Account</h1>
           <div style={{ fontSize:12, color:'var(--ink3)', marginTop:3 }}>Join Notivexa — AI Academic Intelligence</div>
         </div>
         <div className="g2" style={{ gap:9, marginBottom:14 }}>

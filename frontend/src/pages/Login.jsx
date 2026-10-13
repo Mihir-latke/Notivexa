@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
+import SEOHead from '../components/SEOHead'
 
 export default function Login() {
   const [form, setForm] = useState({ email: '', password: '' })
@@ -26,12 +27,17 @@ export default function Login() {
 
   return (
     <div className="auth-bg">
+      <SEOHead
+        title="Sign In to Notivexa"
+        description="Sign in to your Notivexa student or teacher account to access your AI notes, flashcards, question papers, and study materials."
+        canonical="/login"
+      />
       <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#4F46E5', opacity:.07, top:-200, left:-150 }} />
       <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#7C3AED', opacity:.06, bottom:-150, right:-100 }} />
       <div className="auth-c">
         <div style={{ textAlign:'center', marginBottom:26 }}>
           <div style={{ width:54, height:54, background:'linear-gradient(135deg,#4F46E5,#7C3AED)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>📖</div>
-          <div style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'var(--ink)' }}>Notivexa</div>
+          <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'var(--ink)', margin: 0, padding: 0 }}>Notivexa</h1>
           <div style={{ fontSize:12.5, color:'var(--ink3)', marginTop:4 }}>AI Academic Intelligence Platform</div>
         </div>
         <form onSubmit={e => { e.preventDefault(); doLogin(form.email, form.password) }}>

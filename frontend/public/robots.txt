@@ -1,0 +1,38 @@
+# robots.txt for Notivexa (https://notivexa.com)
+# AI Academic Intelligence & Study Platform
+
+User-agent: *
+Allow: /
+Allow: /dashboard
+Allow: /notebook
+Allow: /upload
+Allow: /flashcards
+Allow: /podcast
+Allow: /chatbot
+Allow: /library
+Allow: /ebooks
+Allow: /planner
+Allow: /settings
+Allow: /login
+Allow: /register
+
+# Disallow internal backend API endpoints & uploads from direct search indexing
+Disallow: /api/
+Disallow: /uploads/
+
+# AI crawler friendly directives
+User-agent: GPTBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: ClaudeBot
+Allow: /
+Allow: /llms.txt
+
+User-agent: PerplexityBot
+Allow: /
+Allow: /llms.txt
+
+# XML Sitemap
+Sitemap: https://notivexa.com/sitemap.xml
+

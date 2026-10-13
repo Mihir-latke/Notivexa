@@ -1,0 +1,18 @@
+{
+  "name": "Notivexa AI Academic Intelligence",
+  "short_name": "Notivexa",
+  "description": "AI Academic Study Platform — Convert PDFs into Handwritten Notes, Exam Papers, Flashcards & Audio Lectures",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#0F0E1A",
+  "theme_color": "#4F46E5",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

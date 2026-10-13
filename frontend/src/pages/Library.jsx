@@ -33,7 +33,7 @@ export default function Library() {
       {tab==='docs'&&<>
         <div style={{display:'flex',gap:10,marginBottom:14}}>
           <input className="fi" style={{flex:1}} placeholder="🔍 Search documents..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          <button className="btn btn-p" onClick={()=>navigate('/upload')}>➕ Upload PDF</button>
+          <button className="btn btn-p" onClick={()=>navigate('/upload')}>➕ Upload / Link</button>
         </div>
         <div className="card"><div style={{overflowX:'auto'}}>
           <table className="tbl">
@@ -41,7 +41,7 @@ export default function Library() {
             <tbody>
               {filtered.map(d=>(
                 <tr key={d._id}>
-                  <td><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18}}>📄</span><span style={{fontWeight:600,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.title}</span></div></td>
+                  <td><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18}}>{d.fileType === 'youtube' ? '🎥' : d.fileType === 'url' ? '🌐' : d.fileType === 'image' ? '🖼️' : '📄'}</span><span style={{fontWeight:600,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.title}</span></div></td>
                   <td>{d.wordCount?.toLocaleString()||'—'}</td>
                   <td>{d.pageCount||'—'}</td>
                   <td><span className={d.status==='ready'?'bok':d.status==='processing'?'bpr':'ber'}>{d.status==='ready'?'✓ Ready':d.status==='processing'?'⏳ Processing':'✗ Error'}</span></td>
@@ -57,7 +57,7 @@ export default function Library() {
           {filtered.length===0&&<div style={{textAlign:'center',padding:'40px 20px',color:'var(--ink3)'}}>
             <div style={{fontSize:36,marginBottom:10}}>📂</div>
             <div style={{fontWeight:600}}>No documents</div>
-            <button className="btn btn-p" style={{marginTop:14}} onClick={()=>navigate('/upload')}>📤 Upload PDF</button>
+            <button className="btn btn-p" style={{marginTop:14}} onClick={()=>navigate('/upload')}>📤 Upload or Paste Link</button>
           </div>}
         </div></div>
       </>}
@@ -68,7 +68,7 @@ export default function Library() {
             {outputs.map((o,i)=>(
               <tr key={i}>
                 <td style={{fontWeight:600,maxWidth:180,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.documentTitle}</td>
-                <td><span className="chip" style={{fontSize:11}}>{o.outputType}</span></td>
+                <td><span className="chip" style={{fontSize:11}}>{o.type}</span></td>
                 <td>{o.language||'English'}</td>
                 <td>{new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
                 <td>{o.fileName?<a href={`/uploads/generated/${o.fileName}`} download className="btn btn-s btn-sm" style={{textDecoration:'none'}}>⬇️ Download</a>:<span style={{fontSize:12,color:'var(--ink3)'}}>Text only</span>}</td>

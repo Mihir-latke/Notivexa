@@ -320,74 +320,108 @@ function makeQuestions(text, subject, title) {
   return q;
 }
 
-function makeQuestionPaper(text, subject, totalMarks, timeHours, institution) {
+function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, institution = "Mahatma Education Society's", options = {}) {
   const defs = getDefinitions(text, 10);
   const facts = getKeyFacts(text, 15);
   const chunks = getChunks(text, 6);
 
-  const mA = Math.round(totalMarks * 0.20);
-  const mB = Math.round(totalMarks * 0.30);
-  const mC = totalMarks - mA - mB;
+  const college = options.college || "Pillai HOC College of Engineering and Technology, Rasayani.";
+  const status = options.status || "(Autonomous)";
+  const department = options.department || "Department of Computer Application";
+  const examType = options.examType || (totalMarks <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination");
+  const className = options.class || options.className || "SY-MCA";
+  const dateStr = options.date || "22/8/2026";
+  const timeStr = options.time || (totalMarks <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm");
 
-  let p = '';
-  p += `${institution.toUpperCase()}\n`;
-  p += `EXAMINATION — QUESTION PAPER\n`;
-  p += `${'─'.repeat(55)}\n`;
-  p += `Subject: ${subject}\n`;
-  p += `Time Allowed: ${timeHours} Hours          Maximum Marks: ${totalMarks}\n`;
-  p += `Date: ${new Date().toLocaleDateString('en-IN')}\n`;
-  p += `${'─'.repeat(55)}\n\n`;
-  p += `GENERAL INSTRUCTIONS:\n`;
-  p += `1. All questions are compulsory unless otherwise stated.\n`;
-  p += `2. Read each question carefully before answering.\n`;
-  p += `3. Write clearly and support answers with examples.\n`;
-  p += `4. This paper is based on the content of your uploaded document.\n\n`;
-  p += `${'═'.repeat(55)}\n\n`;
-
-  p += `SECTION A — OBJECTIVE [${mA} Marks]\n`;
-  p += `(Each question = 1 mark | All questions compulsory)\n\n`;
-  const secAQ = Math.min(mA, Math.max(facts.length, chunks.length));
-  for (let i = 0; i < Math.min(mA, 12); i++) {
-    if (i < facts.length) {
-      p += `${i+1}. ${facts[i].trim()}\n   [Answer in one sentence]\n\n`;
+  const q1List = [];
+  const q1Count = 6;
+  const labels = ['A.', 'B.', 'C.', 'D.', 'E.', 'F.'];
+  for (let i = 0; i < q1Count; i++) {
+    let qText = '';
+    if (i < defs.length && defs[i]) {
+      qText = `Explain the concept and significance of ${defs[i].term} with relevant points.`;
+    } else if (i < facts.length && facts[i]) {
+      qText = `What is ${facts[i].replace(/\.$/, '')}? State its key characteristics.`;
     } else {
-      const c = chunks[i % chunks.length];
-      p += `${i+1}. True or False: "${firstN(c,1).slice(0,120)}"\n\n`;
+      const c = chunks[i % Math.max(1, chunks.length)] || subject;
+      qText = `Explain ${firstN(c, 1).slice(0, 100).replace(/\.$/, '')} with a suitable diagram.`;
     }
-  }
-
-  p += `${'─'.repeat(55)}\n\n`;
-  p += `SECTION B — SHORT ANSWER [${mB} Marks]\n`;
-  const mEach = Math.round(mB / 5);
-  p += `(Each question = ${mEach} marks | Attempt any 4 out of 6)\n\n`;
-  if (defs.length >= 4) {
-    defs.slice(0,6).forEach((d,i) => {
-      p += `${i+1}. Define **${d.term}** and give one real-world example.\n\n`;
-    });
-  } else {
-    chunks.slice(0,6).forEach((c,i) => {
-      p += `${i+1}. Briefly explain: ${c.split('\n')[0]?.slice(0,80)||`Section ${i+1}`}\n\n`;
+    q1List.push({
+      id: labels[i] || `Q${i + 1}.`,
+      text: qText,
+      marks: totalMarks <= 25 ? "[ 02 ]" : "[ 05 ]",
+      co: `CO${(i % 3) + 1}`,
+      bl: i === 0 ? "L2" : i === 1 ? "L1" : i === 2 ? "L2" : i === 3 ? "L6" : "L2"
     });
   }
 
-  p += `${'─'.repeat(55)}\n\n`;
-  p += `SECTION C — LONG ANSWER [${mC} Marks]\n`;
-  const lEach = Math.round(mC / 3);
-  p += `(Each question = ${lEach} marks | Attempt any 2 out of 4)\n\n`;
-  chunks.slice(0,4).forEach((c,i) => {
-    const h = c.split('\n')[0]?.slice(0,100) || `Topic ${i+1}`;
-    const hint = firstN(c, 2);
-    p += `${i+1}. Discuss in detail: "${h}"\n`;
-    p += `   Explain with examples and diagrams where necessary.\n`;
-    if (hint) p += `   *(Hint: ${hint.slice(0,150)})*\n`;
-    if (i < 3) p += `\n   — OR —\n\n`;
-    else p += '\n';
-  });
+  const q2List = [
+    {
+      id: "A.",
+      text: `Discuss the architecture and components of ${subject} with a suitable diagram.`,
+      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      co: "CO1",
+      bl: "L2"
+    },
+    {
+      id: "B.",
+      text: `What are the different types and implementation models in ${subject}? Explain each in short.`,
+      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      co: "CO3",
+      bl: "L2"
+    }
+  ];
 
-  p += `${'═'.repeat(55)}\n`;
-  p += `*** END OF QUESTION PAPER ***\n`;
-  p += `Total: ${totalMarks} marks | Time: ${timeHours} hours\n`;
-  return p;
+  const q3List = [
+    {
+      id: "A.",
+      text: `Discuss the structure, working mechanism, and fault tolerance of ${subject} with a suitable diagram.`,
+      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      co: "CO3",
+      bl: "L2"
+    },
+    {
+      id: "B.",
+      text: `Explain computational workflow, data processing, and execution model of ${subject} with a suitable example.`,
+      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      co: "CO2",
+      bl: "L2"
+    }
+  ];
+
+  const paperData = {
+    institution: institution || "Mahatma Education Society's",
+    college,
+    status,
+    department,
+    examType,
+    subject: subject || "Big Data Analytics and Visualization",
+    class: className,
+    date: dateStr,
+    time: timeStr,
+    duration: `${timeHours}Hr`,
+    marks: `${totalMarks}`,
+    note: "Note: Assume suitable data wherever necessary.",
+    sections: [
+      {
+        qNum: "1",
+        instruction: totalMarks <= 25 ? "Attempt Any Five out of Six" : "Attempt Any Four out of Six",
+        questions: q1List
+      },
+      {
+        qNum: "2",
+        instruction: "Attempt Any One",
+        questions: q2List
+      },
+      {
+        qNum: "3",
+        instruction: "Attempt Any One",
+        questions: q3List
+      }
+    ]
+  };
+
+  return JSON.stringify(paperData, null, 2);
 }
 
 function makePodcastScript(text, title, subject) {

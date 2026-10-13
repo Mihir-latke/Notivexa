@@ -1,0 +1,86 @@
+# Notivexa — AI Academic Intelligence & Study Platform
+> Turn your textbooks, PDFs, and video links into realistic handwritten notes, structured diagrams, Bloom's Taxonomy question papers, smart flashcards, and audio lectures.
+
+## Overview
+Notivexa is a comprehensive, production-grade AI platform specifically tailored for students and educators. It ingests academic content (PDFs, images of handwritten notes, YouTube video transcripts, and online textbook links) and automatically synthesizes high-fidelity study assets.
+
+- **Website**: https://notivexa.com
+- **Repository / Architecture**: React 18 SPA + Vite, Node.js Express backend, MongoDB, PDFKit rendering engine
+- **Target Audience**: University students (MCA, B.Tech, BSc, Commerce), school students (CBSE, ICSE, State Boards), and academic educators.
+
+## Core Capabilities & Features
+
+### 1. Handwritten Notes Generator (`/notebook`)
+- Converts dense academic text into human-like handwritten study notes.
+- Includes **15 authentic handwriting fonts**:
+  1. *Caveat* (Teacher Cursive)
+  2. *Kalam* (Indian School Notebook)
+  3. *Indie Flower* (Casual Notes)
+  4. *Architects Daughter* (Technical Blueprint Print)
+  5. *Patrick Hand* (Neat Student Print)
+  6. *Shadows Into Light* (Delicate Cursive)
+  7. *Gloria Hallelujah* (Blackboard Chalk)
+  8. *Permanent Marker* (Bold Felt Marker)
+  9. *Sacramento* (Elegant Script)
+  10. *Courgette* (Fluid Calligraphy Italic)
+  11. *Marck Script* (Fountain Pen Cursive)
+  12. *Nanum Pen Script* (Fine-tip Ballpen)
+  13. *Reenie Beanie* (Fast Lecture Scrawl)
+  14. *Covered By Your Grace* (Pencil Print)
+  15. *Rock Salt* (Expressive Marker)
+- Features 5 realistic paper styles: Yellow Ruled, White Ruled, Graph / Grid Paper, Cream Plain, and Dark Blackboard.
+- Strictly structured academic notes format:
+  - **Title & Subtitle**
+  - **Definition**: Clear single-sentence conceptual formulation.
+  - **Summary**: High-level conceptual overview.
+  - **In-depth Explanation**: Comprehensive bullet points covering laws, formulas, and theorems.
+  - **Process Flow Diagram**: Centered vector flowchart with directional arrowheads.
+  - **Practical Examples**: Real-world concrete scenarios.
+- Instant server-side PDF regeneration on font switch without re-running AI inference.
+
+### 2. Autonomous Question Paper Generator (`/notebook?tool=paper`)
+- Generates exam papers mapped to **Bloom's Taxonomy Levels (BL1 to BL5)** and **Course Outcomes (CO1 to CO5)**.
+- Formats:
+  - **20 Marks Internal Assessment**: 1 Hour duration, Section A (MCQs/Brief) + Section B (Short Answers).
+  - **60 Marks End Semester Examination**: 2 Hours duration, Question 1 Compulsory + choice between Q2 through Q6 (15 Marks each).
+  - Generates up to 5 randomized question paper sets with complete answer keys.
+
+### 3. Flashcard Studio (`/flashcards`)
+- Automatic generation of concept flashcards with difficulty grading (Easy, Medium, Hard).
+- Interactive flip interface, mastery tracking, and spaced repetition readiness.
+
+### 4. Audio Lectures & Podcast Synthesis (`/podcast`)
+- Converts chapters into conversational 2-person or teacher-led spoken audio lectures.
+- High-fidelity neural voice synthesis with Indian English and vernacular accent support.
+
+### 5. Ask Your PDF — Contextual AI Tutor (`/chatbot`)
+- RAG (Retrieval-Augmented Generation) query system grounded exclusively in the uploaded document.
+- Answers step-by-step mathematical derivations, definitions, and code walkthroughs with zero hallucinations.
+
+### 6. Study Planner & Exam Countdown (`/planner`)
+- Automated timetable generation based on exam date, available daily study hours, and subject difficulty weighting.
+- Integrated curated high-yield questions for core computer science & science subjects.
+
+### 7. Free Textbook & Video Library (`/ebooks`)
+- Curated index of official academic textbooks (NCERT, Let Us C, CLRS, Galvin OS, Tanenbaum Networks) and top YouTube lecture playlists.
+
+## Clean URL Slugs
+- `/dashboard`: Main student portal and study statistics
+- `/upload`: Multi-file PDF, camera capture, and YouTube/web link importer
+- `/notebook`: Multi-tool study asset generator (Handwritten notes, Question Papers, Slides, Mindmaps)
+- `/flashcards`: Flip-card study studio
+- `/podcast`: Audio lecture player and script generator
+- `/chatbot`: Document chat tutor
+- `/library`: Personal archive of uploaded and generated files
+- `/ebooks`: Free textbooks and video library
+- `/planner`: Personalized exam prep schedule
+- `/settings`: Account, appearance theme, and profile settings
+- `/login`: Secure user authentication
+- `/register`: Student and teacher onboarding
+- `/404`: Dedicated 404 error handler with site navigation
+
+## Technical Implementation
+- **Frontend**: Vite 5, React 18, React Router v6, KaTeX mathematical typesetting, Remark/Rehype Markdown.
+- **Backend**: Node.js, Express, PDFKit with precision coordinate grid and vector graphics, FFmpeg multimedia rendering, Google Gemini & Groq AI APIs.
+- **Licensing & Access**: Free for students worldwide with specialized optimizations for Indian curricula.
+

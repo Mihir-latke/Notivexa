@@ -26,8 +26,8 @@ exports.getProfile = async (req, res, next) => {
 };
 exports.updateProfile = async (req, res, next) => {
   try {
-    const { name, institution, preferredLanguage, theme } = req.body;
-    const user = await User.findByIdAndUpdate(req.user.id, { name, institution, preferredLanguage, ...(theme && {theme}) }, { new:true });
+    const { name, institution, preferredLanguage } = req.body;
+    const user = await User.findByIdAndUpdate(req.user.id, { name, institution, preferredLanguage }, { new:true });
     res.json({ success:true, user });
   } catch(e) { next(e); }
 };

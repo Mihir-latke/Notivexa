@@ -4,6 +4,7 @@ const { authenticate } = require('../middleware/auth');
 const { upload } = require('../middleware/upload');
 r.use(authenticate);
 r.post('/upload', upload.array('files', 10), c.upload);
+r.post('/import-url', c.importUrl);
 r.get('/', c.list);
 r.get('/stats', c.stats);
 r.get('/:id', c.get);

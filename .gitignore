@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables (CRITICAL: NEVER COMMIT REAL KEYS)
+.env
+.env.*
+*.env
+backend/.env
+!.env.example
+!backend/.env.example
+
+# Temporary / Scratch Test Files & Media Tests
+backend/dummy.mp3
+backend/test.mp3
+backend/out.mp4
+backend/test_*.pdf
+backend/test_*.mp4
+backend/fix_*.js
+backend/check_models.js
+backend/list_models.js
+frontend/fix_crash*.js
+frontend/fix_crash*.cjs
+frontend/patch_flash.js
+
+# Production Builds
+dist/
+build/
+*.local
+
+# User uploads and dynamic generated files
+backend/uploads/docs/*
+!backend/uploads/docs/.gitkeep
+backend/uploads/generated/*
+!backend/uploads/generated/.gitkeep
+backend/uploads/pdfs/*
+!backend/uploads/pdfs/.gitkeep
+backend/uploads/audio/*
+!backend/uploads/audio/.gitkeep
+backend/uploads/video/*
+!backend/uploads/video/.gitkeep
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vscode/
+.idea/

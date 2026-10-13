@@ -17,7 +17,23 @@ const app = express();
 
 // Security
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:3000', credentials: true, methods: ['GET','POST','PUT','DELETE','PATCH'] }));
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'https://notivexa.com',
+  'https://www.notivexa.com',
+  process.env.FRONTEND_URL
+].filter(Boolean);
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','PATCH']
+}));
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 500, message: { error: 'Too many requests.' } }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -76,6 +92,16 @@ app.get('/api/setup', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Notivexa v2.0', time: new Date().toISOString() }));
+
+// Serve frontend dist in production or when built
+const distPath = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // Error handler
 app.use((req, res, next) => res.status(404).json({ error: `Route not found: ${req.originalUrl}` }));
