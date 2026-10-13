@@ -19,9 +19,10 @@ export default function Login() {
       navigate('/dashboard')
     } catch (err) {
       const s = err?.response?.status
+      const msg = err?.response?.data?.error || 'Cannot connect to server'
       if (s === 401) toast.error('Invalid email or password')
       else if (s === 400) toast.error('Please fill all fields')
-      else toast.error('Cannot connect. Make sure the backend is running on port 5000.')
+      else toast.error(msg)
     } finally { setLoading(false) }
   }
 

@@ -91,7 +91,13 @@ app.get('/api/setup', (req, res) => {
   });
 });
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', app: 'Notivexa v2.0', time: new Date().toISOString() }));
+app.get('/api/health', (req, res) => res.json({
+  status: 'ok',
+  app: 'Notivexa v2.0',
+  dbConnected: mongoose.connection.readyState === 1,
+  dbState: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
+  time: new Date().toISOString()
+}));
 
 // Serve frontend dist in production or when built
 const distPath = path.join(__dirname, '../frontend/dist');
@@ -113,12 +119,40 @@ app.use((err, req, res, next) => {
 
 // Start
 const PORT = process.env.PORT || 5000;
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/notivexa')
-  .then(async () => {
-    console.log('✅ MongoDB connected');
-    await require('./utils/seed').seedUsers();
+mongoose.set('bufferCommands', false);
+
+const MONGODB_URI = process.env.MONGODB_URI;
+if (MONGODB_URI) {
+  console.log('🔄 Connecting to MongoDB Atlas...');
+  mongoose.connect(MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
   })
-  .catch(err => console.warn('⚠️  MongoDB:', err.message, '— running without DB'));
+    .then(async () => {
+      console.log('✅ MongoDB connected');
+      await require('./utils/seed').seedUsers();
+    })
+    .catch(err => {
+      console.warn('⚠️  MongoDB connection failed:', err.message);
+      console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
+      console.warn('ℹ️  Running in Demo Mode.');
+    });
+} else {
+  if (process.env.NODE_ENV !== 'production') {
+    mongoose.connect('mongodb://localhost:27017/notivexa', {
+      serverSelectionTimeoutMS: 2000,
+    })
+      .then(async () => {
+        console.log('✅ Local MongoDB connected');
+        await require('./utils/seed').seedUsers();
+      })
+      .catch(() => {
+        console.log('ℹ️  Local MongoDB not running. Running in Demo Mode.');
+      });
+  } else {
+    console.log('ℹ️  No MONGODB_URI provided in production. Running in Demo Mode.');
+    console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent storage.');
+  }
+}
 
 app.listen(PORT, () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
 module.exports = app;

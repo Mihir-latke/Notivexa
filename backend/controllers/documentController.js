@@ -1,12 +1,66 @@
 const fs = require('fs');
+const mongoose = require('mongoose');
 const { Document, User } = require('../models');
 const { extractFromPDF } = require('../services/pdfEngine');
 const { extractFromImage } = require('../services/aiService');
 const { extractFromUrl } = require('../services/urlEngine');
 
+const isDbConnected = () => mongoose.connection.readyState === 1;
+
+// Built-in sample documents for demo mode and initial preview
+const SAMPLE_DEMO_DOCS = [
+  {
+    _id: '6acd1272c42773e489b74e48',
+    id: '6acd1272c42773e489b74e48',
+    title: 'Java Database Connectivity (JDBC) & Architecture',
+    originalName: 'JDBC_Architecture_Guide.pdf',
+    fileType: 'pdf',
+    size: 245800,
+    filePath: 'uploads/pdfs/sample.pdf',
+    status: 'ready',
+    subject: 'Computer Science',
+    pageCount: 12,
+    wordCount: 3840,
+    createdAt: new Date().toISOString(),
+    sections: [
+      {
+        title: 'Introduction to JDBC Architecture',
+        content: 'Java Database Connectivity (JDBC) is a Java API that manages connecting to a database, issuing SQL queries and commands, and handling result sets obtained from the database. Released as part of JDK 1.1 in 1997, JDBC was one of the earliest components of Java Enterprise Edition. The architecture comprises two layers: the JDBC API and the JDBC Driver API. The JDBC API provides application-to-JDBC Manager connection, while the Driver API provides JDBC Manager-to-Driver connection.',
+        wordCount: 78
+      },
+      {
+        title: 'JDBC Drivers and Types',
+        content: 'There are four distinct types of JDBC Drivers:\nType 1: JDBC-ODBC Bridge Driver (Translates JDBC calls into ODBC calls).\nType 2: Native-API Driver (Partly Java Driver that converts JDBC calls into native database C/C++ API calls).\nType 3: Network-Protocol Driver (Pure Java driver for database middleware).\nType 4: Thin Driver (Direct-to-Database Pure Java Driver that converts JDBC calls directly into vendor-specific network protocol). Type 4 is most commonly used in modern enterprise production systems.',
+        wordCount: 76
+      },
+      {
+        title: 'Connection, Statements and ResultSets',
+        content: 'The core workflow involves loading the driver class with Class.forName(), obtaining a connection via DriverManager.getConnection(url, username, password), creating a Statement or PreparedStatement, executing queries with executeQuery() or executeUpdate(), and iterating over ResultSet objects. PreparedStatement provides precompiled SQL queries and protection against SQL Injection attacks.',
+        wordCount: 52
+      },
+      {
+        title: 'Transaction Management & ACID Properties',
+        content: 'JDBC supports transaction management through Connection methods. By default, auto-commit is enabled (setAutoCommit(true)). To group operations into an atomic transaction, setAutoCommit(false) is called, followed by executeUpdate() calls, and finally connection.commit() or connection.rollback() inside an exception catch block to preserve Atomicity, Consistency, Isolation, and Durability.',
+        wordCount: 55
+      }
+    ],
+    extractedText: 'Java Database Connectivity (JDBC) is a Java-based data access technology that provides a uniform interface to relational databases. It consists of JDBC API and JDBC Driver API. Four types of drivers exist: Type 1 JDBC-ODBC bridge, Type 2 Native API, Type 3 Network Protocol, and Type 4 100% Pure Java Thin Driver. Connecting requires loading the driver, DriverManager.getConnection, creating Statement or PreparedStatement, executing queries, and processing ResultSets. Proper transaction management uses setAutoCommit(false), commit(), and rollback() to ensure ACID compliance.',
+    outputs: []
+  }
+];
+
+exports.SAMPLE_DEMO_DOCS = SAMPLE_DEMO_DOCS;
+
 exports.upload = async (req, res, next) => {
   try {
     if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded.' });
+    
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        error: 'Database is not connected. To save uploaded files permanently, please add MONGODB_URI in Render Environment Variables. You can explore the sample JDBC document in the AI Notebook.'
+      });
+    }
+
     const results = [];
     for (const file of req.files) {
       const isImage = file.mimetype.startsWith('image/');
@@ -61,6 +115,12 @@ exports.importUrl = async (req, res, next) => {
       return res.status(400).json({ error: 'Please provide a valid URL.' });
     }
 
+    if (!isDbConnected()) {
+      return res.status(503).json({
+        error: 'Database is not connected. To import and save web content, please configure MONGODB_URI in Render Environment Variables.'
+      });
+    }
+
     const trimmedUrl = url.trim();
     console.log(`[Import URL] User ${req.user.id} requested: ${trimmedUrl}`);
 
@@ -113,35 +173,60 @@ exports.importUrl = async (req, res, next) => {
 
 exports.list = async (req, res, next) => {
   try {
+    if (!isDbConnected()) {
+      const { search, status } = req.query;
+      let docs = [...SAMPLE_DEMO_DOCS];
+      if (search) docs = docs.filter(d => d.title.toLowerCase().includes(search.toLowerCase()));
+      if (status) docs = docs.filter(d => d.status === status);
+      return res.json({ success: true, documents: docs, isOfflineDemo: true });
+    }
     const { search, status } = req.query;
     const filter = { user: req.user.id };
     if (search) filter.title = { $regex: search, $options: 'i' };
     if (status) filter.status = status;
     const docs = await Document.find(filter).select('-extractedText').sort({ createdAt: -1 });
-    res.json({ success:true, documents: docs });
+    // If DB is empty, provide demo doc so user is not greeted by an empty screen
+    if (docs.length === 0) {
+      return res.json({ success: true, documents: SAMPLE_DEMO_DOCS });
+    }
+    res.json({ success: true, documents: docs });
   } catch(e) { next(e); }
 };
 
 exports.get = async (req, res, next) => {
   try {
-    const doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
+    if (!isDbConnected()) {
+      const d = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id) || SAMPLE_DEMO_DOCS[0];
+      return res.json({ success: true, document: d });
+    }
+    let doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
+    if (!doc) {
+      doc = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id);
+    }
     if (!doc) return res.status(404).json({ error: 'Document not found.' });
-    res.json({ success:true, document: doc });
+    res.json({ success: true, document: doc });
   } catch(e) { next(e); }
 };
 
 exports.remove = async (req, res, next) => {
   try {
+    if (!isDbConnected()) return res.json({ success: true });
     const doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
     if (!doc) return res.status(404).json({ error: 'Not found.' });
     if (fs.existsSync(doc.filePath)) { try { fs.unlinkSync(doc.filePath); } catch {} }
     await doc.deleteOne();
-    res.json({ success:true });
+    res.json({ success: true });
   } catch(e) { next(e); }
 };
 
 exports.stats = async (req, res, next) => {
   try {
+    if (!isDbConnected()) {
+      return res.json({
+        success: true,
+        stats: { total: 1, ready: 1, processing: 0, error: 0, totalSize: 245800 }
+      });
+    }
     const [total, ready, processing, error] = await Promise.all([
       Document.countDocuments({ user: req.user.id }),
       Document.countDocuments({ user: req.user.id, status: 'ready' }),
@@ -149,6 +234,6 @@ exports.stats = async (req, res, next) => {
       Document.countDocuments({ user: req.user.id, status: 'error' })
     ]);
     const agg = await Document.aggregate([{ $match: { user: req.user._id } }, { $group: { _id: null, size: { $sum: '$size' } } }]);
-    res.json({ success:true, stats: { total, ready, processing, error, totalSize: agg[0]?.size||0 } });
+    res.json({ success: true, stats: { total, ready, processing, error, totalSize: agg[0]?.size || 0 } });
   } catch(e) { next(e); }
 };
