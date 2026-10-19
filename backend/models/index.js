@@ -42,7 +42,12 @@ const documentSchema = new mongoose.Schema({
     fileSize: { type: Number, default: 0 },
     createdAt:{ type: Date, default: Date.now }
   }],
-  imagePaths: [{ type: String }]  // Paths to images/diagrams extracted from PDF
+  imagePaths: [{ type: String }],  // Paths to images/diagrams extracted from PDF
+  diagrams: [{
+    page:     { type: Number, default: 1 },
+    fileName: { type: String },
+    base64:   { type: String }
+  }]
 }, { timestamps: true });
 
 const flashcardSchema = new mongoose.Schema({

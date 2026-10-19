@@ -403,3 +403,25 @@ select.fi{cursor:pointer}
 .hw td, .ob td { border-bottom: 1px solid var(--bdr); padding: 8px 10px; }
 .hw tr:last-child td, .ob tr:last-child td { border-bottom: none; }
 .hw h1, .ob h1, .hw h2, .ob h2, .hw h3, .ob h3 { margin-top: 1em; margin-bottom: 0.5em; }
+
+/* Document diagram and figure styling */
+.hw img, .ob img {
+  max-width: 95%;
+  height: auto;
+  border-radius: 8px;
+  margin: 14px auto;
+  display: block;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+  border: 1px solid var(--bdr);
+  background: #fff;
+}
+.hw figure, .ob figure {
+  margin: 16px auto;
+  text-align: center;
+}
+.hw figcaption, .ob figcaption {
+  font-size: 12px;
+  color: var(--ink3);
+  margin-top: 6px;
+  font-style: italic;
+}

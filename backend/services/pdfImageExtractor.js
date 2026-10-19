@@ -88,9 +88,9 @@ async function extractImagesFromPDF(pdfPath, docId) {
               const h = img.height || 0;
 
               // Filter out tiny icons, buttons, single-color borders or bullets
-              // Also filter extreme aspect ratios (e.g. banners where w/h > 4 or lines where h/w > 4)
+              // Real diagrams range from square to wide flowcharts
               const aspect = Math.max(w / h, h / w);
-              if (w < 140 || h < 80 || (w * h) < 15000 || aspect > 3.8) {
+              if (w < 80 || h < 45 || (w * h) < 6000 || aspect > 8.0) {
                 return resolve();
               }
 
@@ -128,13 +128,15 @@ async function extractImagesFromPDF(pdfPath, docId) {
                   }
                 }
 
-                fs.writeFileSync(filePath, PNG.sync.write(png));
+                const pngBuf = PNG.sync.write(png);
+                fs.writeFileSync(filePath, pngBuf);
                 results.push({
                   page: pageNum,
                   filePath,
                   fileName,
                   width: w,
-                  height: h
+                  height: h,
+                  base64: pngBuf.toString('base64')
                 });
                 console.log(`[ImgExtract ✅] Page ${pageNum} diagram extracted: ${w}x${h} -> ${fileName}`);
               } catch (saveErr) {

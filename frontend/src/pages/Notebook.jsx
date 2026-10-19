@@ -88,6 +88,14 @@ function HandwrittenPage({ content, pageNum, total, fontId = 'caveat', paperStyl
         <ReactMarkdown 
           remarkPlugins={[remarkGfm, remarkMath]}
           rehypePlugins={[rehypeKatex]}
+          components={{
+            img: ({ node, ...props }) => (
+              <figure style={{ margin: '16px auto', textAlign: 'center' }}>
+                <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.15)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
+                {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
+              </figure>
+            )
+          }}
         >
           {content}
         </ReactMarkdown>
@@ -482,7 +490,9 @@ export default function Notebook() {
         font: hwFont,
         style: hwPaper,
         totalMarks: paperType === '20_MARKS' ? 20 : 60,
-        timeHours: paperType === '20_MARKS' ? 1 : 2
+        timeHours: paperType === '20_MARKS' ? 1 : 2,
+        documentId: doc?._id || doc?.id || docId,
+        docId: doc?._id || doc?.id || docId
       })
       if (res.data.downloadUrl) {
         triggerDownload(res.data.downloadUrl, res.data.fileName || `${doc?.title || 'document'}.pdf`)
@@ -497,14 +507,25 @@ export default function Notebook() {
     const currentText = editText || data.content || data.notes || ''
     const pages = []
     if (currentText) {
-      const chunkSize = Math.ceil(currentText.length / Math.min(4, Math.max(3, Math.ceil(currentText.length/600))))
-      for (let i = 0; i < currentText.length; i += chunkSize) {
-        pages.push(currentText.slice(i, i + chunkSize).trim())
+      // Split intelligently: preserve markdown blocks (like images and paragraphs)
+      const paragraphs = currentText.split(/\n\n+/);
+      let curPage = '';
+      const targetCharCount = 750;
+      for (const p of paragraphs) {
+        if (!curPage) {
+          curPage = p;
+        } else if (curPage.length + p.length < targetCharCount) {
+          curPage += '\n\n' + p;
+        } else {
+          pages.push(curPage.trim());
+          curPage = p;
+        }
       }
+      if (curPage.trim()) pages.push(curPage.trim());
     } else if (data.pages?.length) {
       data.pages.forEach(p => pages.push(p))
     }
-    const safePages = pages.slice(0, 4)
+    const safePages = pages.slice(0, 6)
     const total = safePages.length || 1
 
     return (
@@ -1607,7 +1628,18 @@ export default function Notebook() {
         ) : (
           currentText ? (
             <div className="ob">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+              <ReactMarkdown 
+                remarkPlugins={[remarkGfm, remarkMath]} 
+                rehypePlugins={[rehypeKatex]}
+                components={{
+                  img: ({ node, ...props }) => (
+                    <figure style={{ margin: '18px auto', textAlign: 'center' }}>
+                      <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid var(--bdr2)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
+                      {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
+                    </figure>
+                  )
+                }}
+              >
                 {currentText}
               </ReactMarkdown>
             </div>

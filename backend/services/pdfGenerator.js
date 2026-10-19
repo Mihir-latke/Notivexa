@@ -6,6 +6,26 @@ const { v4: uuidv4 } = require('uuid');
 const OUT = path.join(__dirname, '../uploads/generated');
 const ensureDir = () => fs.mkdirSync(OUT, { recursive: true });
 
+function resolveLocalPath(p) {
+  if (!p || typeof p !== 'string') return null;
+  if (fs.existsSync(p)) return p;
+  const norm = p.replace(/\\/g, '/');
+  const idx = norm.indexOf('uploads/');
+  if (idx !== -1) {
+    const rel = norm.slice(idx);
+    const candidates = [
+      path.join(__dirname, '..', rel),
+      path.join(process.cwd(), rel),
+      path.join(process.cwd(), 'backend', rel),
+      path.join(__dirname, '../../', rel)
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
+    }
+  }
+  return null;
+}
+
 // ── Standard Notes PDF ────────────────────────────────────
 async function notesPDF(content, { title='Notes', subject='General', imagePaths=[] }={}) {
   ensureDir();
@@ -20,12 +40,19 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
     doc.rect(0,0,W,72).fill('#4F46E5');
     doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(title,70,18,{width:W-140});
     doc.fontSize(11).font('Helvetica').text(`${subject} | Notivexa AI`,70,50);
-    // Content
+    // Content (clean out raw markdown image syntax)
+    const cleanContent = (content || '')
+      .replace(/!\[.*?\]\(.*?\)/g, '')
+      .replace(/^\*Figure \d+:.*?\*\s*$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
     doc.fillColor('#0F0E1A').font('Helvetica').fontSize(11.5)
-       .text(content, 70, 90, { width:W-130, lineGap:3, paragraphGap:6 });
+       .text(cleanContent, 70, 90, { width:W-130, lineGap:3, paragraphGap:6 });
 
     // Embed authentic diagrams from source document if available
-    const validImages = Array.isArray(imagePaths) ? imagePaths.filter(p => fs.existsSync(p)) : [];
+    const validImages = Array.isArray(imagePaths) 
+      ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p)) 
+      : [];
     if (validImages.length > 0) {
       doc.addPage();
       const H = doc.page.height;
@@ -252,7 +279,9 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
     };
 
     // Queue of authentic extracted diagrams from the document
-    const pendingImages = Array.isArray(imagePaths) ? [...imagePaths].filter(p => fs.existsSync(p)) : [];
+    const pendingImages = Array.isArray(imagePaths) 
+      ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p)) 
+      : [];
     let diagramCounter = 1;
 
     // ── AUTHENTIC DIAGRAM / FIGURE FROM SOURCE DOCUMENT ──
@@ -432,6 +461,28 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
                   .trim();
 
       const upper = t.toUpperCase();
+
+      // Markdown image tag: ![Figure 1: Diagram from Document](/uploads/images/extracted/...)
+      const imgMatch = t.match(/^!\[(.*?)\]\((.*?)\)/);
+      if (imgMatch) {
+        flushMode();
+        const caption = imgMatch[1];
+        const imgUrl = imgMatch[2];
+        const localImg = resolveLocalPath(imgUrl) || 
+          (imgUrl.startsWith('/') ? path.join(__dirname, '..', imgUrl.slice(1)) : path.join(__dirname, '..', imgUrl));
+        if (localImg && fs.existsSync(localImg)) {
+          drawDocumentImage(localImg, caption);
+          const fn = path.basename(localImg);
+          const pIdx = pendingImages.findIndex(p => path.basename(p) === fn);
+          if (pIdx !== -1) pendingImages.splice(pIdx, 1);
+        }
+        continue;
+      }
+
+      // Skip caption sub-line if it was part of figure markdown
+      if (/^\*Figure \d+:.*?\*$/i.test(t)) {
+        continue;
+      }
 
       if (tableRows && !t.includes('|')) {
         drawTable(tableRows);

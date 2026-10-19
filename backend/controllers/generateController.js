@@ -9,17 +9,53 @@ const { getExtractedImages, extractImagesFromPDF } = require('../services/pdfIma
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
+function resolveLocalPath(p) {
+  if (!p || typeof p !== 'string') return null;
+  if (fs.existsSync(p)) return p;
+  const norm = p.replace(/\\/g, '/');
+  const idx = norm.indexOf('uploads/');
+  if (idx !== -1) {
+    const rel = norm.slice(idx);
+    const candidates = [
+      path.join(__dirname, '..', rel),
+      path.join(process.cwd(), rel),
+      path.join(process.cwd(), 'backend', rel),
+      path.join(__dirname, '../../', rel)
+    ];
+    for (const c of candidates) {
+      if (fs.existsSync(c)) return c;
+    }
+  }
+  return null;
+}
+
 /**
  * Retrieve or extract authentic diagrams/images from source PDF.
+ * Seamless across Windows and Linux, restoring from cloud DB (Atlas) if needed.
  */
 async function resolveDocImages(doc) {
   if (!doc) return [];
   const docId = (doc._id || doc.id || '').toString();
+  const outDir = path.join(__dirname, '../uploads/images/extracted', docId);
 
-  // 1. Check if doc record already contains imagePaths
-  if (Array.isArray(doc.imagePaths) && doc.imagePaths.length > 0) {
-    const valid = doc.imagePaths.filter(p => fs.existsSync(p));
-    if (valid.length > 0) return valid;
+  // 1. If doc has base64 diagrams in DB/cloud store: restore them to local disk if needed!
+  if (Array.isArray(doc.diagrams) && doc.diagrams.length > 0) {
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      const paths = [];
+      for (const diag of doc.diagrams) {
+        if (!diag.fileName || !diag.base64) continue;
+        const targetPath = path.join(outDir, diag.fileName);
+        if (!fs.existsSync(targetPath)) {
+          fs.writeFileSync(targetPath, Buffer.from(diag.base64, 'base64'));
+          console.log(`[ImgExtract] Restored diagram ${diag.fileName} from database to disk`);
+        }
+        paths.push(targetPath);
+      }
+      if (paths.length > 0) return paths;
+    } catch (e) {
+      console.warn('[ImgExtract] Restore from diagrams failed:', e.message);
+    }
   }
 
   // 2. Check disk for previously extracted diagrams for this docId
@@ -28,17 +64,31 @@ async function resolveDocImages(doc) {
     if (onDisk.length > 0) return onDisk.map(o => o.filePath);
   }
 
-  // 3. If doc has filePath to original uploaded PDF, extract diagrams on-the-fly
-  if (doc.filePath && fs.existsSync(doc.filePath) && doc.fileType !== 'image') {
+  // 3. Check if doc record already contains imagePaths
+  if (Array.isArray(doc.imagePaths) && doc.imagePaths.length > 0) {
+    const valid = doc.imagePaths.map(resolveLocalPath).filter(Boolean);
+    if (valid.length > 0) return valid;
+  }
+
+  // 4. If doc has filePath to original uploaded PDF, extract diagrams on-the-fly
+  const realPdfPath = resolveLocalPath(doc.filePath);
+  if (realPdfPath && fs.existsSync(realPdfPath) && doc.fileType !== 'image') {
     try {
       console.log(`[ImgExtract] Extracting diagrams on-the-fly for "${doc.title}" (${docId})...`);
-      const extracted = await extractImagesFromPDF(doc.filePath, docId || 'doc_' + Date.now());
+      const extracted = await extractImagesFromPDF(realPdfPath, docId || 'doc_' + Date.now());
       if (extracted.length > 0) {
         const paths = extracted.map(e => e.filePath);
+        const diagrams = extracted.slice(0, 6).map(img => ({
+          page: img.page,
+          fileName: img.fileName,
+          base64: img.base64 || (fs.existsSync(img.filePath) ? fs.readFileSync(img.filePath).toString('base64') : null)
+        })).filter(d => d.base64);
+
+        const relPaths = extracted.map(e => 'uploads/images/extracted/' + docId + '/' + e.fileName);
         if (isDbConnected() && doc._id) {
-          try { await Document.findByIdAndUpdate(doc._id, { imagePaths: paths }); } catch {}
+          try { await Document.findByIdAndUpdate(doc._id, { imagePaths: relPaths, diagrams }); } catch {}
         } else if (docId) {
-          try { localStore.updateDoc(docId, { imagePaths: paths }); } catch {}
+          try { localStore.updateDoc(docId, { imagePaths: relPaths, diagrams }); } catch {}
         }
         return paths;
       }
@@ -121,6 +171,57 @@ async function getDocText(docId, userId, secIdx) {
   return { doc, text };
 }
 
+function injectDiagramsIntoMarkdown(content, docId, imagePaths) {
+  if (!content || !Array.isArray(imagePaths) || imagePaths.length === 0 || !docId) {
+    return content;
+  }
+  if (/!\[.*?\]\(/i.test(content)) {
+    return content;
+  }
+
+  const diags = imagePaths.slice(0, 6).map((imgP, i) => {
+    const fn = path.basename(imgP);
+    const url = `/uploads/images/extracted/${docId}/${fn}`;
+    return `\n\n![Figure ${i + 1}: Diagram from Document](${url})\n*Figure ${i + 1}: Diagram extracted from source document*\n\n`;
+  });
+
+  let remaining = [...diags];
+  let updatedContent = content;
+
+  // 1. If content contains DIAGRAM: placeholders, replace them with real images
+  if (/^DIAGRAM:.*$/gmi.test(updatedContent)) {
+    updatedContent = updatedContent.replace(/^DIAGRAM:.*$/gmi, () => {
+      if (remaining.length > 0) return remaining.shift().trim();
+      return '';
+    });
+  }
+
+  // 2. If we still have remaining diagrams and content has '## ' headings, distribute them
+  if (remaining.length > 0 && /##\s+/i.test(updatedContent)) {
+    const parts = updatedContent.split(/(^##\s+[^\n]+)/m);
+    let assembled = '';
+    for (let i = 0; i < parts.length; i++) {
+      assembled += parts[i];
+      if (parts[i].startsWith('## ') && i + 1 < parts.length && remaining.length > 0) {
+        i++;
+        assembled += parts[i];
+        assembled += remaining.shift();
+      }
+    }
+    updatedContent = assembled;
+  }
+
+  // 3. Any still remaining diagrams, append under Figures & Diagrams
+  if (remaining.length > 0) {
+    updatedContent += '\n\n## Figures & Diagrams from Source Document\n\n';
+    while (remaining.length > 0) {
+      updatedContent += remaining.shift();
+    }
+  }
+
+  return updatedContent;
+}
+
 exports.notes = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
@@ -131,11 +232,13 @@ exports.notes = async (req, res, next) => {
     console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language}`);
     const content = await ai.generateNotes(text, doc.title, subj, language);
     const imagePaths = await resolveDocImages(doc);
-    const pdf = await notesPDF(content, { title: doc.title, subject: subj, imagePaths });
+    const docId = (doc._id || doc.id || '').toString();
+    const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
+    const pdf = await notesPDF(finalContent, { title: doc.title, subject: subj, imagePaths });
     if (doc.outputs) doc.outputs.push({ type:'notes', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     await safeUserStatsUpdate(req.user?.id, { $inc: { 'studyStats.notesGenerated': 1 } });
-    res.json({ success:true, content, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize });
+    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize, diagrams: doc.diagrams || [] });
   } catch(e) { next(e); }
 };
 
@@ -267,10 +370,12 @@ exports.handwritten = async (req, res, next) => {
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language);
     const imagePaths = await resolveDocImages(doc);
-    const pdf = await handwrittenPDF(content, { title:doc.title, subject:doc.subject||doc.title, style:style||'yellow', fontName:font, imagePaths });
+    const docId = (doc._id || doc.id || '').toString();
+    const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
+    const pdf = await handwrittenPDF(finalContent, { title:doc.title, subject:doc.subject||doc.title, style:style||'yellow', fontName:font, imagePaths });
     if (doc.outputs) doc.outputs.push({ type:'handwritten', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
-    res.json({ success:true, content, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize });
+    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize, diagrams: doc.diagrams || [] });
   } catch(e) { next(e); }
 };
 
@@ -284,13 +389,16 @@ exports.handwrittenPdfOnly = async (req, res, next) => {
     }
     let imagePaths = [];
     const dId = documentId || docId;
+    let doc = null;
     if (dId) {
       try {
-        const { doc } = await getDocText(dId, req.user?.id);
+        const result = await getDocText(dId, req.user?.id);
+        doc = result.doc;
         imagePaths = await resolveDocImages(doc);
       } catch {}
     }
-    const pdf = await handwrittenPDF(content, { title, subject, style: style || 'yellow', fontName: font, imagePaths });
+    const finalContent = (doc && dId) ? injectDiagramsIntoMarkdown(content, (doc._id || doc.id || dId).toString(), imagePaths) : content;
+    const pdf = await handwrittenPDF(finalContent, { title, subject, style: style || 'yellow', fontName: font, imagePaths });
     res.json({ success: true, downloadUrl: `/uploads/generated/${pdf.fileName}`, fileName: pdf.fileName, fileSize: pdf.fileSize });
   } catch(e) { next(e); }
 };
@@ -401,22 +509,25 @@ exports.exportPdf = async (req, res, next) => {
     const { content, title = 'Notes', subject = 'General', type = 'notes', theme = 'indigo', font = 'caveat', style = 'yellow', totalMarks = 60, timeHours = 2, documentId, docId } = req.body;
     let imagePaths = [];
     const dId = documentId || docId;
+    let doc = null;
     if (dId) {
       try {
-        const { doc } = await getDocText(dId, req.user?.id);
+        const result = await getDocText(dId, req.user?.id);
+        doc = result.doc;
         imagePaths = await resolveDocImages(doc);
       } catch {}
     }
+    const finalContent = (doc && dId && typeof content === 'string') ? injectDiagramsIntoMarkdown(content, (doc._id || doc.id || dId).toString(), imagePaths) : content;
     let pdf;
     if (type === 'ppt' || type === 'slides') {
       const slidesData = Array.isArray(content) ? content : (content?.slides || req.body.slides || []);
       pdf = await slidePDF(slidesData, { title, theme });
     } else if (type === 'handwritten') {
-      pdf = await handwrittenPDF(content, { title, subject, style, fontName: font, imagePaths });
+      pdf = await handwrittenPDF(finalContent, { title, subject, style, fontName: font, imagePaths });
     } else if (type === 'paper') {
       pdf = await questionPaperPDF(content, { title, subject, totalMarks, timeHours });
     } else {
-      pdf = await notesPDF(content, { title, subject, imagePaths });
+      pdf = await notesPDF(finalContent, { title, subject, imagePaths });
     }
     res.json({ success: true, downloadUrl: `/uploads/generated/${pdf.fileName}`, fileName: pdf.fileName, fileSize: pdf.fileSize });
   } catch(e) { next(e); }

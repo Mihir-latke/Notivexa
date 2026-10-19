@@ -91,11 +91,17 @@ exports.upload = async (req, res, next) => {
           });
           // Extract embedded images from PDF (async, non-blocking)
           if (!isImage) {
-            extractImagesFromPDF(file.path, doc._id || doc.id).then(imgs => {
+            const docId = (doc._id || doc.id).toString();
+            extractImagesFromPDF(file.path, docId).then(imgs => {
               if (imgs.length > 0) {
-                const paths = imgs.map(i => i.filePath);
-                localStore.updateDoc(doc._id || doc.id, { imagePaths: paths });
-                console.log(`[ImgExtract] Stored ${paths.length} image path(s) for doc ${doc._id || doc.id}`);
+                const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
+                const diagrams = imgs.slice(0, 8).map(img => ({
+                  page: img.page,
+                  fileName: img.fileName,
+                  base64: img.base64 || (fs.existsSync(img.filePath) ? fs.readFileSync(img.filePath).toString('base64') : null)
+                })).filter(d => d.base64);
+                localStore.updateDoc(docId, { imagePaths: relPaths, diagrams });
+                console.log(`[ImgExtract] Stored ${relPaths.length} image path(s) and ${diagrams.length} diagrams for doc ${docId}`);
               }
             }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
           }
@@ -166,12 +172,19 @@ exports.upload = async (req, res, next) => {
         await doc.save();
         // Extract embedded images from PDF asynchronously
         if (!isImage) {
-          extractImagesFromPDF(file.path, doc._id.toString()).then(async imgs => {
+          const docId = doc._id.toString();
+          extractImagesFromPDF(file.path, docId).then(async imgs => {
             if (imgs.length > 0) {
-              const imagePaths = imgs.map(i => i.filePath);
+              const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
+              const diagrams = imgs.slice(0, 8).map(img => ({
+                page: img.page,
+                fileName: img.fileName,
+                base64: img.base64 || (fs.existsSync(img.filePath) ? fs.readFileSync(img.filePath).toString('base64') : null)
+              })).filter(d => d.base64);
+
               try {
-                await Document.findByIdAndUpdate(doc._id, { imagePaths });
-                console.log(`[ImgExtract] Stored ${imagePaths.length} image(s) for doc ${doc._id}`);
+                await Document.findByIdAndUpdate(doc._id, { imagePaths: relPaths, diagrams });
+                console.log(`[ImgExtract] Stored ${relPaths.length} image(s) and ${diagrams.length} diagrams for doc ${doc._id}`);
               } catch (e) { console.warn('[ImgExtract] DB update failed:', e.message); }
             }
           }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));

@@ -39,6 +39,9 @@ backend/uploads/audio/*
 !backend/uploads/audio/.gitkeep
 backend/uploads/video/*
 !backend/uploads/video/.gitkeep
+backend/uploads/images/*
+!backend/uploads/images/.gitkeep
+backend/uploads/images/extracted/
 
 # Persistent local store data
 backend/data/*.json

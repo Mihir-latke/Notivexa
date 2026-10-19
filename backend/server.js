@@ -40,7 +40,35 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve uploaded files
+// Serve uploaded files and auto-restore extracted diagrams from DB if missing on disk
+app.get('/uploads/images/extracted/:docId/:fileName', async (req, res, next) => {
+  const { docId, fileName } = req.params;
+  const targetPath = path.join(__dirname, 'uploads/images/extracted', docId, fileName);
+  if (fs.existsSync(targetPath)) {
+    return res.sendFile(targetPath);
+  }
+  try {
+    const { Document } = require('./models');
+    const localStore = require('./services/localStore');
+    let doc = null;
+    if (mongoose.connection.readyState === 1) {
+      try { doc = await Document.findById(docId).lean(); } catch {}
+    }
+    if (!doc) doc = localStore.getDocById(docId);
+    if (doc && Array.isArray(doc.diagrams)) {
+      const match = doc.diagrams.find(d => d.fileName === fileName);
+      if (match && match.base64) {
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.writeFileSync(targetPath, Buffer.from(match.base64, 'base64'));
+        return res.sendFile(targetPath);
+      }
+    }
+  } catch (err) {
+    console.warn('[Diagram Static Restore Error]', err.message);
+  }
+  next();
+});
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
