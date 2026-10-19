@@ -264,7 +264,7 @@ Rules:
 - Include ALL formulas, definitions, dates, facts exactly as written
 - DO NOT use $ or $$ for math or formulas. Use plain text or Unicode.
 - Ensure any tabular data uses standard Markdown tables with pipes (|) and dashes (-).
-- For diagrams, use standard text-based ASCII art inside a codeblock. Do NOT use Mermaid.
+- DO NOT generate artificial diagrams, ASCII art, or Mermaid flowcharts. Authentic diagrams from the uploaded PDF are embedded directly into the document.
 - Add [simple Hindi/Indian English explanation] for difficult terms
 - Do not be brief! The output must be very comprehensive, long, and thorough (at least 1500 words).
 - End with ## Key Points to Remember section
@@ -503,9 +503,6 @@ EXPLANATION:
 - Detailed point 3 with full explanation
 - Add 4-8 bullet points — be exhaustive, teach as if the student is new
 
-DIAGRAM: NodeA → NodeB → NodeC
-(Write a linear flow using → arrows. Use real concept names from the topic. Max 5 nodes.)
-
 EXAMPLE:
 - Real-world Example 1: concrete, practical, specific
 - Real-world Example 2: another specific example the student can relate to
@@ -513,11 +510,11 @@ EXAMPLE:
 ---
 
 RULES:
-- Always use the EXACT labels: DEFINITION:, SUMMARY:, EXPLANATION:, DIAGRAM:, EXAMPLE:
-- DIAGRAM must always be a single line: ItemA → ItemB → ItemC (use → arrows)
+- Always use the EXACT labels: DEFINITION:, SUMMARY:, EXPLANATION:, EXAMPLE:
+- Do NOT generate DIAGRAM lines, flowcharts, or ASCII art. Real diagrams and figures from the original document are embedded directly into the notes.
 - Do NOT use Mermaid, ASCII art, or code blocks for diagrams
 - Do NOT use $ or LaTeX math — write formulas in plain English (e.g. "Force = Mass x Acceleration")
-- Do NOT skip any section — every topic must have all 6 sections
+- Do NOT skip any section — every topic must have all 5 sections (DEFINITION, SUMMARY, EXPLANATION, EXAMPLE)
 - Use ## for topic headings, ### for sub-topics
 - Write at least 600 words per chunk — EXPAND everything, never summarize briefly`;
 
@@ -533,7 +530,6 @@ DEFINITION: ...
 SUMMARY: ...
 EXPLANATION:
 - ...
-DIAGRAM: A → B → C
 EXAMPLE:
 - ...
 ---

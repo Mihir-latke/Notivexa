@@ -1,11 +1,54 @@
+const fs = require('fs');
 const mongoose = require('mongoose');
 const { Document, Flashcard, User } = require('../models');
 const ai = require('../services/aiService');
 const { notesPDF, handwrittenPDF, questionPaperPDF, slidePDF } = require('../services/pdfGenerator');
 const { SAMPLE_DEMO_DOCS } = require('./documentController');
 const localStore = require('../utils/localStore');
+const { getExtractedImages, extractImagesFromPDF } = require('../services/pdfImageExtractor');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
+
+/**
+ * Retrieve or extract authentic diagrams/images from source PDF.
+ */
+async function resolveDocImages(doc) {
+  if (!doc) return [];
+  const docId = (doc._id || doc.id || '').toString();
+
+  // 1. Check if doc record already contains imagePaths
+  if (Array.isArray(doc.imagePaths) && doc.imagePaths.length > 0) {
+    const valid = doc.imagePaths.filter(p => fs.existsSync(p));
+    if (valid.length > 0) return valid;
+  }
+
+  // 2. Check disk for previously extracted diagrams for this docId
+  if (docId) {
+    const onDisk = getExtractedImages(docId);
+    if (onDisk.length > 0) return onDisk.map(o => o.filePath);
+  }
+
+  // 3. If doc has filePath to original uploaded PDF, extract diagrams on-the-fly
+  if (doc.filePath && fs.existsSync(doc.filePath) && doc.fileType !== 'image') {
+    try {
+      console.log(`[ImgExtract] Extracting diagrams on-the-fly for "${doc.title}" (${docId})...`);
+      const extracted = await extractImagesFromPDF(doc.filePath, docId || 'doc_' + Date.now());
+      if (extracted.length > 0) {
+        const paths = extracted.map(e => e.filePath);
+        if (isDbConnected() && doc._id) {
+          try { await Document.findByIdAndUpdate(doc._id, { imagePaths: paths }); } catch {}
+        } else if (docId) {
+          try { localStore.updateDoc(docId, { imagePaths: paths }); } catch {}
+        }
+        return paths;
+      }
+    } catch (err) {
+      console.warn('[ImgExtract] On-the-fly extraction warning:', err.message);
+    }
+  }
+
+  return [];
+}
 
 async function safeDocSave(doc) {
   if (doc && typeof doc.save === 'function' && isDbConnected()) {
@@ -87,7 +130,8 @@ exports.notes = async (req, res, next) => {
     const subj = doc.subject || doc.title;
     console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language}`);
     const content = await ai.generateNotes(text, doc.title, subj, language);
-    const pdf = await notesPDF(content, { title: doc.title, subject: subj });
+    const imagePaths = await resolveDocImages(doc);
+    const pdf = await notesPDF(content, { title: doc.title, subject: subj, imagePaths });
     if (doc.outputs) doc.outputs.push({ type:'notes', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     await safeUserStatsUpdate(req.user?.id, { $inc: { 'studyStats.notesGenerated': 1 } });
@@ -222,7 +266,8 @@ exports.handwritten = async (req, res, next) => {
     const { sectionIndex, style = 'yellow', font = 'caveat' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language);
-    const pdf = await handwrittenPDF(content, { title:doc.title, subject:doc.subject||doc.title, style:style||'yellow', fontName:font });
+    const imagePaths = await resolveDocImages(doc);
+    const pdf = await handwrittenPDF(content, { title:doc.title, subject:doc.subject||doc.title, style:style||'yellow', fontName:font, imagePaths });
     if (doc.outputs) doc.outputs.push({ type:'handwritten', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     res.json({ success:true, content, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize });
@@ -230,14 +275,22 @@ exports.handwritten = async (req, res, next) => {
 };
 
 // Re-render handwritten PDF with a new font WITHOUT calling AI again.
-// Accepts: { content, title, subject, font, style }
+// Accepts: { content, title, subject, font, style, documentId, docId }
 exports.handwrittenPdfOnly = async (req, res, next) => {
   try {
-    const { content, title = 'Notes', subject = 'General', font = 'caveat', style = 'yellow' } = req.body;
+    const { content, title = 'Notes', subject = 'General', font = 'caveat', style = 'yellow', documentId, docId } = req.body;
     if (!content || content.trim().length < 10) {
       return res.status(400).json({ error: 'Content is required to re-render the PDF.' });
     }
-    const pdf = await handwrittenPDF(content, { title, subject, style: style || 'yellow', fontName: font });
+    let imagePaths = [];
+    const dId = documentId || docId;
+    if (dId) {
+      try {
+        const { doc } = await getDocText(dId, req.user?.id);
+        imagePaths = await resolveDocImages(doc);
+      } catch {}
+    }
+    const pdf = await handwrittenPDF(content, { title, subject, style: style || 'yellow', fontName: font, imagePaths });
     res.json({ success: true, downloadUrl: `/uploads/generated/${pdf.fileName}`, fileName: pdf.fileName, fileSize: pdf.fileSize });
   } catch(e) { next(e); }
 };
@@ -345,17 +398,25 @@ exports.exportPptx = async (req, res, next) => {
 
 exports.exportPdf = async (req, res, next) => {
   try {
-    const { content, title = 'Notes', subject = 'General', type = 'notes', theme = 'indigo', font = 'caveat', style = 'yellow', totalMarks = 60, timeHours = 2 } = req.body;
+    const { content, title = 'Notes', subject = 'General', type = 'notes', theme = 'indigo', font = 'caveat', style = 'yellow', totalMarks = 60, timeHours = 2, documentId, docId } = req.body;
+    let imagePaths = [];
+    const dId = documentId || docId;
+    if (dId) {
+      try {
+        const { doc } = await getDocText(dId, req.user?.id);
+        imagePaths = await resolveDocImages(doc);
+      } catch {}
+    }
     let pdf;
     if (type === 'ppt' || type === 'slides') {
       const slidesData = Array.isArray(content) ? content : (content?.slides || req.body.slides || []);
       pdf = await slidePDF(slidesData, { title, theme });
     } else if (type === 'handwritten') {
-      pdf = await handwrittenPDF(content, { title, subject, style, fontName: font });
+      pdf = await handwrittenPDF(content, { title, subject, style, fontName: font, imagePaths });
     } else if (type === 'paper') {
       pdf = await questionPaperPDF(content, { title, subject, totalMarks, timeHours });
     } else {
-      pdf = await notesPDF(content, { title, subject });
+      pdf = await notesPDF(content, { title, subject, imagePaths });
     }
     res.json({ success: true, downloadUrl: `/uploads/generated/${pdf.fileName}`, fileName: pdf.fileName, fileSize: pdf.fileSize });
   } catch(e) { next(e); }

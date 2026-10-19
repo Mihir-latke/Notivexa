@@ -5,6 +5,7 @@ const { extractFromPDF } = require('../services/pdfEngine');
 const { extractFromImage } = require('../services/aiService');
 const { extractFromUrl } = require('../services/urlEngine');
 const localStore = require('../utils/localStore');
+const { extractImagesFromPDF } = require('../services/pdfImageExtractor');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -71,6 +72,7 @@ exports.upload = async (req, res, next) => {
           } else {
             ext = await extractFromPDF(file.path);
           }
+          // Create doc first (to get an ID), then extract images
           const doc = localStore.createDoc({
             user: req.user.id,
             title: docTitle,
@@ -84,10 +86,22 @@ exports.upload = async (req, res, next) => {
             sections: ext.sections,
             pageCount: ext.pages,
             wordCount: ext.words,
-            status: 'ready'
+            status: 'ready',
+            imagePaths: []
           });
+          // Extract embedded images from PDF (async, non-blocking)
+          if (!isImage) {
+            extractImagesFromPDF(file.path, doc._id || doc.id).then(imgs => {
+              if (imgs.length > 0) {
+                const paths = imgs.map(i => i.filePath);
+                localStore.updateDoc(doc._id || doc.id, { imagePaths: paths });
+                console.log(`[ImgExtract] Stored ${paths.length} image path(s) for doc ${doc._id || doc.id}`);
+              }
+            }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
+          }
           console.log(`[Upload Local OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
           results.push({ doc, ok: true });
+
         } catch(e) {
           console.error(`[Upload Local FAIL] ${file.originalname}:`, e.message);
           const doc = localStore.createDoc({
@@ -150,6 +164,18 @@ exports.upload = async (req, res, next) => {
         doc.wordCount     = ext.words;
         doc.status        = 'ready';
         await doc.save();
+        // Extract embedded images from PDF asynchronously
+        if (!isImage) {
+          extractImagesFromPDF(file.path, doc._id.toString()).then(async imgs => {
+            if (imgs.length > 0) {
+              const imagePaths = imgs.map(i => i.filePath);
+              try {
+                await Document.findByIdAndUpdate(doc._id, { imagePaths });
+                console.log(`[ImgExtract] Stored ${imagePaths.length} image(s) for doc ${doc._id}`);
+              } catch (e) { console.warn('[ImgExtract] DB update failed:', e.message); }
+            }
+          }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
+        }
         console.log(`[Upload OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
         results.push({ doc, ok: true });
       } catch(e) {

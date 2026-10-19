@@ -7,7 +7,7 @@ const OUT = path.join(__dirname, '../uploads/generated');
 const ensureDir = () => fs.mkdirSync(OUT, { recursive: true });
 
 // ── Standard Notes PDF ────────────────────────────────────
-async function notesPDF(content, { title='Notes', subject='General' }={}) {
+async function notesPDF(content, { title='Notes', subject='General', imagePaths=[] }={}) {
   ensureDir();
   const fileName = `notes_${uuidv4()}.pdf`;
   const filePath = path.join(OUT, fileName);
@@ -23,6 +23,34 @@ async function notesPDF(content, { title='Notes', subject='General' }={}) {
     // Content
     doc.fillColor('#0F0E1A').font('Helvetica').fontSize(11.5)
        .text(content, 70, 90, { width:W-130, lineGap:3, paragraphGap:6 });
+
+    // Embed authentic diagrams from source document if available
+    const validImages = Array.isArray(imagePaths) ? imagePaths.filter(p => fs.existsSync(p)) : [];
+    if (validImages.length > 0) {
+      doc.addPage();
+      const H = doc.page.height;
+      doc.rect(0, 0, W, 72).fill('#4F46E5');
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(`${title} — Figures & Diagrams`, 70, 18, { width: W - 140 });
+      doc.fontSize(11).font('Helvetica').text(`Diagrams extracted directly from source document | Notivexa`, 70, 50);
+
+      let curY = 95;
+      validImages.forEach((imgP, idx) => {
+        if (curY + 230 > H - 60) {
+          doc.addPage();
+          curY = 65;
+        }
+        doc.fillColor('#4338CA').font('Helvetica-Bold').fontSize(11)
+           .text(`Figure ${idx + 1}: Extracted from uploaded document`, 70, curY);
+        curY += 18;
+        try {
+          doc.image(imgP, 70, curY, { fit: [W - 140, 200], align: 'center' });
+          curY += 215;
+        } catch (e) {
+          console.warn('[notesPDF image embed]', e.message);
+        }
+      });
+    }
+
     // Footer
     const range = doc.bufferedPageRange();
     for(let i=0;i<range.count;i++){
@@ -36,7 +64,7 @@ async function notesPDF(content, { title='Notes', subject='General' }={}) {
 }
 
 // ── Handwritten Style PDF ─────────────────────────────────
-async function handwrittenPDF(content, { title='Notes', subject='General', style='yellow', fontName='Caveat' }={}) {
+async function handwrittenPDF(content, { title='Notes', subject='General', style='yellow', fontName='Caveat', imagePaths=[] }={}) {
   ensureDir();
   const fileName = `hw_${uuidv4()}.pdf`;
   const filePath = path.join(OUT, fileName);
@@ -223,63 +251,66 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
       y += cardH + 12;
     };
 
-    // ── DIAGRAM / FLOWCHART (Centered, vector arrows, guaranteed fit) ──
-    const drawDiagram = (label) => {
-      const raw = label.replace(/DIAGRAM:/i, '').trim();
-      const items = raw.split(/\s*(?:→|->|,)\s*/).map(s => s.trim()).filter(Boolean);
-      if (items.length === 0) return;
+    // Queue of authentic extracted diagrams from the document
+    const pendingImages = Array.isArray(imagePaths) ? [...imagePaths].filter(p => fs.existsSync(p)) : [];
+    let diagramCounter = 1;
 
-      const N = items.length;
-      const containerH = 88;
-      ensureSpace(22 + containerH + 14);
+    // ── AUTHENTIC DIAGRAM / FIGURE FROM SOURCE DOCUMENT ──
+    const drawDocumentImage = (imgPath, caption = null) => {
+      if (!imgPath || !fs.existsSync(imgPath)) return false;
 
-      drawBadge('PROCESS FLOW DIAGRAM', '#EDE9FE', '#5B21B6', '#DDD6FE');
-
-      doc.fillColor('#F8FAFC').roundedRect(L, y, CW, containerH, 6).fill();
-      doc.strokeColor('#CBD5E1').lineWidth(0.8).roundedRect(L, y, CW, containerH, 6).stroke();
-
-      const arrowLen = N > 4 ? 14 : 20;
-      const arrowTotal = arrowLen * (N - 1);
-      const innerPad = 14;
-      const maxAvailableForNodes = CW - innerPad * 2 - arrowTotal;
-      const nodeW = Math.max(58, Math.min(105, Math.floor(maxAvailableForNodes / N)));
-      const actualRowW = nodeW * N + arrowTotal;
-      const startX = L + Math.floor((CW - actualRowW) / 2);
-      const nodeY = y + 16;
-      const nodeH = 38;
-
-      let curX = startX;
-      items.forEach((item, i) => {
-        doc.fillColor('#CBD5E1').roundedRect(curX + 1.5, nodeY + 1.5, nodeW, nodeH, 5).fill();
-        doc.fillColor('#4F46E5').roundedRect(curX, nodeY, nodeW, nodeH, 5).fill();
-        doc.strokeColor('#3730A3').lineWidth(0.8).roundedRect(curX, nodeY, nodeW, nodeH, 5).stroke();
-
-        const fs = item.length > 15 ? 7.5 : item.length > 10 ? 8.5 : 9.5;
-        doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(fs);
-        const textH = doc.heightOfString(item, { width: nodeW - 6, align: 'center' });
-        const textY = nodeY + Math.max(2, (nodeH - textH) / 2);
-        doc.text(item, curX + 3, textY, { width: nodeW - 6, align: 'center', lineBreak: true });
-
-        if (i < N - 1) {
-          const ax = curX + nodeW + 2;
-          const ay = nodeY + nodeH / 2;
-          const targetX = ax + arrowLen - 4;
-
-          doc.strokeColor('#6366F1').lineWidth(1.5).moveTo(ax, ay).lineTo(targetX - 4, ay).stroke();
-          doc.fillColor('#6366F1')
-             .moveTo(targetX - 4, ay - 3.5)
-             .lineTo(targetX + 1, ay)
-             .lineTo(targetX - 4, ay + 3.5)
-             .fill();
+      let imgW = CW - 24;
+      let imgH = 175;
+      try {
+        const header = fs.readFileSync(imgPath);
+        if (header[0] === 0x89 && header[1] === 0x50) { // PNG
+          const origW = header.readUInt32BE(16);
+          const origH = header.readUInt32BE(20);
+          if (origW > 0 && origH > 0) {
+            const maxW = CW - 24;
+            const maxH = 210;
+            const scale = Math.min(maxW / origW, maxH / origH, 1);
+            imgW = Math.max(120, Math.round(origW * scale));
+            imgH = Math.max(80, Math.round(origH * scale));
+          }
         }
+      } catch {}
 
-        curX += nodeW + arrowLen;
-      });
+      const cardH = imgH + 28;
+      ensureSpace(22 + cardH + 12);
 
+      drawBadge('FIGURE FROM SOURCE DOCUMENT', '#EDE9FE', '#5B21B6', '#DDD6FE');
+
+      // Card container
+      doc.fillColor('#FFFFFF').roundedRect(L, y, CW, cardH, 5).fill();
+      doc.strokeColor('#CBD5E1').lineWidth(0.8).roundedRect(L, y, CW, cardH, 5).stroke();
+
+      try {
+        const drawX = L + Math.max(12, Math.floor((CW - imgW) / 2));
+        doc.image(imgPath, drawX, y + 8, { fit: [imgW, imgH], align: 'center' });
+      } catch (err) {
+        console.warn('[PDFKit embed image]', err.message);
+      }
+
+      // Caption
+      const capText = caption || `Figure ${diagramCounter++}: Diagram extracted directly from source document`;
       doc.fillColor('#64748B').font('Helvetica').fontSize(8)
-         .text(`Flow: ${items.join('  ->  ')}`, L + 8, y + containerH - 18, { width: CW - 16, align: 'center', lineBreak: false });
+         .text(capText, L + 12, y + cardH - 16, { width: CW - 24, align: 'center', lineBreak: false });
 
-      y += containerH + 12;
+      y += cardH + 12;
+      return true;
+    };
+
+    // ── DIAGRAM HANDLER ──
+    // Prioritizes authentic diagrams extracted from PDF over fake AI text flowcharts
+    const drawDiagram = (label) => {
+      if (pendingImages.length > 0) {
+        const nextImg = pendingImages.shift();
+        drawDocumentImage(nextImg);
+        return;
+      }
+      // If no document images are available, do NOT generate artificial flowcharts
+      return;
     };
 
     // ── EXPLANATION SECTION ──
@@ -484,6 +515,10 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
         doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(16 + FS_MOD).text(hText, L, y, { width: CW });
         y += 26;
       } else if (t.startsWith('## ')) {
+        // Embed the next authentic document diagram between major topics
+        if (pendingImages.length > 0 && pageNum >= 1 && y > 150) {
+          drawDocumentImage(pendingImages.shift());
+        }
         drawHeading2(t.slice(3).trim());
       } else if (t.startsWith('### ')) {
         ensureSpace(20);
@@ -508,6 +543,15 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
 
     flushMode();
     if (tableRows) drawTable(tableRows);
+
+    // Embed any remaining authentic diagrams from document
+    if (pendingImages.length > 0) {
+      drawHeading2('FIGURES & DIAGRAMS FROM SOURCE DOCUMENT');
+      while (pendingImages.length > 0) {
+        const nextImg = pendingImages.shift();
+        drawDocumentImage(nextImg);
+      }
+    }
 
     // Draw all footers cleanly across all buffered pages
     const range = doc.bufferedPageRange();
