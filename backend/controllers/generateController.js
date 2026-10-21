@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 const { Document, Flashcard, User } = require('../models');
 const ai = require('../services/aiService');
