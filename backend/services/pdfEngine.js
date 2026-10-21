@@ -749,23 +749,23 @@ function makePodcastScript(text, title, subject) {
 function makeVideoScript(text, title, subject) {
   const defs = getDefinitions(text, 5);
   const facts = getKeyFacts(text, 5);
-  const coreTerm = defs[0]?.term || subject || title || 'this topic';
-  const coreFact = facts[0] ? facts[0].replace(/\.$/, '') : `The primary concept of ${coreTerm} governs system behavior`;
-  const extraFact = facts[1] ? facts[1].replace(/\.$/, '') : `It ensures high reliability and structured execution`;
-  const extraFact2 = facts[2] ? facts[2].replace(/\.$/, '') : `It is applied widely in real-world implementations`;
+  const coreTerm = defs[0]?.term || subject || title || 'Core Concept';
+  const cleanTerm = coreTerm.replace(/^[#\-*\d.]+\s*/, '').slice(0, 32).trim();
+  const point1 = facts[0] ? facts[0].replace(/\.$/, '').slice(0, 48) : `${cleanTerm} defines foundational architecture`;
+  const point2 = facts[1] ? facts[1].replace(/\.$/, '').slice(0, 48) : `Ensures optimal process and control flow`;
+  const point3 = facts[2] ? facts[2].replace(/\.$/, '').slice(0, 48) : `Essential benchmark for academic evaluations`;
 
-  return `[HOOK]
-Teacher: Bunty! Pay attention! Who can explain ${coreTerm} for 10 marks in tomorrow's exam?
-Bunty: Sir, in our group we pass exams using God's blessings and tukka!
-
-[BODY]
-Teacher: Arre Bunty! Listen carefully: ${coreFact}. Furthermore, ${extraFact}.
-Bunty: Wait Sir, does that mean ${extraFact2}?
-Teacher: Exactly Bunty! Now you finally understand the real concept!
-
-[OUTRO]
-Bunty: Arey waah Sir! Ab to paper me full marks aayenge!
-Teacher: Then save this video, share it with your backbencher friends, and follow for more quick exam hacks!`;
+  return `TOPIC: ${cleanTerm}
+[BOARD POINTS]
+• 1. ${point1.slice(0, 36)}
+• 2. ${point2.slice(0, 36)}
+• 3. ${point3.slice(0, 36)}
+[DIALOGUE]
+Professor: Welcome class. Today we are analyzing ${cleanTerm}. Can anyone define its core function from our syllabus?
+Student: Professor, does ${cleanTerm} primarily establish ${point1}?
+Professor: Exactly! ${point1}. In addition, ${point2}.
+Student: That clarifies it! How does this connect to ${point3}?
+Professor: Excellent question! It directly governs execution stability. Keep these three principles on the board memorized for your upcoming exam!`;
 }
 
 function makePPT(text, title, subject) {

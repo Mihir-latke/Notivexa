@@ -62,61 +62,105 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 60
   const rawScript = script || '';
   const lines = rawScript.split('\n').map(l => l.trim()).filter(Boolean);
 
-  let topicName = 'Quick Concept';
+  let topicName = 'Core Academic Concept';
   const points = [];
 
   lines.forEach(l => {
     if (l.toLowerCase().includes('topic:') || l.toLowerCase().includes('title:')) {
-      topicName = l.replace(/.*(?:topic|title):\s*/i, '').replace(/["']/g, '').trim().slice(0, 32);
+      const extracted = l.replace(/.*(?:topic|title):\s*/i, '').replace(/["'\[\]]/g, '').trim();
+      if (extracted.length > 2) topicName = extracted.slice(0, 34);
     }
     if (l.match(/^[-•*\d.]+\s+/)) {
-      points.push(l.replace(/^[-•*\d.]+\s*/, '').replace(/\*\*/g, '').replace(/__/g, '').trim().slice(0, 30));
+      const p = l.replace(/^[-•*\d.]+\s*/, '').replace(/\*\*/g, '').replace(/__/g, '').trim();
+      if (p.length > 3) points.push(p.slice(0, 34));
     }
   });
 
   if (points.length === 0) {
-    points.push('1. Core Architecture');
-    points.push('2. Process Workflow');
-    points.push('3. Exam Success Hack');
+    points.push('1. Foundational Architecture');
+    points.push('2. Process Control & Execution');
+    points.push('3. University Exam Key Rules');
   }
-
-  const boardText = `TOPIC: ${topicName.toUpperCase()}\\N\\N• ${points.slice(0, 3).join('\\N• ')}`;
 
   // Build dialogue phrases for ASS Subtitles
   const dialogueLines = [];
   lines.forEach(l => {
-    if (l.startsWith('[') || l.toLowerCase().includes('visual:')) return;
-    const cleanL = l.replace(/^(?:teacher|bunty|student|narration):\s*/i, '').trim();
+    if (l.startsWith('[') || l.toLowerCase().includes('visual:') || l.toLowerCase().startsWith('topic:')) return;
+    const isStudent = /^(?:student|bunty|learner|class):\s*/i.test(l);
+    const speaker = isStudent ? 'student' : 'teacher';
+    const cleanL = l.replace(/^(?:professor|teacher|student|bunty|sir|instructor|narrator|narration):\s*/i, '').trim();
     if (cleanL) {
-      const isBunty = l.toLowerCase().startsWith('bunty') || l.toLowerCase().startsWith('student');
-      const prefix = isBunty ? 'Bunty: ' : 'Teacher: ';
-      // Break into 2-4 word popup chunks
+      // Break into 3-4 word popup chunks
       const words = cleanL.split(/\s+/).filter(Boolean);
-      for (let i = 0; i < words.length; i += 3) {
+      for (let i = 0; i < words.length; i += 4) {
         dialogueLines.push({
-          speaker: isBunty ? 'bunty' : 'teacher',
-          text: (i === 0 ? prefix : '') + words.slice(i, i + 3).join(' ')
+          speaker,
+          isFirstChunk: i === 0,
+          text: words.slice(i, i + 4).join(' ')
         });
       }
     }
   });
 
   if (dialogueLines.length === 0) {
-    dialogueLines.push({ speaker: 'teacher', text: 'Teacher: Listen Class!' });
-    dialogueLines.push({ speaker: 'bunty', text: 'Bunty: Ready Sir!' });
-    dialogueLines.push({ speaker: 'teacher', text: 'Teacher: Master this Topic!' });
+    dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: `Welcome to ${topicName} lecture!` });
+    dialogueLines.push({ speaker: 'student', isFirstChunk: true, text: 'Professor, how does it operate?' });
+    dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: 'Notice the core syllabus principles!' });
   }
 
-  // 4. Build Cartoon Shorts ASS Subtitle File
+  const totalChars = dialogueLines.reduce((acc, d) => acc + d.text.length, 0) || 1;
+  let currentTime = 0;
+  const teacherIntervals = [];
+  const studentIntervals = [];
+
+  dialogueLines.forEach(item => {
+    const phraseDur = Math.max(1.1, (item.text.length / totalChars) * targetDuration);
+    const start = currentTime;
+    const end = Math.min(currentTime + phraseDur, targetDuration);
+    item.start = start;
+    item.end = end;
+    if (item.speaker === 'teacher') {
+      teacherIntervals.push({ start, end });
+    } else {
+      studentIntervals.push({ start, end });
+    }
+    currentTime = end;
+  });
+
+  const mergeIntervals = (invs) => {
+    if (!invs.length) return [];
+    const sorted = [...invs].sort((a, b) => a.start - b.start);
+    const merged = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = merged[merged.length - 1];
+      const curr = sorted[i];
+      if (curr.start <= prev.end + 0.15) {
+        prev.end = Math.max(prev.end, curr.end);
+      } else {
+        merged.push({ ...curr });
+      }
+    }
+    return merged;
+  };
+
+  const mTeacher = mergeIntervals(teacherIntervals);
+  const mStudent = mergeIntervals(studentIntervals);
+
+  const teacherCond = mTeacher.length > 0
+    ? `gte(${mTeacher.map(inv => `between(t,${inv.start.toFixed(2)},${inv.end.toFixed(2)})`).join('+')},1)`
+    : '1';
+
+  const studentCond = mStudent.length > 0
+    ? `gte(${mStudent.map(inv => `between(t,${inv.start.toFixed(2)},${inv.end.toFixed(2)})`).join('+')},1)`
+    : '0';
+
+  // 4. Build Professional Academic ASS Subtitle File
   const assName = `subs_${uuidv4()}.ass`;
   const assPath = path.join(OUT_DIR, assName);
   let hasAss = false;
   let relAssPath = '';
 
   try {
-    const totalChars = dialogueLines.reduce((acc, d) => acc + d.text.length, 0) || 1;
-    let currentTime = 0;
-
     const formatAssTime = (sec) => {
       const h = Math.floor(sec / 3600);
       const m = Math.floor((sec % 3600) / 60);
@@ -132,26 +176,26 @@ PlayResY: 1280
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: TopBanner,Arial,32,&H00000000,&H00000000,&H00FFFFFF,&HFFFFFFFF,-1,0,0,0,100,100,0,0,1,10,4,8,20,20,50,1
-Style: BottomBanner,Arial,28,&H00FFFFFF,&H00FFFFFF,&H00000000,&HFF000000,-1,0,0,0,100,100,0,0,1,8,3,2,20,20,35,1
-Style: BoardText,Arial,24,&H00F0FDF4,&H00000000,&H0014532D,&HB00F291E,-1,0,0,0,100,100,0,0,1,6,3,9,30,40,240,1
-Style: TeacherSpeech,Arial,56,&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,25,25,410,1
-Style: BuntySpeech,Arial,56,&H00FFFFFF,&H0000FFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,7,3,5,25,25,410,1
+Style: TopHeader,Arial,25,&H00FFFFFF,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,8,2,8,20,20,30,1
+Style: BoardTitle,Arial,25,&H0022D3EE,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,78,1
+Style: BoardBullets,Arial,22,&H00F0FDF4,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,118,1
+Style: BottomPill,Arial,24,&H00FFFFFF,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,6,2,2,20,20,30,1
+Style: ActiveDialogue,Arial,38,&H00FFFFFF,&H00FFFFFF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,8,3,8,25,25,315,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopBanner,,0,0,0,,{\\b1}Ek aisa teacher hum bhi deserve krte hai 😅😜{\\b0}
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomBanner,,0,0,0,,{\\b1}Wait for End 🤣📚 | Like & Share 🔥{\\b0}
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardText,,0,0,0,,{\\b1}${boardText}{\\b0}
+Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopHeader,,0,0,0,,{\\b1}🎓 LECTURE: ${topicName.toUpperCase()} | CORE EXAM REVISION{\\b0}
+Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardTitle,,0,0,0,,{\\b1}📌 KEY SYLLABUS PRINCIPLES:{\\b0}
+Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardBullets,,0,0,0,,{\\b1}• 1. ${points[0] || 'Core Architecture'}\\N• 2. ${points[1] || 'Process Workflow'}\\N• 3. ${points[2] || 'Exam Takeaway'}{\\b0}
+Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1}📚 Notivexa Smart Study | Verified Document Lecture{\\b0}
 `;
 
     dialogueLines.forEach(item => {
-      const phraseDur = Math.max(1.0, (item.text.length / totalChars) * targetDuration);
-      const start = currentTime;
-      const end = Math.min(currentTime + phraseDur, targetDuration);
-      const styleName = item.speaker === 'bunty' ? 'BuntySpeech' : 'TeacherSpeech';
-      assContent += `Dialogue: 2,${formatAssTime(start)},${formatAssTime(end)},${styleName},,0,0,0,,{\\fscx85\\fscy85\\t(0,80,\\fscx100\\fscy100)}${item.text}\n`;
-      currentTime = end;
+      const isTeacher = item.speaker === 'teacher';
+      const prefix = item.isFirstChunk
+        ? (isTeacher ? '{\\c&H00D7FF&\\b1}[PROFESSOR]: {\\c&HFFFFFF&\\b0}' : '{\\c&HFFE259&\\b1}[STUDENT]: {\\c&HFFFFFF&\\b0}')
+        : (isTeacher ? '{\\c&H00D7FF&\\b1}• {\\c&HFFFFFF&\\b0}' : '{\\c&HFFE259&\\b1}• {\\c&HFFFFFF&\\b0}');
+      assContent += `Dialogue: 2,${formatAssTime(item.start)},${formatAssTime(item.end)},ActiveDialogue,,0,0,315,,{\\fscx90\\fscy90\\t(0,70,\\fscx100\\fscy100)}${prefix}${item.text}\n`;
     });
 
     fs.writeFileSync(assPath, assContent);
@@ -206,24 +250,28 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardText,,0,0,0,,{\\b1}
         complexFilter.push(`[${bgInputIdx}:v]format=rgba[bg]`);
       }
 
-      let currentScene = '[bg]';
+      // Add elegant classroom chalkboard frame on top
+      complexFilter.push(`[bg]drawbox=x=25:y=65:w=670:h=235:color=#061c14@0.90:t=fill[bg_board]`);
+      complexFilter.push(`[bg_board]drawbox=x=25:y=65:w=670:h=235:color=#10b981@0.85:t=3[bg_board_framed]`);
 
-      // Overlay Teacher on left side of classroom with animated idle breathing motion
+      let currentScene = '[bg_board_framed]';
+
+      // Overlay Teacher on left side with speaker-synchronized realistic gestures
       if (useTeacher) {
         complexFilter.push(`[${teacherInputIdx}:v]scale=-1:490,format=rgba[teacher]`);
-        complexFilter.push(`${currentScene}[teacher]overlay=x=15:y='440+4*sin(4*PI*t)':format=auto[scene_t]`);
+        complexFilter.push(`${currentScene}[teacher]overlay=x='18+if(${teacherCond}, 4*sin(3.5*PI*t), 0)':y='430+if(${teacherCond}, 7*sin(6*PI*t)+3*cos(12*PI*t), 2*sin(1.2*PI*t))':format=auto[scene_t]`);
         currentScene = '[scene_t]';
       }
 
-      // Overlay Student at desk in front right foreground with subtle motion
+      // Overlay Student at desk with speaker-synchronized inquisitive head/body movements
       if (useStudent) {
         complexFilter.push(`[${studentInputIdx}:v]scale=460:-1,format=rgba[student]`);
-        complexFilter.push(`${currentScene}[student]overlay=x=230:y='650+3*cos(3*PI*t)':format=auto[scene_s]`);
+        complexFilter.push(`${currentScene}[student]overlay=x='230+if(${studentCond}, 5*sin(3.5*PI*t), 0)':y='645+if(${studentCond}, 7*sin(5.5*PI*t)+3*cos(11*PI*t), 2*sin(1.0*PI*t))':format=auto[scene_s]`);
         currentScene = '[scene_s]';
       }
 
       // Add audio visualizer waveform across bottom desk line
-      complexFilter.push(`[a_wave]showwaves=s=720x130:colors=#06b6d4:mode=cline:rate=30,colorkey=black:0.1:0.1[wave]`);
+      complexFilter.push(`[a_wave]showwaves=s=720x120:colors=#10b981:mode=cline:rate=30,colorkey=black:0.1:0.1[wave]`);
       complexFilter.push(`${currentScene}[wave]overlay=0:H-h-110[out_wave]`);
 
       if (withSubtitles && hasAss && relAssPath) {

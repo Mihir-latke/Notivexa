@@ -786,34 +786,35 @@ ${promptChunk}`;
   return combined;
 }
 
-// FIXED: Generate YouTube Shorts style vertical video script
+// Generates professional, document-grounded animated classroom lecture Shorts script
 async function generateVideoScript(text, title, subject, lang = 'English') {
   const CHUNK = 8000;
   const chunks = [];
   for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
-  const toProcess = chunks.slice(0, 1); // 1 chunk for a 60-second Short
+  const toProcess = chunks.slice(0, 1); // 1 chunk for a 45-60 second educational Short
 
-  const sysPrompt = `You are a viral YouTube Shorts scriptwriter for cartoon classroom comedy and educational animation reels (style of Cartoonwala and SinuRox).
-RULES:
-- Write an energetic, hilarious, yet deeply educational 45-60 second Classroom dialogue between a Teacher and a Backbencher Student (Bunty).
-- Structure format:
-[HOOK]
-Teacher: (Asks class a question about the document topic for 10 marks in tomorrow's exam)
-Bunty: (Gives a funny, witty, or relatable student response)
-[BODY]
-Teacher: (Corrects Bunty and explains the core concept from the document in 2-3 clear, punchy bullet points)
-Bunty: (Asks an intuitive question or has an 'Aha!' moment)
-Teacher: (Confirms the key takeaway)
-[OUTRO]
-Bunty: (Excitedly says he will top the exam)
-Teacher: (Call to action: Save this video, share with your study group, and follow!)
-- Keep the language lively Hinglish or English, natural and fast-paced.
-- Keep the whole narration under 140 words.`;
+  const sysPrompt = `You are a professional educational scriptwriter and academic animator.
+CRITICAL RULES:
+1. STRICT DOCUMENT GROUNDING: Use ONLY the concepts, definitions, and technical facts present in the provided document. DO NOT include generic jokes, meme humor, or unrelated comedy tropes.
+2. Structure format (Professional Classroom Lecture between Professor and Student):
+TOPIC: [Core Concept Name from document - max 4 words]
+[BOARD POINTS]
+• 1. [First key syllabus principle from document - max 6 words]
+• 2. [Second key mechanism/method from document - max 6 words]
+• 3. [Third key rule/impact from document - max 6 words]
+[DIALOGUE]
+Professor: Welcome class! Today we are analyzing [Core Concept]. Can anyone explain what problem it solves?
+Student: Professor, does [Core Concept] primarily ensure [First key principle from document]?
+Professor: Exactly! It establishes [Key explanation from document]. Furthermore, it [Second mechanism from document].
+Student: Understood! How does this directly affect [Third rule/impact from document]?
+Professor: Brilliant question! That ensures [Final technical takeaway from document]. Remember these three core principles on the board for your exam!
+3. TONE: Clear, academic, engaging, easy for university/high-school students to understand.
+4. Total dialogue length: 110-140 words (ideal for 45-60s short).`;
 
   const parts = [];
   for (let idx = 0; idx < toProcess.length; idx++) {
     const chunk = toProcess[idx];
-    const prompt = `Write the Cartoon Classroom comedy Shorts script for this topic.
+    const prompt = `Write the Professional Academic Classroom Shorts script based strictly on this document.
 Title: ${title} | Subject: ${subject}
 
 Document Content:
