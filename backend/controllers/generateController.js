@@ -438,24 +438,46 @@ const { createVideoFromAudio } = require('../services/videoEngine');
 
 exports.video = async (req, res, next) => {
   try {
+    if (req.setTimeout) req.setTimeout(300000); // 5 minutes timeout for video rendering
     const documentId = req.body.documentId || req.body.docId || req.body.id;
     const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const [script, pptData] = await Promise.all([
-      ai.generateVideoScript(text, doc.title, doc.subject || doc.title, language),
-      ai.generatePPT(text, doc.title, doc.subject || doc.title, language)
-    ]);
-    let slideFile = null;
-    try { slideFile = await slidePDF(pptData, { title:doc.title }); } catch(e) { console.warn('[Video slides]', e.message); }
+
+    // 1. Generate strictly document-grounded classroom dialogue script
+    const script = await ai.generateVideoScript(text, doc.title, doc.subject || doc.title, language);
+
+    // 2. Generate Audio via Edge TTS (Indian male voice)
     const audio = await ai.generateAudio(script, { language:'en-IN', voiceStyle:'male' });
-    
-    // Generate actual MP4 video with subtitles
+
+    // 3. Render realistic animated educational video (with Veo AI motion or Animated Classroom Engine)
     const videoResult = await createVideoFromAudio(audio.filePath, script, audio.duration);
+
+    // 4. Optionally generate slides in the background or safely
+    let pptData = null;
+    let slideFile = null;
+    try {
+      pptData = await ai.generatePPT(text, doc.title, doc.subject || doc.title, language);
+      if (pptData) slideFile = await slidePDF(pptData, { title: doc.title });
+    } catch (e) {
+      console.warn('[Video slides optional]', e.message);
+    }
     
     if (doc.outputs) doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
     await safeDocSave(doc);
-    res.json({ success:true, script, pptData, slidesUrl:slideFile?`/uploads/generated/${slideFile.fileName}`:null, audioUrl:`/uploads/audio/${audio.fileName}`, videoUrl: videoResult.videoUrl, audioProvider:audio.provider, audioDuration:audio.duration, audioNote:audio.note, message:'Video generation complete: script + slides + video' });
+    res.json({
+      success: true,
+      script,
+      pptData,
+      slidesUrl: slideFile ? `/uploads/generated/${slideFile.fileName}` : null,
+      audioUrl: `/uploads/audio/${audio.fileName}`,
+      videoUrl: videoResult.videoUrl,
+      audioProvider: audio.provider,
+      audioDuration: audio.duration,
+      audioNote: audio.note,
+      isVeo: videoResult.isVeo || false,
+      message: 'Video generation complete: script + audio + animated video'
+    });
   } catch(e) { next(e); }
 };
 
