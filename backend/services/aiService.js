@@ -793,26 +793,28 @@ async function generateVideoScript(text, title, subject, lang = 'English') {
   for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
   const toProcess = chunks.slice(0, 1); // 1 chunk for a 60-second Short
 
-  const sysPrompt = `You are a viral YouTube Shorts / TikTok scriptwriter.
+  const sysPrompt = `You are a viral YouTube Shorts scriptwriter for cartoon classroom comedy and educational animation reels (style of Cartoonwala and SinuRox).
 RULES:
-- Write a fast-paced, highly engaging 60-second educational script.
-- Output EXACTLY in this format for the whole script:
+- Write an energetic, hilarious, yet deeply educational 45-60 second Classroom dialogue between a Teacher and a Backbencher Student (Bunty).
+- Structure format:
 [HOOK]
-Narration: (Catchy first sentence to grab attention)
+Teacher: (Asks class a question about the document topic for 10 marks in tomorrow's exam)
+Bunty: (Gives a funny, witty, or relatable student response)
 [BODY]
-Narration: (Fast, mind-blowing facts)
+Teacher: (Corrects Bunty and explains the core concept from the document in 2-3 clear, punchy bullet points)
+Bunty: (Asks an intuitive question or has an 'Aha!' moment)
+Teacher: (Confirms the key takeaway)
 [OUTRO]
-Narration: (Quick conclusion and call to action)
-- Do NOT output anything else. Keep the total narration under 150 words.`;
+Bunty: (Excitedly says he will top the exam)
+Teacher: (Call to action: Save this video, share with your study group, and follow!)
+- Keep the language lively Hinglish or English, natural and fast-paced.
+- Keep the whole narration under 140 words.`;
 
   const parts = [];
   for (let idx = 0; idx < toProcess.length; idx++) {
     const chunk = toProcess[idx];
-    const prompt = `Write the Shorts script for this topic.
+    const prompt = `Write the Cartoon Classroom comedy Shorts script for this topic.
 Title: ${title} | Subject: ${subject}
-
-Make it punchy, engaging, and suitable for a 60-second vertical video.
-Use simple, mind-blowing facts. Keep sentences short.
 
 Document Content:
 ${chunk}`;

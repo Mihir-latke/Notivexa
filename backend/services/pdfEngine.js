@@ -749,18 +749,23 @@ function makePodcastScript(text, title, subject) {
 function makeVideoScript(text, title, subject) {
   const defs = getDefinitions(text, 5);
   const facts = getKeyFacts(text, 5);
-  const coreTerm = defs[0]?.term || subject || title || 'this subject';
-  const coreFact = facts[0] ? facts[0].replace(/\.$/, '') : `Understanding the core concepts of ${coreTerm} is essential`;
-  const extraFact = facts[1] ? facts[1].replace(/\.$/, '') : `Key mechanisms focus on reliability, modularity, and structured design`;
+  const coreTerm = defs[0]?.term || subject || title || 'this topic';
+  const coreFact = facts[0] ? facts[0].replace(/\.$/, '') : `The primary concept of ${coreTerm} governs system behavior`;
+  const extraFact = facts[1] ? facts[1].replace(/\.$/, '') : `It ensures high reliability and structured execution`;
+  const extraFact2 = facts[2] ? facts[2].replace(/\.$/, '') : `It is applied widely in real-world implementations`;
 
   return `[HOOK]
-Narration: Did you know how ${coreTerm} actually works in ${subject}? Let's break it down in 60 seconds!
+Teacher: Bunty! Pay attention! Who can explain ${coreTerm} for 10 marks in tomorrow's exam?
+Bunty: Sir, in our group we pass exams using God's blessings and tukka!
 
 [BODY]
-Narration: ${coreFact}. Furthermore, ${extraFact}. These principles enable high system performance and seamless architecture.
+Teacher: Arre Bunty! Listen carefully: ${coreFact}. Furthermore, ${extraFact}.
+Bunty: Wait Sir, does that mean ${extraFact2}?
+Teacher: Exactly Bunty! Now you finally understand the real concept!
 
 [OUTRO]
-Narration: That is the power of ${coreTerm}! Save this video, share it with your classmates, and follow for more quick concept breakdowns!`;
+Bunty: Arey waah Sir! Ab to paper me full marks aayenge!
+Teacher: Then save this video, share it with your backbencher friends, and follow for more quick exam hacks!`;
 }
 
 function makePPT(text, title, subject) {
