@@ -780,16 +780,109 @@ async function questionPaperPDF(content, { title='Exam', subject='General', tota
       try {
         data = JSON.parse((content || '').replace(/```json\n?|\n?```/g, '').trim());
       } catch(e) {
+        data = null;
+      }
+    }
+
+    const is60Marks = totalMarks === 60 || data?.marks == '60' || (data?.sections && data.sections.length >= 5);
+
+    if (!data) {
+      if (is60Marks) {
+        data = {
+          institution: institution || "Mahatma Education Society's",
+          college: "Pillai HOC College of Engineering and Technology,Rasayani",
+          status: "(Autonomous)",
+          department: "Department of Computer Application",
+          examType: "PRELIM EXAMINATION (Autonomous)",
+          branch: "Computer Application (MCA)",
+          semester: "Semester: I",
+          subject: subject || title || "Software Project Management",
+          subjectCode: "MCA104",
+          date: "04/12/2025",
+          time: "02.00 Hours",
+          duration: "02.00 Hours",
+          marks: "60",
+          nb: [
+            "1. Q.1 is compulsory",
+            "2. Attempt any Three from the remaining five questions",
+            "3. Each Question carry 15 marks."
+          ],
+          sections: [
+            {
+              qNum: "Q.1",
+              instruction: "Attempt any 3",
+              questions: [
+                { id: "a)", text: "What is Feasibility Study? Explain Types of Feasibility.", marks: "5", bt: "1", co: "Co3" },
+                { id: "b)", text: "Explain the role and responsibilities of project manager", marks: "5", bt: "2", co: "Co1" },
+                { id: "c)", text: "Difference between Scrum & Kanban(any 10)", marks: "5", bt: "4", co: "Co2" },
+                { id: "d)", text: "Explain six sigma with its characteristics", marks: "5", bt: "2", co: "Co6" },
+                { id: "e)", text: "Explain Extreme programming with its Values", marks: "5", bt: "2", co: "Co2" },
+                { id: "f)", text: "Design DFD (up to level 1)for Library Management system", marks: "5", bt: "2", co: "Co3" }
+              ]
+            },
+            {
+              qNum: "Q.2",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Explain DevOps Model in detail", marks: "8", bt: "2", co: "Co2" },
+                { id: "b)", text: "Suppose that a Basic project was estimated to be 400 KLOC. Calculate effort and time for each of the three modes of development. All the constants value provided in the following table\n\n| Software Project | a | b | c | d |\n| :--- | :--- | :--- | :--- | :--- |\n| Organic | 2.4 | 1.05 | 2.5 | 0.38 |\n| Semi detached | 3.0 | 1.12 | 2.5 | 0.35 |\n| Embedded | 3.6 | 1.20 | 2.5 | 0.32 |", marks: "7", bt: "6", co: "Co4" }
+              ]
+            },
+            {
+              qNum: "Q.3",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Develop SRS on online student feedback", marks: "8", bt: "6", co: "Co3" },
+                { id: "b)", text: "Explain Work Breakdown Structures (WBS)With example", marks: "7", bt: "2", co: "Co5" }
+              ]
+            },
+            {
+              qNum: "Q.4",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Determine the earliest event and latest event in respect of all node points and identify critical path for the following network", marks: "10", bt: "5", co: "Co5" },
+                { id: "b)", text: "What is LOC explain with example", marks: "5", bt: "1", co: "Co4" }
+              ]
+            },
+            {
+              qNum: "Q.5",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Explain in detail Life Cycle of Project", marks: "7", bt: "2", co: "Co1" },
+                { id: "b)", text: "A library management system has the following:\n• External Inputs: 8 (Average complexity)\n• External Outputs: 5 (High complexity)\n• External Inquiries: 4 (Low complexity)\n• Internal Logical Files: 3 (Average complexity)\n• External Interface Files: 2 (Low complexity)\nGeneral System Characteristics (14 factors) total = TDI = 32 Calculate the Function Points.\n\nWeight Table:\n| Component | Low | Average | High |\n| :--- | :--- | :--- | :--- |\n| EI | 3 | 4 | 6 |\n| EO | 4 | 5 | 7 |\n| EQ | 3 | 4 | 6 |\n| ILF | 7 | 10 | 15 |\n| EIF | 5 | 7 | 10 |", marks: "8", bt: "2", co: "Co2" }
+              ]
+            },
+            {
+              qNum: "Q.6",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Define FTR. explain its objectives and review guidelines", marks: "8", bt: "1", co: "Co6" },
+                { id: "b)", text: "What is Use Case diagram? Draw use case diagram on online shopping system", marks: "7", bt: "6", co: "Co3" }
+              ]
+            }
+          ],
+          courseOutcomes: [
+            { code: "CO1", desc: "Define the key concepts of Software Project Management." },
+            { code: "CO2", desc: "Use various SDLC models to implement the projects." },
+            { code: "CO3", desc: "Demonstrate understanding of the requirements Analysis and Application UML Models." },
+            { code: "CO4", desc: "Make use of estimation logic for estimation of software size as well as cost of software." },
+            { code: "CO5", desc: "Analyze the need of scheduling and change management during software development." },
+            { code: "CO6", desc: "Assess various factors influencing project management, quality assurance and risk assessment." }
+          ],
+          btLevels: "1 Remembering, 2 Understanding, 3 Applying, 4 Analyzing, 5 Evaluating, 6 Creating.",
+          legend: "M-Marks, BT- Bloom's Taxonomy, CO-Course Outcomes."
+        };
+      } else {
         data = {
           institution: institution || "Mahatma Education Society's",
           college: "Pillai HOC College of Engineering and Technology, Rasayani.",
           status: "(Autonomous)",
           department: "Department of Computer Application",
-          examType: totalMarks <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination",
+          examType: "Internal Assessment- I OSAY 2026-2027",
           subject: subject || title || "Big Data Analytics and Visualization",
           class: "SY-MCA",
           date: "22/8/2026",
-          time: totalMarks <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm",
+          time: "10.30am - 11.30am",
           duration: `${timeHours}Hr`,
           marks: `${totalMarks}`,
           note: "Note: Assume suitable data wherever necessary.",
@@ -828,98 +921,162 @@ async function questionPaperPDF(content, { title='Exam', subject='General', tota
     }
 
     doc.fillColor('#000000');
-    let y = 32;
+    let y = 30;
 
-    // Centered College Header (Times / Helvetica-Bold)
+    // Centered College Header
     doc.font('Helvetica').fontSize(10).text(data.institution || "Mahatma Education Society's", 36, y, { width: 523, align: 'center' });
     y += 14;
-    doc.font('Helvetica-Bold').fontSize(11.5).text(data.college || "Pillai HOC College of Engineering and Technology, Rasayani.", 36, y, { width: 523, align: 'center' });
-    y += 15;
-    doc.font('Helvetica-Bold').fontSize(9.5).text(data.status || "(Autonomous)", 36, y, { width: 523, align: 'center' });
-    y += 13;
+    doc.font('Helvetica-Bold').fontSize(11).text(data.college || "Pillai HOC College of Engineering and Technology,Rasayani", 36, y, { width: 523, align: 'center' });
+    y += 14;
     doc.font('Helvetica-Bold').fontSize(9.5).text(data.department || "Department of Computer Application", 36, y, { width: 523, align: 'center' });
     y += 13;
-    doc.font('Helvetica-Bold').fontSize(9.5).text(data.examType || "Internal Assessment- I OSAY 2026-2027", 36, y, { width: 523, align: 'center' });
-    y += 18;
-
-    // Metadata Row 1
-    doc.font('Helvetica-Bold').fontSize(9);
-    doc.text(`Subject: ${data.subject || subject || 'Big Data Analytics and Visualization'}`, 36, y, { width: 340, lineBreak: false });
-    doc.text(`Class: ${data.class || 'SY-MCA'}`, 380, y, { width: 179, align: 'right', lineBreak: false });
-    y += 14;
-
-    // Metadata Row 2
-    doc.text(`Date: ${data.date || '22/8/2026'}`, 36, y, { width: 120, lineBreak: false });
-    doc.text(`Time: ${data.time || '10.30am - 11.30am'}`, 160, y, { width: 190, align: 'center', lineBreak: false });
-    doc.text(`Duration: ${data.duration || timeHours + 'Hr'}   Marks: ${data.marks || totalMarks}`, 360, y, { width: 199, align: 'right', lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(9.5).text(data.examType || (is60Marks ? "PRELIM EXAMINATION (Autonomous)" : "Internal Assessment- I OSAY 2026-2027"), 36, y, { width: 523, align: 'center' });
     y += 16;
 
-    // Exact Grid Coordinates (width 523 pt)
+    // ── Table Grid Constants ──
     const x0 = 36;
-    const x1 = 68;  // Col 1 width = 32 (ID)
-    const x2 = 439; // Col 2 width = 371 (Question)
-    const x3 = 479; // Col 3 width = 40 (Marks)
-    const x4 = 519; // Col 4 width = 40 (CO)
-    const x5 = 559; // Col 5 width = 40 (BL)
+    const x1 = 68;  // Q.No col (width: 32)
+    const x2 = 445; // Question description col (width: 377)
+    const x3 = 478; // Marks col (width: 33)
+    const x4 = 514; // BT col (width: 36)
+    const x5 = 559; // CO col (width: 45)
 
     const drawHLine = (curY) => doc.moveTo(x0, curY).lineTo(x5, curY).lineWidth(0.8).strokeColor('#000').stroke();
 
-    // ── Table Top Row: Note & Headers ──
-    const row0H = 26;
-    drawHLine(y);
-    doc.font('Helvetica-Bold').fontSize(8.5).text(data.note || 'Note: Assume suitable data wherever necessary.', x0 + 6, y + 8, { width: x3 - x0 - 12 });
-    doc.font('Helvetica-Bold').fontSize(8).text('Course\nOutcome', x3, y + 4, { width: 40, align: 'center' });
-    doc.font('Helvetica-Bold').fontSize(8).text("Bloom's\nLevel", x4, y + 4, { width: 40, align: 'center' });
+    if (is60Marks) {
+      // ══════════════════════════════════════════════════════════════
+      // 4-ROW BORDERED METADATA BOX (Branch, Semester, Subject, Time, Max Marks, Date, N.B, Code)
+      // ══════════════════════════════════════════════════════════════
+      const xMid = 390;
 
-    doc.moveTo(x0, y).lineTo(x0, y + row0H).stroke();
-    doc.moveTo(x3, y).lineTo(x3, y + row0H).stroke();
-    doc.moveTo(x4, y).lineTo(x4, y + row0H).stroke();
-    doc.moveTo(x5, y).lineTo(x5, y + row0H).stroke();
-    y += row0H;
-    drawHLine(y);
+      // Row 1: Branch | Semester
+      let rH1 = 18;
+      drawHLine(y);
+      doc.font('Helvetica-Bold').fontSize(8.5).text(`Branch: ${data.branch || data.class || 'Computer Application (MCA)'}`, x0 + 5, y + 5, { width: xMid - x0 - 10 });
+      doc.font('Helvetica-Bold').fontSize(8.5).text(data.semester || 'Semester: I', xMid + 5, y + 5, { width: x5 - xMid - 10 });
+      doc.moveTo(x0, y).lineTo(x0, y + rH1).stroke();
+      doc.moveTo(xMid, y).lineTo(xMid, y + rH1).stroke();
+      doc.moveTo(x5, y).lineTo(x5, y + rH1).stroke();
+      y += rH1;
+
+      // Row 2: Subject | Time
+      let rH2 = 18;
+      drawHLine(y);
+      doc.font('Helvetica-Bold').fontSize(8.5).text(`Subject: ${data.subject || subject || 'Software Project Management'}`, x0 + 5, y + 5, { width: xMid - x0 - 10 });
+      doc.font('Helvetica-Bold').fontSize(8.5).text(`Time: ${data.time || '02.00 Hours'}`, xMid + 5, y + 5, { width: x5 - xMid - 10 });
+      doc.moveTo(x0, y).lineTo(x0, y + rH2).stroke();
+      doc.moveTo(xMid, y).lineTo(xMid, y + rH2).stroke();
+      doc.moveTo(x5, y).lineTo(x5, y + rH2).stroke();
+      y += rH2;
+
+      // Row 3: Max. Marks | Date
+      let rH3 = 18;
+      drawHLine(y);
+      doc.font('Helvetica-Bold').fontSize(8.5).text(`Max. Marks: 60`, x0 + 5, y + 5, { width: xMid - x0 - 10 });
+      doc.font('Helvetica-Bold').fontSize(8.5).text(`Date: ${data.date || '04/12/2025'}`, xMid + 5, y + 5, { width: x5 - xMid - 10 });
+      doc.moveTo(x0, y).lineTo(x0, y + rH3).stroke();
+      doc.moveTo(xMid, y).lineTo(xMid, y + rH3).stroke();
+      doc.moveTo(x5, y).lineTo(x5, y + rH3).stroke();
+      y += rH3;
+
+      // Row 4: N.B 1. Q.1 is compulsory... | Subject Code
+      let rH4 = 36;
+      drawHLine(y);
+      doc.font('Helvetica-Bold').fontSize(8).text(`N.B 1. Q.1 is compulsory`, x0 + 5, y + 4, { width: xMid - x0 - 10 });
+      doc.font('Helvetica-Bold').fontSize(8).text(`      2. Attempt any Three from the remaining five questions`, x0 + 5, y + 14, { width: xMid - x0 - 10 });
+      doc.font('Helvetica-Bold').fontSize(8).text(`      3. Each Question carry 15 marks.`, x0 + 5, y + 24, { width: xMid - x0 - 10 });
+
+      doc.font('Helvetica-Bold').fontSize(8.5).text(`Subject Code: ${data.subjectCode || 'MCA104'}`, xMid + 5, y + 8, { width: x5 - xMid - 10 });
+      doc.moveTo(x0, y).lineTo(x0, y + rH4).stroke();
+      doc.moveTo(xMid, y).lineTo(xMid, y + rH4).stroke();
+      doc.moveTo(x5, y).lineTo(x5, y + rH4).stroke();
+      y += rH4;
+      drawHLine(y);
+
+      // ── Questions Table Column Headers: [ ] | [ ] | M | BT | CO ──
+      const headerH = 20;
+      doc.font('Helvetica-Bold').fontSize(8.5);
+      doc.text('M', x2, y + 5, { width: x3 - x2, align: 'center' });
+      doc.text('BT', x3, y + 5, { width: x4 - x3, align: 'center' });
+      doc.text('CO', x4, y + 5, { width: x5 - x4, align: 'center' });
+
+      doc.moveTo(x0, y).lineTo(x0, y + headerH).stroke();
+      doc.moveTo(x2, y).lineTo(x2, y + headerH).stroke();
+      doc.moveTo(x3, y).lineTo(x3, y + headerH).stroke();
+      doc.moveTo(x4, y).lineTo(x4, y + headerH).stroke();
+      doc.moveTo(x5, y).lineTo(x5, y + headerH).stroke();
+      y += headerH;
+      drawHLine(y);
+
+    } else {
+      // ══════════════════════════════════════════════════════════════
+      // 20 MARKS INTERNAL ASSESSMENT METADATA & HEADERS
+      // ══════════════════════════════════════════════════════════════
+      doc.font('Helvetica-Bold').fontSize(9);
+      doc.text(`Subject: ${data.subject || subject}`, 36, y, { width: 340, lineBreak: false });
+      doc.text(`Class: ${data.class || 'SY-MCA'}`, 380, y, { width: 179, align: 'right', lineBreak: false });
+      y += 14;
+
+      doc.text(`Date: ${data.date || '22/8/2026'}`, 36, y, { width: 120, lineBreak: false });
+      doc.text(`Time: ${data.time || '10.30am - 11.30am'}`, 160, y, { width: 190, align: 'center', lineBreak: false });
+      doc.text(`Duration: ${data.duration || timeHours + 'Hr'}   Marks: ${data.marks || totalMarks}`, 360, y, { width: 199, align: 'right', lineBreak: false });
+      y += 16;
+
+      const row0H = 24;
+      drawHLine(y);
+      doc.font('Helvetica-Bold').fontSize(8.5).text(data.note || 'Note: Assume suitable data wherever necessary.', x0 + 6, y + 7, { width: x2 - x0 - 12 });
+      doc.font('Helvetica-Bold').fontSize(8).text('Course\nOutcome', x3, y + 3, { width: 40, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(8).text("Bloom's\nLevel", x4, y + 3, { width: 40, align: 'center' });
+
+      doc.moveTo(x0, y).lineTo(x0, y + row0H).stroke();
+      doc.moveTo(x3, y).lineTo(x3, y + row0H).stroke();
+      doc.moveTo(x4, y).lineTo(x4, y + row0H).stroke();
+      doc.moveTo(x5, y).lineTo(x5, y + row0H).stroke();
+      y += row0H;
+      drawHLine(y);
+    }
 
     // ── Render Sections & Questions ──
     const sections = Array.isArray(data.sections) ? data.sections : [];
     sections.forEach(sec => {
-      // Section header row: [ 1 ] | Attempt Any Five out of Six | CO | BL
-      const secH = 20;
-      if (y + secH > doc.page.height - 36) {
+      // Section header row: Q.1 | Attempt any 3 | | |
+      const secH = 18;
+      if (y + secH > doc.page.height - 40) {
         doc.addPage();
         y = 36;
         drawHLine(y);
       }
 
-      doc.font('Helvetica-Bold').fontSize(9).text(`[ ${sec.qNum} ]`, x0, y + 5, { width: 32, align: 'center' });
-      doc.font('Helvetica-Bold').fontSize(9).text(sec.instruction || 'Attempt Any Five out of Six', x1 + 6, y + 5, { width: x3 - x1 - 12 });
-      doc.font('Helvetica-Bold').fontSize(8.5).text('CO', x3, y + 5, { width: 40, align: 'center' });
-      doc.font('Helvetica-Bold').fontSize(8.5).text('BL', x4, y + 5, { width: 40, align: 'center' });
+      doc.font('Helvetica-Bold').fontSize(9).text(sec.qNum || '', x0 + 4, y + 4, { width: x1 - x0 - 8 });
+      doc.font('Helvetica-Bold').fontSize(9).text(sec.instruction || 'Attempt All', x1 + 6, y + 4, { width: x2 - x1 - 12 });
 
       doc.moveTo(x0, y).lineTo(x0, y + secH).stroke();
       doc.moveTo(x1, y).lineTo(x1, y + secH).stroke();
+      doc.moveTo(x2, y).lineTo(x2, y + secH).stroke();
       doc.moveTo(x3, y).lineTo(x3, y + secH).stroke();
       doc.moveTo(x4, y).lineTo(x4, y + secH).stroke();
       doc.moveTo(x5, y).lineTo(x5, y + secH).stroke();
       y += secH;
       drawHLine(y);
 
-      // Question sub-rows: A. | Question text | [ 02 ] | CO3 | L2
+      // Question sub-rows: a) | Question text | 5 | 1 | Co3
       const questions = Array.isArray(sec.questions) ? sec.questions : [];
       questions.forEach(q => {
         doc.font('Helvetica').fontSize(8.5);
-        const textH = doc.heightOfString(q.text || '', { width: x2 - x1 - 12, lineGap: 1.5 });
-        const qRowH = Math.max(textH + 10, 20);
+        const textH = doc.heightOfString(q.text || '', { width: x2 - x1 - 14, lineGap: 1.5 });
+        const qRowH = Math.max(textH + 8, 19);
 
-        if (y + qRowH > doc.page.height - 36) {
+        if (y + qRowH > doc.page.height - 40) {
           doc.addPage();
           y = 36;
           drawHLine(y);
         }
 
-        doc.font('Helvetica-Bold').fontSize(8.5).text(q.id || '', x0, y + 5, { width: 32, align: 'center' });
-        doc.font('Helvetica').fontSize(8.5).text(q.text || '', x1 + 6, y + 5, { width: x2 - x1 - 12, lineGap: 1.5 });
-        doc.font('Helvetica-Bold').fontSize(8.5).text(q.marks || '', x2, y + 5, { width: 40, align: 'center' });
-        doc.font('Helvetica').fontSize(8.5).text(q.co || '', x3, y + 5, { width: 40, align: 'center' });
-        doc.font('Helvetica').fontSize(8.5).text(q.bl || '', x4, y + 5, { width: 40, align: 'center' });
+        doc.font('Helvetica-Bold').fontSize(8.5).text(q.id || '', x0, y + 5, { width: x1 - x0, align: 'center' });
+        doc.font('Helvetica').fontSize(8.5).text(q.text || '', x1 + 6, y + 5, { width: x2 - x1 - 14, lineGap: 1.5 });
+        doc.font('Helvetica-Bold').fontSize(8.5).text(String(q.marks || '').replace(/[\[\]]/g, '').trim(), x2, y + 5, { width: x3 - x2, align: 'center' });
+        doc.font('Helvetica').fontSize(8.5).text(String(q.bt || q.bl || '').replace(/^L/, ''), x3, y + 5, { width: x4 - x3, align: 'center' });
+        doc.font('Helvetica').fontSize(8.5).text(String(q.co || ''), x4, y + 5, { width: x5 - x4, align: 'center' });
 
         doc.moveTo(x0, y).lineTo(x0, y + qRowH).stroke();
         doc.moveTo(x1, y).lineTo(x1, y + qRowH).stroke();
@@ -931,6 +1088,37 @@ async function questionPaperPDF(content, { title='Exam', subject='General', tota
         drawHLine(y);
       });
     });
+
+    // ── Bottom Course Outcomes & Bloom's Taxonomy Legend (Page 2 bottom) ──
+    if (is60Marks) {
+      if (y + 110 > doc.page.height - 30) {
+        doc.addPage();
+        y = 36;
+      } else {
+        y += 12;
+      }
+
+      const cos = data.courseOutcomes || [
+        { code: "CO1", desc: `Define the key concepts of ${data.subject || subject}.` },
+        { code: "CO2", desc: `Use various SDLC models to implement the projects.` },
+        { code: "CO3", desc: `Demonstrate understanding of the requirements Analysis and Application UML Models.` },
+        { code: "CO4", desc: `Make use of estimation logic for estimation of software size as well as cost of software.` },
+        { code: "CO5", desc: `Analyze the need of scheduling and change management during software development.` },
+        { code: "CO6", desc: `Assess various factors influencing project management, quality assurance and risk assessment.` }
+      ];
+
+      doc.font('Helvetica').fontSize(7.5);
+      cos.forEach(co => {
+        doc.font('Helvetica-Bold').text(`${co.code}: `, x0, y, { lineBreak: false });
+        doc.font('Helvetica').text(co.desc || '', x0 + 26, y, { width: 497 });
+        y += 11;
+      });
+
+      y += 2;
+      doc.font('Helvetica-Bold').fontSize(7.5).text(data.btLevels || "BT Levels: - 1 Remembering ,2 Understanding, 3 Applying,4 Analyzing, 5 Evaluating, 6 Creating.", x0, y);
+      y += 10;
+      doc.font('Helvetica').fontSize(7.5).text(data.legend || "M-Marks, BT- Bloom's Taxonomy, CO-Course Outcomes.", x0, y);
+    }
 
     doc.end();
     stream.on('finish', () => res({ filePath, fileName, fileSize: fs.statSync(filePath).size }));

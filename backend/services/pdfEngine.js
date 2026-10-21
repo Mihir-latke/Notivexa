@@ -418,18 +418,204 @@ function makeQuestions(text, subject, title) {
 }
 
 function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, institution = "Mahatma Education Society's", options = {}) {
-  const defs = getDefinitions(text, 10);
-  const facts = getKeyFacts(text, 15);
-  const chunks = getChunks(text, 6);
+  const is60Marks = totalMarks === 60 || options.paperType === '60_MARKS';
+  const defs = getDefinitions(text, 20);
+  const facts = getKeyFacts(text, 30);
+  const chunks = getChunks(text, 10);
+  const sentences = getSentences(text);
 
-  const college = options.college || "Pillai HOC College of Engineering and Technology, Rasayani.";
+  const college = options.college || "Pillai HOC College of Engineering and Technology,Rasayani";
   const status = options.status || "(Autonomous)";
   const department = options.department || "Department of Computer Application";
-  const examType = options.examType || (totalMarks <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination");
-  const className = options.class || options.className || "SY-MCA";
-  const dateStr = options.date || "22/8/2026";
-  const timeStr = options.time || (totalMarks <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm");
+  const examType = options.examType || (is60Marks ? "PRELIM EXAMINATION (Autonomous)" : "Internal Assessment- I OSAY 2026-2027");
+  const branchName = options.branch || options.className || "Computer Application (MCA)";
+  const semesterName = options.semester || "Semester: I";
+  const subjectCode = options.subjectCode || "MCA104";
+  const dateStr = options.date || (is60Marks ? "04/12/2025" : "22/8/2026");
+  const timeStr = options.time || (is60Marks ? "02.00 Hours" : "10.30am - 11.30am");
 
+  if (is60Marks) {
+    // ═════════════════════════════════════════════════════════════
+    // 60 MARKS AUTONOMOUS UNIVERSITY EXAM PAPER STRUCTURE
+    // Q.1 is compulsory (Attempt any 3 of 6, 5 marks each = 15m)
+    // Attempt any Three from remaining five Q.2 to Q.6 (3 x 15 = 45m)
+    // Total = 60 Marks
+    // ═════════════════════════════════════════════════════════════
+    const subLabels = ['a)', 'b)', 'c)', 'd)', 'e)', 'f)'];
+
+    // Q.1: 6 sub-questions, 5 marks each
+    const q1List = [];
+    for (let i = 0; i < 6; i++) {
+      let qText = '';
+      if (i < defs.length && defs[i]) {
+        qText = `What is ${defs[i].term}? Explain its key characteristics and significance.`;
+      } else if (i < facts.length && facts[i]) {
+        qText = `Explain ${facts[i].replace(/\.$/, '')} with suitable details.`;
+      } else {
+        const c = chunks[i % Math.max(1, chunks.length)] || subject;
+        qText = `Explain ${firstN(c, 1).slice(0, 100).replace(/\.$/, '')} with examples.`;
+      }
+      q1List.push({
+        id: subLabels[i],
+        text: qText,
+        marks: "5",
+        bt: i === 0 ? "1" : i === 1 ? "2" : i === 2 ? "4" : i === 3 ? "2" : i === 4 ? "2" : "3",
+        co: `Co${(i % 6) + 1}`
+      });
+    }
+
+    // Helper to get descriptive questions
+    const getDeepQ = (idx, fallback) => {
+      if (defs[idx]) return `Explain in detail ${defs[idx].term} with its architecture and working mechanism.`;
+      if (facts[idx]) return `Discuss ${facts[idx].replace(/\.$/, '')} with a detailed illustrative diagram.`;
+      return fallback;
+    };
+
+    const paperData = {
+      institution: institution || "Mahatma Education Society's",
+      college,
+      status,
+      department,
+      examType,
+      branch: branchName,
+      class: branchName,
+      semester: semesterName,
+      subject: subject || "Software Project Management",
+      subjectCode,
+      date: dateStr,
+      time: timeStr,
+      duration: timeStr,
+      marks: "60",
+      nb: [
+        "1. Q.1 is compulsory",
+        "2. Attempt any Three from the remaining five questions",
+        "3. Each Question carry 15 marks."
+      ],
+      sections: [
+        {
+          qNum: "Q.1",
+          instruction: "Attempt any 3",
+          questions: q1List
+        },
+        {
+          qNum: "Q.2",
+          instruction: "Attempt All",
+          questions: [
+            {
+              id: "a)",
+              text: getDeepQ(6, `Explain the core lifecycle and architectural model of ${subject} in detail.`),
+              marks: "8",
+              bt: "2",
+              co: "Co2"
+            },
+            {
+              id: "b)",
+              text: `Suppose that a basic system was estimated with sizing metrics. Calculate effort and schedule time for the development modes using the standard coefficient parameters:\n\n| Project Category | a | b | c | d |\n| :--- | :--- | :--- | :--- | :--- |\n| Organic Mode | 2.4 | 1.05 | 2.5 | 0.38 |\n| Semi-Detached Mode | 3.0 | 1.12 | 2.5 | 0.35 |\n| Embedded Mode | 3.6 | 1.20 | 2.5 | 0.32 |`,
+              marks: "7",
+              bt: "6",
+              co: "Co4"
+            }
+          ]
+        },
+        {
+          qNum: "Q.3",
+          instruction: "Attempt All",
+          questions: [
+            {
+              id: "a)",
+              text: `Develop a comprehensive Software Requirements Specification (SRS) for a real-time ${subject} case study.`,
+              marks: "8",
+              bt: "6",
+              co: "Co3"
+            },
+            {
+              id: "b)",
+              text: getDeepQ(7, `Explain Work Breakdown Structures (WBS) and hierarchical task decomposition with a practical example.`),
+              marks: "7",
+              bt: "2",
+              co: "Co5"
+            }
+          ]
+        },
+        {
+          qNum: "Q.4",
+          instruction: "Attempt All",
+          questions: [
+            {
+              id: "a)",
+              text: `Determine the earliest event time and latest event time in respect of all node points and identify the critical path for the activity schedule network.`,
+              marks: "10",
+              bt: "5",
+              co: "Co5"
+            },
+            {
+              id: "b)",
+              text: getDeepQ(8, `Explain size metrics (such as Lines of Code - LOC and Function Points) with concrete examples.`),
+              marks: "5",
+              bt: "1",
+              co: "Co4"
+            }
+          ]
+        },
+        {
+          qNum: "Q.5",
+          instruction: "Attempt All",
+          questions: [
+            {
+              id: "a)",
+              text: getDeepQ(9, `Explain in detail the complete engineering life cycle and phase transitions for ${subject}.`),
+              marks: "7",
+              bt: "2",
+              co: "Co1"
+            },
+            {
+              id: "b)",
+              text: `Calculate the Function Points (FP) for an enterprise system given the following component counts:\n• External Inputs: 8 (Average complexity)\n• External Outputs: 5 (High complexity)\n• External Inquiries: 4 (Low complexity)\n• Internal Logical Files: 3 (Average complexity)\n• External Interface Files: 2 (Low complexity)\nGiven TDI = 32. Weight values: EI(3,4,6), EO(4,5,7), EQ(3,4,6), ILF(7,10,15), EIF(5,7,10).`,
+              marks: "8",
+              bt: "2",
+              co: "Co2"
+            }
+          ]
+        },
+        {
+          qNum: "Q.6",
+          instruction: "Attempt All",
+          questions: [
+            {
+              id: "a)",
+              text: getDeepQ(10, `Define Formal Technical Review (FTR). Explain its objectives, review guidelines, and quality assurance metrics.`),
+              marks: "8",
+              bt: "1",
+              co: "Co6"
+            },
+            {
+              id: "b)",
+              text: `What is a UML Use Case diagram? Design and draw a complete use case diagram for the primary user workflows in ${subject}.`,
+              marks: "7",
+              bt: "6",
+              co: "Co3"
+            }
+          ]
+        }
+      ],
+      courseOutcomes: [
+        { code: "CO1", desc: `Define the key concepts and architecture of ${subject}.` },
+        { code: "CO2", desc: `Use various SDLC models and lifecycle methodologies to implement ${subject} solutions.` },
+        { code: "CO3", desc: `Demonstrate understanding of requirements analysis, specifications, and application UML models.` },
+        { code: "CO4", desc: `Make use of estimation logic, sizing algorithms, and cost estimation techniques.` },
+        { code: "CO5", desc: `Analyze the need for scheduling, critical path analysis, and change management.` },
+        { code: "CO6", desc: `Assess various factors influencing project quality assurance, risk management, and formal reviews.` }
+      ],
+      btLevels: "1 Remembering, 2 Understanding, 3 Applying, 4 Analyzing, 5 Evaluating, 6 Creating.",
+      legend: "M-Marks, BT- Bloom's Taxonomy, CO-Course Outcomes."
+    };
+
+    return JSON.stringify(paperData, null, 2);
+  }
+
+  // ═════════════════════════════════════════════════════════════
+  // 20/25 MARKS INTERNAL ASSESSMENT FORMAT
+  // ═════════════════════════════════════════════════════════════
   const q1List = [];
   const q1Count = 6;
   const labels = ['A.', 'B.', 'C.', 'D.', 'E.', 'F.'];
@@ -446,7 +632,7 @@ function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, instit
     q1List.push({
       id: labels[i] || `Q${i + 1}.`,
       text: qText,
-      marks: totalMarks <= 25 ? "[ 02 ]" : "[ 05 ]",
+      marks: "[ 02 ]",
       co: `CO${(i % 3) + 1}`,
       bl: i === 0 ? "L2" : i === 1 ? "L1" : i === 2 ? "L2" : i === 3 ? "L6" : "L2"
     });
@@ -456,14 +642,14 @@ function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, instit
     {
       id: "A.",
       text: `Discuss the architecture and components of ${subject} with a suitable diagram.`,
-      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      marks: "[ 05 ]",
       co: "CO1",
       bl: "L2"
     },
     {
       id: "B.",
       text: `What are the different types and implementation models in ${subject}? Explain each in short.`,
-      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      marks: "[ 05 ]",
       co: "CO3",
       bl: "L2"
     }
@@ -473,14 +659,14 @@ function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, instit
     {
       id: "A.",
       text: `Discuss the structure, working mechanism, and fault tolerance of ${subject} with a suitable diagram.`,
-      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      marks: "[ 05 ]",
       co: "CO3",
       bl: "L2"
     },
     {
       id: "B.",
       text: `Explain computational workflow, data processing, and execution model of ${subject} with a suitable example.`,
-      marks: totalMarks <= 25 ? "[ 05 ]" : "[ 10 ]",
+      marks: "[ 05 ]",
       co: "CO2",
       bl: "L2"
     }
@@ -493,7 +679,7 @@ function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, instit
     department,
     examType,
     subject: subject || "Big Data Analytics and Visualization",
-    class: className,
+    class: branchName,
     date: dateStr,
     time: timeStr,
     duration: `${timeHours}Hr`,
@@ -502,7 +688,7 @@ function makeQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, instit
     sections: [
       {
         qNum: "1",
-        instruction: totalMarks <= 25 ? "Attempt Any Five out of Six" : "Attempt Any Four out of Six",
+        instruction: "Attempt Any Five out of Six",
         questions: q1List
       },
       {

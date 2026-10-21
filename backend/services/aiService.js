@@ -458,21 +458,121 @@ ${text.slice(0, 10000)}`;
 }
 
 async function generateQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, institution = "Mahatma Education Society's", lang = 'English', sets = 3, options = {}) {
-  const college = options.college || "Pillai HOC College of Engineering and Technology, Rasayani.";
+  const is60Marks = totalMarks === 60 || options.paperType === '60_MARKS';
+  const college = options.college || "Pillai HOC College of Engineering and Technology, Rasayani";
   const status = options.status || "(Autonomous)";
   const department = options.department || "Department of Computer Application";
-  const examType = options.examType || (totalMarks <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination");
-  const className = options.class || options.className || "SY-MCA";
-  const dateStr = options.date || "22/8/2026";
-  const timeStr = options.time || (totalMarks <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm");
+  const examType = options.examType || (is60Marks ? "PRELIM EXAMINATION (Autonomous)" : (totalMarks <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination"));
+  const branchName = options.branch || options.class || options.className || "Computer Application (MCA)";
+  const semesterName = options.semester || "Semester: I";
+  const subjectCode = options.subjectCode || "MCA104";
+  const dateStr = options.date || (is60Marks ? "04/12/2025" : "22/8/2026");
+  const timeStr = options.time || (is60Marks ? "02.00 Hours" : (totalMarks <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm"));
 
   const generateSingleSet = async (setNum) => {
     // Window the document across sets so each set covers different chapters/topics and stays well below TPM limits
-    const chunkSize = Math.min(3800, text.length);
+    const chunkSize = Math.min(6000, text.length);
     const offset = sets > 1 ? Math.floor(((setNum - 1) * (text.length - chunkSize)) / (sets - 1)) : 0;
     const docSlice = text.slice(Math.max(0, offset), Math.max(0, offset) + chunkSize);
 
-    const prompt = `You are generating an autonomous engineering college examination Question Paper based ONLY on this document.
+    const prompt = is60Marks ? `You are generating an official 60-marks autonomous university examination Question Paper based strictly on this document.
+Subject: ${subject} | Branch: ${branchName} | Semester: ${semesterName} | Set: Set ${setNum} of ${sets}
+
+CRITICAL REQUIREMENT: Return ONLY valid, raw JSON (no markdown formatting, no code fences, no extra text).
+Match this EXACT structure matching the university paper format:
+{
+  "institution": "${institution}",
+  "college": "${college}",
+  "status": "${status}",
+  "department": "${department}",
+  "examType": "PRELIM EXAMINATION (Autonomous)",
+  "branch": "${branchName}",
+  "class": "${branchName}",
+  "semester": "${semesterName}",
+  "subject": "${subject}",
+  "subjectCode": "${subjectCode}",
+  "date": "${dateStr}",
+  "time": "02.00 Hours",
+  "duration": "02.00 Hours",
+  "marks": "60",
+  "nb": [
+    "1. Q.1 is compulsory",
+    "2. Attempt any Three from the remaining five questions",
+    "3. Each Question carry 15 marks."
+  ],
+  "sections": [
+    {
+      "qNum": "Q.1",
+      "instruction": "Attempt any 3",
+      "questions": [
+        { "id": "a)", "text": "...", "marks": "5", "bt": "1", "co": "Co3" },
+        { "id": "b)", "text": "...", "marks": "5", "bt": "2", "co": "Co1" },
+        { "id": "c)", "text": "...", "marks": "5", "bt": "4", "co": "Co2" },
+        { "id": "d)", "text": "...", "marks": "5", "bt": "2", "co": "Co6" },
+        { "id": "e)", "text": "...", "marks": "5", "bt": "2", "co": "Co2" },
+        { "id": "f)", "text": "...", "marks": "5", "bt": "2", "co": "Co3" }
+      ]
+    },
+    {
+      "qNum": "Q.2",
+      "instruction": "Attempt All",
+      "questions": [
+        { "id": "a)", "text": "...", "marks": "8", "bt": "2", "co": "Co2" },
+        { "id": "b)", "text": "...", "marks": "7", "bt": "6", "co": "Co4" }
+      ]
+    },
+    {
+      "qNum": "Q.3",
+      "instruction": "Attempt All",
+      "questions": [
+        { "id": "a)", "text": "...", "marks": "8", "bt": "6", "co": "Co3" },
+        { "id": "b)", "text": "...", "marks": "7", "bt": "2", "co": "Co5" }
+      ]
+    },
+    {
+      "qNum": "Q.4",
+      "instruction": "Attempt All",
+      "questions": [
+        { "id": "a)", "text": "...", "marks": "10", "bt": "5", "co": "Co5" },
+        { "id": "b)", "text": "...", "marks": "5", "bt": "1", "co": "Co4" }
+      ]
+    },
+    {
+      "qNum": "Q.5",
+      "instruction": "Attempt All",
+      "questions": [
+        { "id": "a)", "text": "...", "marks": "7", "bt": "2", "co": "Co1" },
+        { "id": "b)", "text": "...", "marks": "8", "bt": "2", "co": "Co2" }
+      ]
+    },
+    {
+      "qNum": "Q.6",
+      "instruction": "Attempt All",
+      "questions": [
+        { "id": "a)", "text": "...", "marks": "8", "bt": "1", "co": "Co6" },
+        { "id": "b)", "text": "...", "marks": "7", "bt": "6", "co": "Co3" }
+      ]
+    }
+  ],
+  "courseOutcomes": [
+    { "code": "CO1", "desc": "Define the key concepts and architecture of ${subject}." },
+    { "code": "CO2", "desc": "Use various models and lifecycle methodologies to implement ${subject} solutions." },
+    { "code": "CO3", "desc": "Demonstrate understanding of requirements analysis, specifications, and application design models." },
+    { "code": "CO4", "desc": "Make use of estimation logic, sizing algorithms, and analytical computation." },
+    { "code": "CO5", "desc": "Analyze the need for scheduling, critical path, and resource management." },
+    { "code": "CO6", "desc": "Assess various factors influencing quality assurance, security, and project governance." }
+  ],
+  "btLevels": "1 Remembering, 2 Understanding, 3 Applying, 4 Analyzing, 5 Evaluating, 6 Creating.",
+  "legend": "M-Marks, BT- Bloom's Taxonomy, CO-Course Outcomes."
+}
+
+RULES:
+- Formulate all questions directly from the provided text content.
+- Include practical scenario-based and numerical questions with tables in Q.2, Q.4, or Q.5 where appropriate.
+- Ensure Q.1 has 6 sub-questions (each 5m) where student attempts any 3 (=15m), and Q.2 to Q.6 each carry 15m (student attempts any 3 = 45m). Total marks = 60.
+
+Document Content:
+${docSlice}` : `You are generating an autonomous engineering college examination Question Paper based ONLY on this document.
 Subject: ${subject}
 Set: Set ${setNum} of ${sets}
 Total Marks: ${totalMarks} | Duration: ${timeHours} Hour(s)
@@ -486,7 +586,7 @@ Match this EXACT structure:
   "department": "${department}",
   "examType": "${examType}",
   "subject": "${subject}",
-  "class": "${className}",
+  "class": "${branchName}",
   "date": "${dateStr}",
   "time": "${timeStr}",
   "duration": "${timeHours}Hr",
@@ -528,14 +628,14 @@ STRICT EXAM RULES:
 - All questions MUST be strictly extracted from the provided document content.
 - Include realistic Course Outcome tags (CO1, CO2, CO3, CO4, CO5) and Bloom's Taxonomy Level tags (L1, L2, L3, L4, L5, L6).
 - For SET ${setNum}, formulate completely fresh and distinct questions different from other sets.
-- Marks and totals must calculate accurately: Section 1 (5x2=10) + Section 2 (1x5=5) + Section 3 (1x5=5) = 20 Marks.
+- Marks and totals must calculate accurately.
 
 Document:
 ${docSlice}`;
 
     let paperData = null;
     try {
-      const result = await callAI('Return ONLY valid JSON.', prompt, 1200);
+      const result = await callAI('Return ONLY valid JSON.', prompt, is60Marks ? 3000 : 1200);
       paperData = parseJSON(result, null);
     } catch (e) {
       console.warn(`[Paper Set ${setNum}] AI generation warning:`, e.message);

@@ -109,6 +109,7 @@ function AutonomousExamPaper({ paper }) {
   if (!paper) return <div style={{ padding: 20, textAlign: 'center' }}>No question paper data available.</div>;
 
   const sections = Array.isArray(paper.sections) ? paper.sections : [];
+  const is60Marks = paper.marks == '60' || !!paper.nb || sections.length >= 5;
 
   return (
     <div
@@ -128,37 +129,75 @@ function AutonomousExamPaper({ paper }) {
         boxSizing: 'border-box'
       }}
     >
-      {/* 1. Centered 5-Line Autonomous College Header */}
-      <div style={{ textAlign: 'center', marginBottom: 16 }}>
+      {/* 1. Centered 4/5-Line Autonomous College Header */}
+      <div style={{ textAlign: 'center', marginBottom: 14 }}>
         <div style={{ fontSize: 13, fontWeight: 500, letterSpacing: 0.2 }}>
           {paper.institution || "Mahatma Education Society's"}
         </div>
-        <div style={{ fontSize: 15.5, fontWeight: 700, margin: '2px 0' }}>
-          {paper.college || "Pillai HOC College of Engineering and Technology, Rasayani."}
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 700 }}>
-          {paper.status || "(Autonomous)"}
+        <div style={{ fontSize: 15, fontWeight: 700, margin: '2px 0' }}>
+          {paper.college || "Pillai HOC College of Engineering and Technology, Rasayani"}
         </div>
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           {paper.department || "Department of Computer Application"}
         </div>
         <div style={{ fontSize: 13, fontWeight: 700 }}>
-          {paper.examType || "Internal Assessment- I OSAY 2026-2027"}
+          {paper.examType || (is60Marks ? "PRELIM EXAMINATION (Autonomous)" : "Internal Assessment- I OSAY 2026-2027")}
         </div>
       </div>
 
-      {/* 2. Metadata Two Rows */}
-      <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
-          <span>Subject: {paper.subject || 'Big Data Analytics and Visualization'}</span>
-          <span>Class: {paper.class || 'SY-MCA'}</span>
+      {/* 2. Metadata: 4-Row Bordered Table for 60 Marks, or 2 Rows for 20 Marks */}
+      {is60Marks ? (
+        <table style={{ width: '100%', borderCollapse: 'collapse', border: '1.5px solid #000', marginBottom: 12, fontSize: 12 }}>
+          <tbody>
+            <tr>
+              <td style={{ border: '1px solid #000', padding: '5px 10px', width: '68%', fontWeight: 700 }}>
+                Branch: {paper.branch || paper.class || 'Computer Application (MCA)'}
+              </td>
+              <td style={{ border: '1px solid #000', padding: '5px 10px', width: '32%', fontWeight: 700 }}>
+                Semester: {paper.semester || 'Semester: I'}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ border: '1px solid #000', padding: '5px 10px', fontWeight: 700 }}>
+                Subject: {paper.subject || 'Software Project Management'}
+              </td>
+              <td style={{ border: '1px solid #000', padding: '5px 10px', fontWeight: 700 }}>
+                Time: {paper.time || '02.00 Hours'}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ border: '1px solid #000', padding: '5px 10px', fontWeight: 700 }}>
+                Max. Marks: 60
+              </td>
+              <td style={{ border: '1px solid #000', padding: '5px 10px', fontWeight: 700 }}>
+                Date: {paper.date || '04/12/2025'}
+              </td>
+            </tr>
+            <tr>
+              <td style={{ border: '1px solid #000', padding: '6px 10px', fontSize: 11.5, lineHeight: 1.4, fontWeight: 700 }}>
+                N.B 1. Q.1 is compulsory<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;2. Attempt any Three from the remaining five questions<br />
+                &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;3. Each Question carry 15 marks.
+              </td>
+              <td style={{ border: '1px solid #000', padding: '6px 10px', verticalAlign: 'top', fontWeight: 700 }}>
+                Subject Code: {paper.subjectCode || 'MCA104'}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      ) : (
+        <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+            <span>Subject: {paper.subject || 'Big Data Analytics and Visualization'}</span>
+            <span>Class: {paper.class || 'SY-MCA'}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <span>Date: {paper.date || '22/8/2026'}</span>
+            <span style={{ textAlign: 'center' }}>Time: {paper.time || '10.30am - 11.30am'}</span>
+            <span>Duration: {paper.duration || '1Hr'} &nbsp; Marks: {paper.marks || '20'}</span>
+          </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-          <span>Date: {paper.date || '22/8/2026'}</span>
-          <span style={{ textAlign: 'center' }}>Time: {paper.time || '10.30am - 11.30am'}</span>
-          <span>Duration: {paper.duration || '1Hr'} &nbsp; Marks: {paper.marks || '20'}</span>
-        </div>
-      </div>
+      )}
 
       {/* 3. Boxed Grid Table */}
       <div className="exam-table-wrapper" style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', margin: '10px 0' }}>
@@ -173,44 +212,53 @@ function AutonomousExamPaper({ paper }) {
           }}
         >
         <thead>
-          {/* Top Note Row */}
-          <tr>
-            <td
-              colSpan={3}
-              style={{
-                border: '1px solid #000',
-                padding: '6px 10px',
-                fontWeight: 700,
-                textAlign: 'left'
-              }}
-            >
-              {paper.note || 'Note: Assume suitable data wherever necessary.'}
-            </td>
-            <th
-              style={{
-                border: '1px solid #000',
-                padding: '4px 6px',
-                textAlign: 'center',
-                width: 62,
-                fontSize: 11,
-                fontWeight: 700
-              }}
-            >
-              Course<br />Outcome
-            </th>
-            <th
-              style={{
-                border: '1px solid #000',
-                padding: '4px 6px',
-                textAlign: 'center',
-                width: 62,
-                fontSize: 11,
-                fontWeight: 700
-              }}
-            >
-              Bloom's<br />Level
-            </th>
-          </tr>
+          {is60Marks ? (
+            <tr>
+              <th style={{ border: '1px solid #000', width: 48, padding: '5px 6px', textAlign: 'center' }}>Q.No</th>
+              <th style={{ border: '1px solid #000', padding: '5px 10px', textAlign: 'left' }}></th>
+              <th style={{ border: '1px solid #000', width: 40, textAlign: 'center', fontWeight: 700 }}>M</th>
+              <th style={{ border: '1px solid #000', width: 40, textAlign: 'center', fontWeight: 700 }}>BT</th>
+              <th style={{ border: '1px solid #000', width: 48, textAlign: 'center', fontWeight: 700 }}>CO</th>
+            </tr>
+          ) : (
+            <tr>
+              <td
+                colSpan={3}
+                style={{
+                  border: '1px solid #000',
+                  padding: '6px 10px',
+                  fontWeight: 700,
+                  textAlign: 'left'
+                }}
+              >
+                {paper.note || 'Note: Assume suitable data wherever necessary.'}
+              </td>
+              <th
+                style={{
+                  border: '1px solid #000',
+                  padding: '4px 6px',
+                  textAlign: 'center',
+                  width: 62,
+                  fontSize: 11,
+                  fontWeight: 700
+                }}
+              >
+                Course<br />Outcome
+              </th>
+              <th
+                style={{
+                  border: '1px solid #000',
+                  padding: '4px 6px',
+                  textAlign: 'center',
+                  width: 62,
+                  fontSize: 11,
+                  fontWeight: 700
+                }}
+              >
+                Bloom's<br />Level
+              </th>
+            </tr>
+          )}
         </thead>
         <tbody>
           {sections.map((sec, si) => (
@@ -223,13 +271,12 @@ function AutonomousExamPaper({ paper }) {
                     padding: '6px 6px',
                     textAlign: 'center',
                     fontWeight: 700,
-                    width: 44
+                    width: 48
                   }}
                 >
-                  [ {sec.qNum || si + 1} ]
+                  {sec.qNum ? (sec.qNum.startsWith('Q.') ? sec.qNum : `[ ${sec.qNum} ]`) : `[ ${si + 1} ]`}
                 </td>
                 <td
-                  colSpan={2}
                   style={{
                     border: '1px solid #000',
                     padding: '6px 10px',
@@ -237,30 +284,11 @@ function AutonomousExamPaper({ paper }) {
                     textAlign: 'left'
                   }}
                 >
-                  {sec.instruction || 'Attempt Any Five out of Six'}
+                  {sec.instruction || (is60Marks ? (si === 0 ? 'Attempt any 3' : 'Attempt All') : 'Attempt Any Five out of Six')}
                 </td>
-                <td
-                  style={{
-                    border: '1px solid #000',
-                    padding: '6px 6px',
-                    textAlign: 'center',
-                    fontWeight: 700,
-                    fontSize: 11.5
-                  }}
-                >
-                  CO
-                </td>
-                <td
-                  style={{
-                    border: '1px solid #000',
-                    padding: '6px 6px',
-                    textAlign: 'center',
-                    fontWeight: 700,
-                    fontSize: 11.5
-                  }}
-                >
-                  BL
-                </td>
+                <td style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center' }}></td>
+                <td style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center' }}></td>
+                <td style={{ border: '1px solid #000', padding: '6px 4px', textAlign: 'center' }}></td>
               </tr>
 
               {/* Question Sub-rows */}
@@ -272,11 +300,11 @@ function AutonomousExamPaper({ paper }) {
                       padding: '7px 6px',
                       textAlign: 'center',
                       fontWeight: 700,
-                      width: 44,
+                      width: 48,
                       verticalAlign: 'top'
                     }}
                   >
-                    {q.id || `${String.fromCharCode(65 + qi)}.`}
+                    {q.id || `${String.fromCharCode(97 + qi)})`}
                   </td>
                   <td
                     style={{
@@ -287,7 +315,7 @@ function AutonomousExamPaper({ paper }) {
                       lineHeight: 1.45
                     }}
                   >
-                    {q.text || q.question}
+                    <ReactMarkdown>{q.text || q.question || ''}</ReactMarkdown>
                   </td>
                   <td
                     style={{
@@ -295,34 +323,34 @@ function AutonomousExamPaper({ paper }) {
                       padding: '7px 6px',
                       textAlign: 'center',
                       fontWeight: 700,
-                      width: 52,
+                      width: 40,
                       verticalAlign: 'top',
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    {q.marks || '[ 02 ]'}
+                    {String(q.marks || '').replace(/[\[\]]/g, '').trim()}
                   </td>
                   <td
                     style={{
                       border: '1px solid #000',
                       padding: '7px 6px',
                       textAlign: 'center',
-                      width: 62,
+                      width: 40,
                       verticalAlign: 'top'
                     }}
                   >
-                    {q.co || 'CO1'}
+                    {String(q.bt || q.bl || '').replace(/^L/, '')}
                   </td>
                   <td
                     style={{
                       border: '1px solid #000',
                       padding: '7px 6px',
                       textAlign: 'center',
-                      width: 62,
+                      width: 48,
                       verticalAlign: 'top'
                     }}
                   >
-                    {q.bl || 'L2'}
+                    {q.co || ''}
                   </td>
                 </tr>
               ))}
@@ -331,9 +359,34 @@ function AutonomousExamPaper({ paper }) {
         </tbody>
       </table>
     </div>
+
+    {/* Bottom Course Outcomes (CO) & Bloom's Taxonomy Legend for 60 Marks */}
+    {is60Marks && (
+      <div style={{ marginTop: 14, fontSize: 11, borderTop: '1px solid #000', paddingTop: 8, lineHeight: 1.4 }}>
+        {(paper.courseOutcomes || [
+          { code: 'CO1', desc: `Define the key concepts of ${paper.subject || 'Software Project Management'}.` },
+          { code: 'CO2', desc: `Use various SDLC models to implement the projects.` },
+          { code: 'CO3', desc: `Demonstrate understanding of the requirements Analysis and Application UML Models.` },
+          { code: 'CO4', desc: `Make use of estimation logic for estimation of software size as well as cost of software.` },
+          { code: 'CO5', desc: `Analyze the need of scheduling and change management during software development.` },
+          { code: 'CO6', desc: `Assess various factors influencing project management, quality assurance and risk assessment.` }
+        ]).map((co, ci) => (
+          <div key={ci} style={{ marginBottom: 2 }}>
+            <strong>{co.code}:</strong> {co.desc}
+          </div>
+        ))}
+        <div style={{ marginTop: 6, fontWeight: 700 }}>
+          {paper.btLevels || "BT Levels: - 1 Remembering ,2 Understanding, 3 Applying,4 Analyzing, 5 Evaluating, 6 Creating."}
+        </div>
+        <div style={{ fontStyle: 'italic', color: '#333' }}>
+          {paper.legend || "M-Marks, BT- Bloom's Taxonomy, CO-Course Outcomes."}
+        </div>
+      </div>
+    )}
   </div>
 );
 }
+
 
 export default function Notebook() {
   const [sp] = useSearchParams()
@@ -733,6 +786,94 @@ export default function Notebook() {
         const parsed = JSON.parse(raw.replace(/```json\n?|\n?```/g, '').trim())
         if (parsed && Array.isArray(parsed.sections)) return parsed
       } catch(e) {}
+      if (paperType === '60_MARKS' || data.totalMarks === 60) {
+        return {
+          institution: institution || "Mahatma Education Society's",
+          college: collegeName || "Pillai HOC College of Engineering and Technology, Rasayani",
+          status: "(Autonomous)",
+          department: departmentName || "Department of Computer Application",
+          examType: examTypeName || "PRELIM EXAMINATION (Autonomous)",
+          branch: className || "Computer Application (MCA)",
+          class: className || "Computer Application (MCA)",
+          semester: "Semester: I",
+          subject: doc?.subject || doc?.title || "Software Project Management",
+          subjectCode: "MCA104",
+          date: "04/12/2025",
+          time: "02.00 Hours",
+          duration: "02.00 Hours",
+          marks: "60",
+          nb: [
+            "1. Q.1 is compulsory",
+            "2. Attempt any Three from the remaining five questions",
+            "3. Each Question carry 15 marks."
+          ],
+          sections: [
+            {
+              qNum: "Q.1",
+              instruction: "Attempt any 3",
+              questions: [
+                { id: "a)", text: "What is Feasibility Study? Explain Types of Feasibility.", marks: "5", bt: "1", co: "Co3" },
+                { id: "b)", text: "Explain the role and responsibilities of project manager", marks: "5", bt: "2", co: "Co1" },
+                { id: "c)", text: "Difference between Scrum & Kanban(any 10)", marks: "5", bt: "4", co: "Co2" },
+                { id: "d)", text: "Explain six sigma with its characteristics", marks: "5", bt: "2", co: "Co6" },
+                { id: "e)", text: "Explain Extreme programming with its Values", marks: "5", bt: "2", co: "Co2" },
+                { id: "f)", text: "Design DFD (up to level 1)for Library Management system", marks: "5", bt: "2", co: "Co3" }
+              ]
+            },
+            {
+              qNum: "Q.2",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Explain DevOps Model in detail", marks: "8", bt: "2", co: "Co2" },
+                { id: "b)", text: "Suppose that a Basic project was estimated to be 400 KLOC. Calculate effort and time for each of the three modes of development. All the constants value provided in the following table\n\n| Software Project | a | b | c | d |\n| :--- | :--- | :--- | :--- | :--- |\n| Organic | 2.4 | 1.05 | 2.5 | 0.38 |\n| Semi detached | 3.0 | 1.12 | 2.5 | 0.35 |\n| Embedded | 3.6 | 1.20 | 2.5 | 0.32 |", marks: "7", bt: "6", co: "Co4" }
+              ]
+            },
+            {
+              qNum: "Q.3",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Develop SRS on online student feedback", marks: "8", bt: "6", co: "Co3" },
+                { id: "b)", text: "Explain Work Breakdown Structures (WBS)With example", marks: "7", bt: "2", co: "Co5" }
+              ]
+            },
+            {
+              qNum: "Q.4",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Determine the earliest event and latest event in respect of all node points and identify critical path for the following network", marks: "10", bt: "5", co: "Co5" },
+                { id: "b)", text: "What is LOC explain with example", marks: "5", bt: "1", co: "Co4" }
+              ]
+            },
+            {
+              qNum: "Q.5",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Explain in detail Life Cycle of Project", marks: "7", bt: "2", co: "Co1" },
+                { id: "b)", text: "A library management system has the following:\n• External Inputs: 8 (Average complexity)\n• External Outputs: 5 (High complexity)\n• External Inquiries: 4 (Low complexity)\n• Internal Logical Files: 3 (Average complexity)\n• External Interface Files: 2 (Low complexity)\nGeneral System Characteristics (14 factors) total = TDI = 32 Calculate the Function Points.\n\nWeight Table:\n| Component | Low | Average | High |\n| :--- | :--- | :--- | :--- |\n| EI | 3 | 4 | 6 |\n| EO | 4 | 5 | 7 |\n| EQ | 3 | 4 | 6 |\n| ILF | 7 | 10 | 15 |\n| EIF | 5 | 7 | 10 |", marks: "8", bt: "2", co: "Co2" }
+              ]
+            },
+            {
+              qNum: "Q.6",
+              instruction: "Attempt All",
+              questions: [
+                { id: "a)", text: "Define FTR. explain its objectives and review guidelines", marks: "8", bt: "1", co: "Co6" },
+                { id: "b)", text: "What is Use Case diagram? Draw use case diagram on online shopping system", marks: "7", bt: "6", co: "Co3" }
+              ]
+            }
+          ],
+          courseOutcomes: [
+            { code: "CO1", desc: "Define the key concepts of Software Project Management." },
+            { code: "CO2", desc: "Use various SDLC models to implement the projects." },
+            { code: "CO3", desc: "Demonstrate understanding of the requirements Analysis and Application UML Models." },
+            { code: "CO4", desc: "Make use of estimation logic for estimation of software size as well as cost of software." },
+            { code: "CO5", desc: "Analyze the need of scheduling and change management during software development." },
+            { code: "CO6", desc: "Assess various factors influencing project management, quality assurance and risk assessment." }
+          ],
+          btLevels: "1 Remembering, 2 Understanding, 3 Applying, 4 Analyzing, 5 Evaluating, 6 Creating.",
+          legend: "M-Marks, BT- Bloom's Taxonomy, CO-Course Outcomes."
+        }
+      }
+
       return {
         institution: institution || "Mahatma Education Society's",
         college: collegeName || "Pillai HOC College of Engineering and Technology, Rasayani.",
