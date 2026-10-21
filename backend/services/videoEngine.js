@@ -175,7 +175,7 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardText,,0,0,0,,{\\b1}
       // Input 1: Visual background
       const bgInputIdx = nextInputIdx++;
       if (useBg) {
-        cmd = cmd.input(useBg).inputOptions(['-loop', '1', '-t', String(targetDuration)]);
+        cmd = cmd.input(useBg).inputOptions(['-loop', '1', '-framerate', '30', '-t', String(targetDuration)]);
       } else {
         cmd = cmd.input('color=c=#0f172a:s=720x1280:r=30').inputFormat('lavfi').inputOptions(['-t', String(targetDuration)]);
       }
@@ -184,14 +184,14 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardText,,0,0,0,,{\\b1}
       let teacherInputIdx = -1;
       if (useTeacher) {
         teacherInputIdx = nextInputIdx++;
-        cmd = cmd.input(useTeacher).inputOptions(['-loop', '1', '-t', String(targetDuration)]);
+        cmd = cmd.input(useTeacher).inputOptions(['-loop', '1', '-framerate', '30', '-t', String(targetDuration)]);
       }
 
       // Input 3: Cartoon Student
       let studentInputIdx = -1;
       if (useStudent) {
         studentInputIdx = nextInputIdx++;
-        cmd = cmd.input(useStudent).inputOptions(['-loop', '1', '-t', String(targetDuration)]);
+        cmd = cmd.input(useStudent).inputOptions(['-loop', '1', '-framerate', '30', '-t', String(targetDuration)]);
       }
 
       // Filtergraph construction
@@ -238,12 +238,15 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardText,,0,0,0,,{\\b1}
           '-map [out_final]',
           '-map [a_out]',
           '-c:v libx264',
-          '-preset ultrafast',
-          '-tune fastdecode',
-          '-crf 26',
+          '-preset veryfast',
+          '-profile:v main',
+          '-level 4.0',
+          '-crf 24',
+          '-r 30',
+          '-pix_fmt yuv420p',
+          '-movflags +faststart',
           '-c:a aac',
           '-b:a 128k',
-          '-pix_fmt yuv420p',
           '-shortest'
         ])
         .save(videoPath)

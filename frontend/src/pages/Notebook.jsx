@@ -1646,14 +1646,30 @@ export default function Notebook() {
     if (t === 'video') {
       return (
         <div>
-          <div className="ib g" style={{ marginBottom:12 }}>{data.message}</div>
+          <div className="ib g" style={{ marginBottom:12 }}>{data.message || 'Cartoon Classroom Short video generated!'}</div>
           {data.videoUrl && (
-            <div style={{ marginBottom: 16 }}>
-              <video controls src={data.videoUrl} style={{ width: '100%', borderRadius: 8, background: '#000' }} />
+            <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }}>
+              <video
+                controls
+                playsInline
+                preload="auto"
+                style={{
+                  maxWidth: 360,
+                  width: '100%',
+                  maxHeight: 640,
+                  borderRadius: 14,
+                  display: 'block',
+                  background: '#0f172a',
+                  boxShadow: '0 10px 32px rgba(0,0,0,0.22)'
+                }}
+              >
+                <source src={data.videoUrl} type="video/mp4" />
+                Your browser does not support HTML5 video.
+              </video>
             </div>
           )}
-          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
-            {data.videoUrl && <a href={data.videoUrl} download className="btn btn-p btn-sm" style={{ textDecoration:'none' }}>⬇️ Download Video</a>}
+          <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', justifyContent: 'center' }}>
+            {data.videoUrl && <a href={data.videoUrl} download="cartoon_classroom_short.mp4" className="btn btn-p btn-sm" style={{ textDecoration:'none' }}>⬇️ Download Video MP4</a>}
             {data.slidesUrl && <a href={data.slidesUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none' }}>⬇️ Slides PDF</a>}
             {data.audioUrl && <a href={data.audioUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none', background:'transparent', color:'var(--ink2)', border:'1px solid var(--bdr)' }}>⬇️ Audio Only</a>}
           </div>
