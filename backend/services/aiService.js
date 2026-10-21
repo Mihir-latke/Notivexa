@@ -20,7 +20,7 @@ const { v4: uuidv4 } = require('uuid');
 const pdf = require('./pdfEngine');
 
 // ═══════════════════════════════════════════════════════════
-// AI CALL — tries free APIs first
+// AI CALL — Google Gemini primary, Groq / Claude fallback
 // ═══════════════════════════════════════════════════════════
 
 async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
@@ -31,18 +31,10 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
   };
   const hasKey = Object.values(keys).some(k => k && !k.startsWith('your_'));
   if (!hasKey) {
-    console.log('[AI] No API keys found — using local PDF engine. Add GROQ_API_KEY (free) for better output.');
+    console.log('[AI] No API keys found — using local PDF engine.');
   }
 
-  // 1. Groq (FREE, fastest ~500ms)
-  if (keys.groq && !keys.groq.startsWith('your_')) {
-    try {
-      const result = await callGroq(systemPrompt, userPrompt, maxTokens);
-      if (result) { console.log('[AI ✅] Groq'); return result; }
-    } catch(e) { console.warn('[Groq]', e.message); }
-  }
-
-  // 2. Google Gemini (FREE)
+  // 1. Google Gemini (PRIMARY — generates all content first, high token limit & fast)
   if (keys.gemini && !keys.gemini.startsWith('your_')) {
     try {
       const result = await callGemini(systemPrompt, userPrompt, maxTokens);
@@ -50,11 +42,19 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
     } catch(e) { console.warn('[Gemini]', e.message); }
   }
 
-  // 3. Anthropic Claude
+  // 2. Groq (FALLBACK — switches when Gemini hits token limits or temporary errors)
+  if (keys.groq && !keys.groq.startsWith('your_')) {
+    try {
+      const result = await callGroq(systemPrompt, userPrompt, maxTokens);
+      if (result) { console.log('[AI ✅] Groq (fallback)'); return result; }
+    } catch(e) { console.warn('[Groq]', e.message); }
+  }
+
+  // 3. Anthropic Claude (FALLBACK)
   if (keys.claude && !keys.claude.startsWith('your_')) {
     try {
       const result = await callClaude(systemPrompt, userPrompt, maxTokens);
-      if (result) { console.log('[AI ✅] Claude'); return result; }
+      if (result) { console.log('[AI ✅] Claude (fallback)'); return result; }
     } catch(e) { console.warn('[Claude]', e.message); }
   }
 
@@ -64,7 +64,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
 
 async function callGemini(system, user, maxTokens) {
   const key = process.env.GEMINI_API_KEY;
-  const models = ['gemini-3.1-flash-lite-preview', 'gemini-flash-latest', 'gemini-2.5-flash-lite', 'gemini-3-flash-preview'];
+  const models = ['gemini-flash-latest', 'gemini-3.5-flash'];
   let lastErr;
   for (const model of models) {
     try {
@@ -75,11 +75,14 @@ async function callGemini(system, user, maxTokens) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: `${system}\n\n${user}` }] }],
-            generationConfig: { maxOutputTokens: maxTokens, temperature: 0.7 }
+            generationConfig: { maxOutputTokens: Math.min(maxTokens, 8192), temperature: 0.7 }
           }),
-          timeout: 25000
+          timeout: 10000
         }
       );
+      if (res.status === 429) {
+        throw new Error('Gemini quota/rate limit exhausted (429) — switching to fallback provider');
+      }
       if (!res.ok) {
         lastErr = new Error(`Gemini (${model}) ${res.status}: ${await res.text()}`);
         continue;
@@ -89,6 +92,7 @@ async function callGemini(system, user, maxTokens) {
       if (text) return text;
     } catch (e) {
       lastErr = e;
+      if (e.message.includes('429')) throw e; // Fail fast so callAI switches immediately
     }
   }
   if (lastErr) throw lastErr;
@@ -97,6 +101,7 @@ async function callGemini(system, user, maxTokens) {
 
 async function callGroq(system, user, maxTokens) {
   const key = process.env.GROQ_API_KEY;
+  // Rotate through available Groq models if one hits rate limits (separate 8k TPM limits)
   const models = ['openai/gpt-oss-20b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-120b'];
   let lastErr;
   for (const model of models) {
@@ -110,13 +115,14 @@ async function callGroq(system, user, maxTokens) {
             { role: 'system', content: system },
             { role: 'user', content: user }
           ],
-          max_tokens: Math.min(maxTokens, 1500),
+          max_tokens: Math.min(maxTokens, 4000),
           temperature: 0.7
         }),
-        timeout: 15000
+        timeout: 25000
       });
       if (res.status === 429) {
-        throw new Error('Groq 429 (TPM rate limit reached) — switching to fallback provider');
+        lastErr = new Error(`Groq (${model}) 429: TPM rate limit reached, trying next model`);
+        continue; // Try next model on Groq before failing out
       }
       if (!res.ok) {
         lastErr = new Error(`Groq (${model}) ${res.status}: ${await res.text()}`);
@@ -127,7 +133,6 @@ async function callGroq(system, user, maxTokens) {
       if (content) return content;
     } catch (e) {
       lastErr = e;
-      if (e.message.includes('429')) break;
     }
   }
   if (lastErr) throw lastErr;
@@ -247,41 +252,109 @@ Be thorough, accurate, and exam-focused for CBSE/JEE/NEET/University standards.`
 // ═══════════════════════════════════════════════════════════
 
 async function generateNotes(text, title, subject, lang = 'English') {
-  const prompt = `Generate detailed study notes from this document.
-Title: ${title} | Subject: ${subject}
+  // ── Chapter-wise, comprehensive notes engine ──────────────────────
+  // Strategy: split the full document into large chunks (~8000 chars each),
+  // process ALL of them (no artificial cap), and produce rich notes for every chunk.
+  // A 300-page PDF (~600K chars) → ~75 chunks → produces 80-120 page PDF.
 
-FORMAT REQUIREMENTS:
-## [Heading for each major topic found in document]
-### [Sub-heading for sub-topics]
-• Key fact or concept
-• Another point
-**Definition:** Term definition
-> Important formula or theorem
+  const CHUNK = 12000;
+  const chunks = [];
+  for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
 
-Rules:
-- Cover ALL topics found in the document in extreme detail. Do NOT skip any section.
-- Expand extensively on each concept. Provide long explanations, examples, and deep analysis.
-- Include ALL formulas, definitions, dates, facts exactly as written
-- DO NOT use $ or $$ for math or formulas. Use plain text or Unicode.
-- Ensure any tabular data uses standard Markdown tables with pipes (|) and dashes (-).
-- DO NOT generate artificial diagrams, ASCII art, or Mermaid flowcharts. Authentic diagrams from the uploaded PDF are embedded directly into the document.
-- Add [simple Hindi/Indian English explanation] for difficult terms
-- Do not be brief! The output must be very comprehensive, long, and thorough (at least 1500 words).
-- End with ## Key Points to Remember section
-- End with ## Exam Tips section
+  const sysPrompt = `You are an expert academic note-writer for Indian university students.
+Your job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.
 
-Document Content:
-${text.slice(0, 35000)}`;
+FORMAT — use this EXACT structure for EVERY topic/concept found in the chunk:
 
-  const result = await callAI(sys(lang), prompt, 6000);
-  
-  // If Hindi/Marathi requested and AI gave English, translate
-  if (lang !== 'English' && result && !containsDevanagari(result)) {
-    console.log(`[Notes] Translating to ${lang}...`);
-    return await translateFree(result, lang);
+## [Topic/Chapter/Section Title]
+
+**Definition:** One clear sentence defining the concept.
+
+**Overview:** 2-3 sentences giving a high-level explanation.
+
+### Key Points
+- Detailed point 1 — explain fully, include sub-details
+- Detailed point 2 — explain fully
+- Detailed point 3 — explain fully
+- Add 5-10 bullet points. Be thorough. Each bullet should be 1-3 sentences.
+
+### In-Depth Explanation
+Write 3-6 paragraphs of clear, detailed explanation as if teaching a student for the first time. Cover:
+- How it works, why it matters
+- Step-by-step processes if applicable  
+- Relationships to other concepts
+- Important formulas, laws, theorems (write in plain text, no LaTeX)
+
+### Examples & Applications
+- Real-world Example 1: (specific, practical)
+- Real-world Example 2: (different context)
+- Application in industry/real-world: ...
+
+### Summary
+2-3 sentences summarising the key takeaway for exam purposes.
+
+---
+
+STRICT RULES:
+- Cover EVERY concept, term, formula, and idea found in the text — do NOT skip anything
+- Be VERBOSE and DETAILED — a student should be able to learn the topic from your notes alone
+- Write at minimum 800 words per chunk
+- Do NOT use LaTeX, $ signs, or Mermaid diagrams
+- Do NOT write "I cannot" or "the text does not contain" — extract what is there and expand it
+- Use ## for main topics, ### for sub-sections
+- At the end of each chunk's notes, add a "### Key Formulas / Important Points" section listing all formulas/dates/facts found`;
+
+  const CONCURRENCY = 3;
+  const parts = [];
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const batch = chunks.slice(i, i + CONCURRENCY);
+    const batchPromises = batch.map(async (chunk, bIdx) => {
+      const idx = i + bIdx;
+      const prompt = `Generate comprehensive study notes for PART ${idx + 1} of ${chunks.length}.
+Title: "${title}" | Subject: "${subject}"
+Language: ${lang}
+
+For EVERY concept found in this text, write the full structured notes (Definition, Key Points, In-Depth Explanation, Examples, Summary).
+Never skip a concept. Write at least 800 words for this part.
+
+Document Part ${idx + 1}/${chunks.length}:
+${chunk}`;
+
+      try {
+        const result = await callAI(sysPrompt, prompt, 6000);
+        if (result && result.length > 200) {
+          console.log(`[Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
+          return result;
+        } else {
+          const fallback = pdf.makeNotes(chunk, title, subject);
+          if (fallback && fallback.length > 50) return fallback;
+        }
+      } catch (e) {
+        console.warn(`[Notes] Part ${idx + 1} failed:`, e.message);
+        try {
+          const fallback = pdf.makeNotes(chunk, title, subject);
+          if (fallback && fallback.length > 50) return fallback;
+        } catch {}
+      }
+      return null;
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    for (const res of batchResults) {
+      if (res) parts.push(res);
+    }
   }
-  
-  return result || pdf.makeNotes(text, title, subject);
+
+  if (parts.length === 0) {
+    return pdf.makeNotes(text, title, subject);
+  }
+
+  let combined = `# ${title}\n### ${subject} — Complete Study Notes\n\n` + parts.join('\n\n---\n\n');
+
+  if (lang !== 'English' && !containsDevanagari(combined)) {
+    combined = await translateFree(combined, lang);
+  }
+  return combined;
 }
 
 async function generateSummary(text, title, subject, lang = 'English') {
@@ -480,51 +553,59 @@ ${docSlice}`;
 }
 
 async function generateHandwrittenNotes(text, title, subject, lang = 'English') {
-  // Split text into ~6000-char chunks so we do multiple AI passes = many more pages
-  const CHUNK = 6000;
+  // ── Comprehensive handwritten notes — chapter-wise, no page cap ───
+  // Process the FULL document in 7000-char chunks (no 12-chunk limit).
+  // Each chunk produces ~2-4 handwritten notebook pages.
+  // A 300-page PDF → ~85 chunks → 90-120 handwritten PDF pages.
+
+  const CHUNK = 12000;
   const chunks = [];
   for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
 
-  // Limit to 12 chunks max (covers most docs without timeout)
-  const toProcess = chunks.slice(0, 12);
-
-  const sysPrompt = `You are an expert academic note-taker who writes beautifully structured study notes.
+  const sysPrompt = `You are an expert academic note-taker who writes beautiful, comprehensive handwritten-style study notes.
 You MUST format EVERY topic using this EXACT section structure:
 
 ## Topic Name
 
-DEFINITION: One clear, concise sentence defining the term or concept.
+DEFINITION: One clear, complete sentence defining the term or concept.
 
-SUMMARY: 2-3 sentences giving a high-level overview of the topic.
+SUMMARY: 3-4 sentences giving a high-level overview, including importance and context.
 
 EXPLANATION:
-- Detailed point 1 with full explanation
-- Detailed point 2 with full explanation
-- Detailed point 3 with full explanation
-- Add 4-8 bullet points — be exhaustive, teach as if the student is new
+- Detailed point 1: Full explanation with sub-details and reasoning
+- Detailed point 2: Full explanation with examples woven in
+- Detailed point 3: Full explanation
+- Detailed point 4: Another angle or perspective
+- Detailed point 5: Advanced or application aspect
+- Add 5-10 bullet points — be exhaustive. A student must be able to learn from this alone.
 
 EXAMPLE:
-- Real-world Example 1: concrete, practical, specific
-- Real-world Example 2: another specific example the student can relate to
+- Real-world Example 1: Specific, concrete, something a student can visualise
+- Real-world Example 2: Different context or industry application
+- Exam tip: What examiners commonly ask about this topic
 
 ---
 
 RULES:
 - Always use the EXACT labels: DEFINITION:, SUMMARY:, EXPLANATION:, EXAMPLE:
-- Do NOT generate DIAGRAM lines, flowcharts, or ASCII art. Real diagrams and figures from the original document are embedded directly into the notes.
+- Do NOT generate DIAGRAM lines, flowcharts, or ASCII art
 - Do NOT use Mermaid, ASCII art, or code blocks for diagrams
-- Do NOT use $ or LaTeX math — write formulas in plain English (e.g. "Force = Mass x Acceleration")
-- Do NOT skip any section — every topic must have all 5 sections (DEFINITION, SUMMARY, EXPLANATION, EXAMPLE)
+- Do NOT use $ or LaTeX math — write formulas in plain English (e.g. "Force equals Mass multiplied by Acceleration")
+- Do NOT skip any concept — every topic found in the text must have ALL sections
 - Use ## for topic headings, ### for sub-topics
-- Write at least 600 words per chunk — EXPAND everything, never summarize briefly`;
+- Write at least 700 words per chunk — EXPAND everything thoroughly, never summarise briefly
+- Include ALL formulas, theorems, dates, laws, algorithms found in the text`;
 
+  const CONCURRENCY = 3;
   const parts = [];
-  for (let idx = 0; idx < toProcess.length; idx++) {
-    const chunk = toProcess[idx];
-    const prompt = `Generate fully structured handwritten notes for PART ${idx+1} of ${toProcess.length}.
-Title: ${title} | Subject: ${subject}
+  for (let i = 0; i < chunks.length; i += CONCURRENCY) {
+    const batch = chunks.slice(i, i + CONCURRENCY);
+    const batchPromises = batch.map(async (chunk, bIdx) => {
+      const idx = i + bIdx;
+      const prompt = `Generate fully structured handwritten notes for PART ${idx + 1} of ${chunks.length}.
+Title: "${title}" | Subject: "${subject}" | Language: ${lang}
 
-For EVERY concept found in the text below, write the full structure:
+For EVERY concept found in the text below, write the COMPLETE structure:
 ## Concept Name
 DEFINITION: ...
 SUMMARY: ...
@@ -534,23 +615,38 @@ EXAMPLE:
 - ...
 ---
 
-Never abbreviate. Cover every formula, law, theorem, and concept found.
-Document Part ${idx+1}:
+Never abbreviate. Cover every formula, law, theorem, algorithm, and concept.
+Write at minimum 700 words for this part.
+
+Document Part ${idx + 1}/${chunks.length}:
 ${chunk}`;
 
-    try {
-      const result = await callAI(sysPrompt, prompt, 8000);
-      if (result && result.length > 100) {
-        parts.push(result);
-        console.log(`[HW Notes] Part ${idx+1}/${toProcess.length}: ${result.length} chars`);
+      try {
+        const result = await callAI(sysPrompt, prompt, 6000);
+        if (result && result.length > 200) {
+          console.log(`[HW Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
+          return result;
+        } else {
+          const fallback = pdf.makeNotes(chunk, title, subject);
+          if (fallback && fallback.length > 50) return fallback;
+        }
+      } catch (e) {
+        console.warn(`[HW Notes] Part ${idx + 1} failed:`, e.message);
+        try {
+          const fallback = pdf.makeNotes(chunk, title, subject);
+          if (fallback && fallback.length > 50) return fallback;
+        } catch {}
       }
-    } catch(e) {
-      console.warn(`[HW Notes] Part ${idx+1} failed:`, e.message);
+      return null;
+    });
+
+    const batchResults = await Promise.all(batchPromises);
+    for (const res of batchResults) {
+      if (res) parts.push(res);
     }
   }
 
   if (parts.length === 0) {
-    // Fallback to local engine
     return pdf.makeNotes(text, title, subject);
   }
 

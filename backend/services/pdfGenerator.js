@@ -26,66 +26,210 @@ function resolveLocalPath(p) {
   return null;
 }
 
-// ── Standard Notes PDF ────────────────────────────────────
+// ── Standard Notes PDF ── (Full-content, chapter-wise, supports 80-800 pages)
 async function notesPDF(content, { title='Notes', subject='General', imagePaths=[] }={}) {
   ensureDir();
   const fileName = `notes_${uuidv4()}.pdf`;
   const filePath = path.join(OUT, fileName);
+
   return new Promise((res, rej) => {
-    const doc = new PDFDocument({ size:'A4', margins:{top:65,bottom:60,left:70,right:60} });
+    const doc = new PDFDocument({ size:'A4', margins:{top:72,bottom:56,left:70,right:55}, bufferPages: true });
     const stream = fs.createWriteStream(filePath);
     doc.pipe(stream);
     const W = doc.page.width;
-    // Header bar
-    doc.rect(0,0,W,72).fill('#4F46E5');
-    doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(title,70,18,{width:W-140});
-    doc.fontSize(11).font('Helvetica').text(`${subject} | Notivexa AI`,70,50);
-    // Content (clean out raw markdown image syntax)
+    const H = doc.page.height;
+    const L = 70, R = W - 55, CW = R - L;
+
+    let pageNum = 0;
+
+    const drawHeader = (pn) => {
+      if (pn === 1) {
+        doc.rect(0, 0, W, 72).fill('#4F46E5');
+        doc.fillColor('#fff').font('Helvetica-Bold').fontSize(17).text(title, L, 16, { width: CW });
+        doc.font('Helvetica').fontSize(10.5).text(`${subject}  |  Notivexa AI Study Notes`, L, 48, { width: CW });
+      } else {
+        doc.rect(0, 0, W, 44).fill('#4F46E5');
+        doc.fillColor('#fff').font('Helvetica-Bold').fontSize(11).text(title, L, 10, { width: CW - 80 });
+        doc.font('Helvetica').fontSize(10).text(`Page ${pn}`, 0, 14, { width: W - 20, align: 'right' });
+      }
+    };
+
+    // Draw first page header
+    pageNum = 1;
+    drawHeader(1);
+
+    // ── Content renderer ──────────────────────────────────────────────
+    // Parse the full markdown content and render with proper formatting.
     const cleanContent = (content || '')
       .replace(/!\[.*?\]\(.*?\)/g, '')
       .replace(/^\*Figure \d+:.*?\*\s*$/gm, '')
-      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\n{4,}/g, '\n\n\n')
       .trim();
-    doc.fillColor('#0F0E1A').font('Helvetica').fontSize(11.5)
-       .text(cleanContent, 70, 90, { width:W-130, lineGap:3, paragraphGap:6 });
 
-    // Embed authentic diagrams from source document if available
-    const validImages = Array.isArray(imagePaths) 
-      ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p)) 
+    const lines = cleanContent.split('\n');
+    let y = 90;
+    const bodyFont = 'Helvetica';
+    const boldFont = 'Helvetica-Bold';
+
+    const ensureSpace = (needed) => {
+      const bottom = H - 56;
+      if (y + needed > bottom) {
+        doc.addPage();
+        pageNum++;
+        drawHeader(pageNum);
+        y = pageNum === 1 ? 90 : 58;
+      }
+    };
+
+    const writePara = (text, opts = {}) => {
+      if (!text || !text.trim()) return;
+      const fName = opts.bold ? boldFont : bodyFont;
+      const fSize = opts.fontSize || 11;
+      doc.font(fName).fontSize(fSize);
+      const th = doc.heightOfString(text.trim(), { width: CW, lineGap: opts.lineGap || 2 });
+      ensureSpace(th + (opts.gap || 4));
+      doc.fillColor(opts.color || '#0F0E1A')
+         .text(text.trim(), L + (opts.indent || 0), y, { width: CW - (opts.indent || 0), lineGap: opts.lineGap || 2 });
+      y += th + (opts.gap || 4);
+    };
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\*\*/g, '').trim();
+      if (!line) { y += 5; continue; }
+
+      if (line.startsWith('# ')) {
+        const t = line.slice(2).trim();
+        ensureSpace(42);
+        doc.rect(L, y, CW, 32).fill('#EEF2FF');
+        doc.fillColor('#1E1B4B').font(boldFont).fontSize(16).text(t, L + 10, y + 8, { width: CW - 20 });
+        y += 38;
+
+      } else if (line.startsWith('## ')) {
+        const t = line.slice(3).trim();
+        ensureSpace(36);
+        doc.rect(L, y, CW, 27).fill('#E0E7FF');
+        doc.fillColor('#1E1B4B').font(boldFont).fontSize(13.5).text(t, L + 10, y + 7, { width: CW - 20 });
+        y += 33;
+
+      } else if (line.startsWith('### ')) {
+        const t = line.slice(4).trim();
+        ensureSpace(28);
+        doc.strokeColor('#6366F1').lineWidth(2).moveTo(L, y + 16).lineTo(L + 4, y + 16).stroke();
+        doc.fillColor('#312E81').font(boldFont).fontSize(12).text(t, L + 10, y + 8, { width: CW - 10 });
+        y += 28;
+
+      } else if (line === '---' || line === '────') {
+        ensureSpace(14);
+        doc.strokeColor('#C7D2FE').lineWidth(0.8).moveTo(L, y + 5).lineTo(R, y + 5).stroke();
+        y += 14;
+
+      } else if (line.startsWith('DEFINITION:')) {
+        const t = line.slice(11).trim();
+        if (!t) continue;
+        doc.font(boldFont).fontSize(10.5);
+        const th = doc.heightOfString(t, { width: CW - 20 });
+        ensureSpace(th + 30);
+        doc.fillColor('#FEF3C7').roundedRect(L, y, CW, th + 18, 5).fill();
+        doc.fillColor('#F59E0B').roundedRect(L, y, 4, th + 18, 2).fill();
+        doc.font(boldFont).fontSize(9.5).fillColor('#92400E').text('DEFINITION', L + 10, y + 4);
+        doc.font(bodyFont).fontSize(11).fillColor('#78350F').text(t, L + 10, y + 16, { width: CW - 20 });
+        y += th + 22;
+
+      } else if (line.startsWith('SUMMARY:')) {
+        const t = line.slice(8).trim();
+        if (!t) continue;
+        doc.font(bodyFont).fontSize(11);
+        const th = doc.heightOfString(t, { width: CW - 20 });
+        ensureSpace(th + 30);
+        doc.fillColor('#EFF6FF').roundedRect(L, y, CW, th + 18, 5).fill();
+        doc.fillColor('#3B82F6').roundedRect(L, y, 4, th + 18, 2).fill();
+        doc.font(boldFont).fontSize(9.5).fillColor('#1D4ED8').text('SUMMARY', L + 10, y + 4);
+        doc.font(bodyFont).fontSize(11).fillColor('#1E3A5F').text(t, L + 10, y + 16, { width: CW - 20 });
+        y += th + 22;
+
+      } else if (line.startsWith('EXPLANATION:') || line.startsWith('EXPLANATION')) {
+        const rest = line.startsWith('EXPLANATION:') ? line.slice(12).trim() : '';
+        ensureSpace(22);
+        doc.font(boldFont).fontSize(10).fillColor('#4338CA').text('▶ EXPLANATION', L, y);
+        y += 16;
+        if (rest) writePara(rest, { indent: 16, color: '#1E293B', fontSize: 11 });
+
+      } else if (line.startsWith('EXAMPLE:') || line.startsWith('EXAMPLE')) {
+        const rest = line.startsWith('EXAMPLE:') ? line.slice(8).trim() : '';
+        ensureSpace(22);
+        doc.font(boldFont).fontSize(10).fillColor('#059669').text('▶ EXAMPLES & APPLICATIONS', L, y);
+        y += 16;
+        if (rest) writePara(rest, { indent: 16, color: '#065F46', fontSize: 11 });
+
+      } else if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
+        const bullet = line.slice(2).trim();
+        doc.font(bodyFont).fontSize(11);
+        const th = doc.heightOfString(bullet, { width: CW - 22 });
+        ensureSpace(th + 6);
+        doc.fillColor('#6366F1').circle(L + 6, y + 6, 2.5).fill();
+        doc.fillColor('#1E293B').text(bullet, L + 16, y, { width: CW - 22, lineGap: 2 });
+        y += th + 5;
+
+      } else if (/^\d+\.\s/.test(line)) {
+        const txt = line.replace(/^\d+\.\s/, '').trim();
+        const num = line.match(/^(\d+)\./)?.[1];
+        doc.font(bodyFont).fontSize(11);
+        const th = doc.heightOfString(txt, { width: CW - 24 });
+        ensureSpace(th + 6);
+        doc.font(boldFont).fontSize(11).fillColor('#4F46E5').text(`${num}.`, L, y);
+        doc.font(bodyFont).fillColor('#1E293B').text(txt, L + 20, y, { width: CW - 24, lineGap: 2 });
+        y += th + 5;
+
+      } else if (line.startsWith('**') && line.endsWith('**')) {
+        writePara(line.slice(2, -2), { bold: true, fontSize: 12, color: '#1E1B4B', gap: 8 });
+
+      } else if (line.startsWith('> ')) {
+        const t = line.slice(2).trim();
+        doc.font(bodyFont).fontSize(11);
+        const th = doc.heightOfString(t, { width: CW - 24 });
+        ensureSpace(th + 16);
+        doc.fillColor('#F3F4F6').roundedRect(L, y, CW, th + 12, 4).fill();
+        doc.fillColor('#4F46E5').roundedRect(L, y, 3, th + 12, 1.5).fill();
+        doc.fillColor('#374151').font(bodyFont).fontSize(11).text(t, L + 12, y + 6, { width: CW - 24 });
+        y += th + 18;
+
+      } else {
+        writePara(line, { color: '#1E293B', fontSize: 11, lineGap: 3, gap: 6 });
+      }
+    }
+
+    // Authentic diagrams section
+    const validImages = Array.isArray(imagePaths)
+      ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p))
       : [];
     if (validImages.length > 0) {
       doc.addPage();
-      const H = doc.page.height;
+      pageNum++;
       doc.rect(0, 0, W, 72).fill('#4F46E5');
-      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(18).text(`${title} — Figures & Diagrams`, 70, 18, { width: W - 140 });
-      doc.fontSize(11).font('Helvetica').text(`Diagrams extracted directly from source document | Notivexa`, 70, 50);
-
-      let curY = 95;
+      doc.fillColor('#fff').font('Helvetica-Bold').fontSize(17).text(`${title} — Figures & Diagrams`, L, 16, { width: CW });
+      doc.font('Helvetica').fontSize(10.5).text('Extracted directly from source document | Notivexa', L, 48);
+      let curY = 90;
       validImages.forEach((imgP, idx) => {
-        if (curY + 230 > H - 60) {
-          doc.addPage();
-          curY = 65;
-        }
+        if (curY + 230 > H - 56) { doc.addPage(); pageNum++; curY = 65; }
         doc.fillColor('#4338CA').font('Helvetica-Bold').fontSize(11)
-           .text(`Figure ${idx + 1}: Extracted from uploaded document`, 70, curY);
+           .text(`Figure ${idx + 1}: Extracted from source document`, L, curY);
         curY += 18;
-        try {
-          doc.image(imgP, 70, curY, { fit: [W - 140, 200], align: 'center' });
-          curY += 215;
-        } catch (e) {
-          console.warn('[notesPDF image embed]', e.message);
-        }
+        try { doc.image(imgP, L, curY, { fit: [CW, 200], align: 'center' }); curY += 215; }
+        catch (e) { console.warn('[notesPDF image]', e.message); }
       });
     }
 
-    // Footer
+    // Footers
     const range = doc.bufferedPageRange();
-    for(let i=0;i<range.count;i++){
-      doc.switchToPage(range.start+i);
-      doc.fillColor('#9CA3AF').fontSize(9).text(`Page ${i+1} | ${title} | Notivexa`, 0, doc.page.height-28, {align:'center'});
+    for (let i = 0; i < range.count; i++) {
+      doc.switchToPage(range.start + i);
+      doc.fillColor('#9CA3AF').font('Helvetica').fontSize(8.5)
+         .text(`Page ${i + 1} of ${range.count}  •  ${title}  •  Notivexa AI`, 0, H - 26, { align: 'center' });
     }
+
+    doc.flushPages();
     doc.end();
-    stream.on('finish', () => res({ filePath, fileName, fileSize:fs.statSync(filePath).size }));
+    stream.on('finish', () => res({ filePath, fileName, fileSize: fs.statSync(filePath).size }));
     stream.on('error', rej);
   });
 }
