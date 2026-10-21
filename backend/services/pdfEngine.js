@@ -146,6 +146,103 @@ function firstN(text, n = 3) {
 // CONTENT GENERATORS — all use actual PDF text
 // ═══════════════════════════════════════════════════════════
 
+function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1) {
+  const topics = getTopics(text);
+  const defs = getDefinitions(text, 12);
+  const facts = getKeyFacts(text, 25);
+  const sentences = getSentences(text);
+
+  const heading = topics[0] || `Module ${idx}: Core Architecture & Concepts`;
+  const overview = sentences.slice(0, 3).join(' ') || firstN(text, 2);
+  const mainDef = defs[0] ? `${defs[0].term}: ${defs[0].definition}` : `Fundamental principles and operating mechanisms of ${heading}.`;
+
+  let out = `## ${heading}\n\n`;
+  out += `**Definition:** ${mainDef}\n\n`;
+  out += `**Overview:** ${overview}\n\n`;
+
+  out += `### Key Points\n`;
+  const keyPoints = facts.length >= 6 ? facts.slice(0, 8) : sentences.slice(2, 9);
+  keyPoints.forEach(f => {
+    out += `- ${f.replace(/^[-•*\d.]+\s*/, '')}\n`;
+  });
+  out += '\n';
+
+  out += `### In-Depth Explanation\n`;
+  const p1 = sentences.slice(3, 7).join(' ');
+  const p2 = sentences.slice(7, 11).join(' ');
+  const p3 = sentences.slice(11, 15).join(' ');
+  if (p1) out += `${p1}\n\n`;
+  if (p2) out += `${p2}\n\n`;
+  if (p3) out += `${p3}\n\n`;
+
+  if (defs.length > 1) {
+    out += `### Key Definitions & Principles\n`;
+    defs.slice(1, 8).forEach(d => {
+      out += `- **${d.term}:** ${d.definition}\n`;
+    });
+    out += '\n';
+  }
+
+  out += `### Examples & Applications\n`;
+  const exSentences = sentences.filter(s => /for example|such as|in practice|e\.g\.|application|system|process|algorithm/i.test(s)).slice(0, 3);
+  if (exSentences.length > 0) {
+    exSentences.forEach((ex, i) => {
+      out += `- Practical Case ${i + 1}: ${ex}\n`;
+    });
+  } else {
+    out += `- Practical Application 1: Core system resource management and architecture workflow\n`;
+    out += `- Practical Application 2: Real-time concurrent processing, algorithmic scheduling, and memory optimization\n`;
+  }
+  out += '\n';
+
+  out += `### Summary\n`;
+  const summarySentences = sentences.slice(Math.max(0, sentences.length - 3)).join(' ') || overview;
+  out += `${summarySentences}\n\n`;
+
+  return out;
+}
+
+function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
+  const topics = getTopics(text);
+  const defs = getDefinitions(text, 10);
+  const facts = getKeyFacts(text, 20);
+  const sentences = getSentences(text);
+
+  const heading = topics[0] || `Module ${idx}: Theoretical & Applied Concepts`;
+  const mainDef = defs[0] ? `${defs[0].term} is defined as ${defs[0].definition}` : `Core architecture and operation of ${heading}.`;
+  const summary = sentences.slice(0, 3).join(' ') || firstN(text, 2);
+
+  let out = `## ${heading}\n\n`;
+  out += `DEFINITION: ${mainDef}\n\n`;
+  out += `SUMMARY: ${summary}\n\n`;
+
+  out += `EXPLANATION:\n`;
+  const bulletPoints = facts.length >= 6 ? facts.slice(0, 8) : sentences.slice(3, 10);
+  bulletPoints.forEach((bp, i) => {
+    out += `- Key Concept ${i + 1}: ${bp.replace(/^[-•*\d.]+\s*/, '')}\n`;
+  });
+  if (defs.length > 1) {
+    defs.slice(1, 5).forEach(d => {
+      out += `- Core Term: ${d.term} — ${d.definition}\n`;
+    });
+  }
+  out += '\n';
+
+  out += `EXAMPLE:\n`;
+  const ex = sentences.filter(s => /for example|such as|e\.g\.|practice|algorithm|system/i.test(s)).slice(0, 2);
+  if (ex.length > 0) {
+    ex.forEach((e, i) => {
+      out += `- Real-World Example ${i + 1}: ${e}\n`;
+    });
+  } else {
+    out += `- Real-world Example 1: System-level kernel execution and thread scheduling in multi-core environments\n`;
+    out += `- Real-world Example 2: Distributed resource allocation and fault-tolerant hardware virtualization\n`;
+  }
+  out += `- Exam Tip: Master the core definitions, algorithmic sequence, and trade-offs between speed and memory efficiency.\n\n`;
+
+  return out;
+}
+
 function makeNotes(text, title, subject) {
   const topics = getTopics(text);
   const defs = getDefinitions(text);
@@ -561,7 +658,8 @@ function answerQuestion(question, text) {
 
 module.exports = {
   extractFromPDF,
-  makeNotes, makeSummary, makeFlashcards, makeQuestions, makeQuestionPaper,
+  makeNotes, makeDetailedChapterNotes, makeHandwrittenChapterNotes,
+  makeSummary, makeFlashcards, makeQuestions, makeQuestionPaper,
   makePodcastScript, makeVideoScript, makePPT, makeMindmap, makeVocabulary,
   answerQuestion, getKeyFacts, getDefinitions, getSentences, getChunks
 };

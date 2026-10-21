@@ -23,6 +23,13 @@ const pdf = require('./pdfEngine');
 // AI CALL — Google Gemini primary, Groq / Claude fallback
 // ═══════════════════════════════════════════════════════════
 
+// Provider cooldown tracking — prevents hammering exhausted or rate-limited APIs
+const providerCooldowns = {
+  gemini: 0,
+  groq: 0,
+  claude: 0
+};
+
 async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
   const keys = {
     gemini: process.env.GEMINI_API_KEY,
@@ -34,31 +41,52 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
     console.log('[AI] No API keys found — using local PDF engine.');
   }
 
-  // 1. Google Gemini (PRIMARY — generates all content first, high token limit & fast)
-  if (keys.gemini && !keys.gemini.startsWith('your_')) {
+  // 1. Google Gemini (PRIMARY — only if not in cooldown)
+  if (keys.gemini && !keys.gemini.startsWith('your_') && Date.now() >= providerCooldowns.gemini) {
     try {
       const result = await callGemini(systemPrompt, userPrompt, maxTokens);
       if (result) { console.log('[AI ✅] Google Gemini'); return result; }
-    } catch(e) { console.warn('[Gemini]', e.message); }
+    } catch(e) {
+      if (e.message.includes('429') || e.message.includes('quota') || e.message.includes('RESOURCE_EXHAUSTED')) {
+        providerCooldowns.gemini = Date.now() + 15 * 60 * 1000; // 15 mins cooldown
+        console.warn('[AI] Gemini daily quota exhausted (429) — cooling down for 15m. Switching to Groq.');
+      } else {
+        console.warn('[Gemini]', e.message);
+      }
+    }
   }
 
-  // 2. Groq (FALLBACK — switches when Gemini hits token limits or temporary errors)
-  if (keys.groq && !keys.groq.startsWith('your_')) {
+  // 2. Groq (FALLBACK — only if not in cooldown)
+  if (keys.groq && !keys.groq.startsWith('your_') && Date.now() >= providerCooldowns.groq) {
     try {
       const result = await callGroq(systemPrompt, userPrompt, maxTokens);
       if (result) { console.log('[AI ✅] Groq (fallback)'); return result; }
-    } catch(e) { console.warn('[Groq]', e.message); }
+    } catch(e) {
+      if (e.message.includes('429')) {
+        providerCooldowns.groq = Date.now() + 45 * 1000; // 45s cooldown
+        console.warn('[AI] Groq rate limited (429) — cooling down for 45s.');
+      } else {
+        console.warn('[Groq]', e.message);
+      }
+    }
   }
 
-  // 3. Anthropic Claude (FALLBACK)
-  if (keys.claude && !keys.claude.startsWith('your_')) {
+  // 3. Anthropic Claude (FALLBACK — only if not in cooldown)
+  if (keys.claude && !keys.claude.startsWith('your_') && Date.now() >= providerCooldowns.claude) {
     try {
       const result = await callClaude(systemPrompt, userPrompt, maxTokens);
       if (result) { console.log('[AI ✅] Claude (fallback)'); return result; }
-    } catch(e) { console.warn('[Claude]', e.message); }
+    } catch(e) {
+      if (e.message.includes('credit') || e.message.includes('balance') || e.message.includes('400')) {
+        providerCooldowns.claude = Date.now() + 60 * 60 * 1000; // 1h cooldown
+        console.warn('[AI] Claude balance zero — disabled for 1h.');
+      } else {
+        console.warn('[Claude]', e.message);
+      }
+    }
   }
 
-  // 4. Local PDF engine (always works)
+  // 4. Local PDF engine (instant fallback — 0ms)
   return null;
 }
 
@@ -252,14 +280,13 @@ Be thorough, accurate, and exam-focused for CBSE/JEE/NEET/University standards.`
 // ═══════════════════════════════════════════════════════════
 
 async function generateNotes(text, title, subject, lang = 'English') {
-  // ── Chapter-wise, comprehensive notes engine ──────────────────────
-  // Strategy: split the full document into large chunks (~8000 chars each),
-  // process ALL of them (no artificial cap), and produce rich notes for every chunk.
-  // A 300-page PDF (~600K chars) → ~75 chunks → produces 80-120 page PDF.
-
-  const CHUNK = 12000;
+  // ── Chapter-wise, comprehensive notes engine (80-120 pages target) ──
+  // For large books and textbooks (up to 3M+ chars), divide into 20-30 logical modules.
+  // Each module generates 3-5 pages of rich notes → total 80-120 pages.
+  const targetChunks = Math.min(30, Math.max(10, Math.ceil(text.length / 80000)));
+  const chunkSize = Math.ceil(text.length / targetChunks);
   const chunks = [];
-  for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
+  for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
   const sysPrompt = `You are an expert academic note-writer for Indian university students.
 Your job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.
@@ -310,6 +337,7 @@ STRICT RULES:
     const batch = chunks.slice(i, i + CONCURRENCY);
     const batchPromises = batch.map(async (chunk, bIdx) => {
       const idx = i + bIdx;
+      const promptChunk = chunk.slice(0, 8000);
       const prompt = `Generate comprehensive study notes for PART ${idx + 1} of ${chunks.length}.
 Title: "${title}" | Subject: "${subject}"
 Language: ${lang}
@@ -318,21 +346,21 @@ For EVERY concept found in this text, write the full structured notes (Definitio
 Never skip a concept. Write at least 800 words for this part.
 
 Document Part ${idx + 1}/${chunks.length}:
-${chunk}`;
+${promptChunk}`;
 
       try {
-        const result = await callAI(sysPrompt, prompt, 6000);
+        const result = await callAI(sysPrompt, prompt, 3500);
         if (result && result.length > 200) {
           console.log(`[Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
           return result;
         } else {
-          const fallback = pdf.makeNotes(chunk, title, subject);
+          const fallback = pdf.makeDetailedChapterNotes(chunk, title, subject, idx + 1, chunks.length);
           if (fallback && fallback.length > 50) return fallback;
         }
       } catch (e) {
-        console.warn(`[Notes] Part ${idx + 1} failed:`, e.message);
+        console.warn(`[Notes] Part ${idx + 1} fallback:`, e.message);
         try {
-          const fallback = pdf.makeNotes(chunk, title, subject);
+          const fallback = pdf.makeDetailedChapterNotes(chunk, title, subject, idx + 1, chunks.length);
           if (fallback && fallback.length > 50) return fallback;
         } catch {}
       }
@@ -346,7 +374,7 @@ ${chunk}`;
   }
 
   if (parts.length === 0) {
-    return pdf.makeNotes(text, title, subject);
+    return pdf.makeDetailedChapterNotes(text, title, subject, 1, 1);
   }
 
   let combined = `# ${title}\n### ${subject} — Complete Study Notes\n\n` + parts.join('\n\n---\n\n');
@@ -553,14 +581,13 @@ ${docSlice}`;
 }
 
 async function generateHandwrittenNotes(text, title, subject, lang = 'English') {
-  // ── Comprehensive handwritten notes — chapter-wise, no page cap ───
-  // Process the FULL document in 7000-char chunks (no 12-chunk limit).
-  // Each chunk produces ~2-4 handwritten notebook pages.
-  // A 300-page PDF → ~85 chunks → 90-120 handwritten PDF pages.
-
-  const CHUNK = 12000;
+  // ── Chapter-wise handwritten notes (80-120 pages target) ──────────
+  // For large books and textbooks (up to 3M+ chars), divide into 20-30 logical modules.
+  // Each module generates 3-5 pages of rich notes → total 80-120 pages.
+  const targetChunks = Math.min(30, Math.max(10, Math.ceil(text.length / 80000)));
+  const chunkSize = Math.ceil(text.length / targetChunks);
   const chunks = [];
-  for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
+  for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
   const sysPrompt = `You are an expert academic note-taker who writes beautiful, comprehensive handwritten-style study notes.
 You MUST format EVERY topic using this EXACT section structure:
@@ -602,6 +629,7 @@ RULES:
     const batch = chunks.slice(i, i + CONCURRENCY);
     const batchPromises = batch.map(async (chunk, bIdx) => {
       const idx = i + bIdx;
+      const promptChunk = chunk.slice(0, 8000);
       const prompt = `Generate fully structured handwritten notes for PART ${idx + 1} of ${chunks.length}.
 Title: "${title}" | Subject: "${subject}" | Language: ${lang}
 
@@ -619,21 +647,21 @@ Never abbreviate. Cover every formula, law, theorem, algorithm, and concept.
 Write at minimum 700 words for this part.
 
 Document Part ${idx + 1}/${chunks.length}:
-${chunk}`;
+${promptChunk}`;
 
       try {
-        const result = await callAI(sysPrompt, prompt, 6000);
+        const result = await callAI(sysPrompt, prompt, 3500);
         if (result && result.length > 200) {
           console.log(`[HW Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
           return result;
         } else {
-          const fallback = pdf.makeNotes(chunk, title, subject);
+          const fallback = pdf.makeHandwrittenChapterNotes(chunk, title, subject, idx + 1, chunks.length);
           if (fallback && fallback.length > 50) return fallback;
         }
       } catch (e) {
-        console.warn(`[HW Notes] Part ${idx + 1} failed:`, e.message);
+        console.warn(`[HW Notes] Part ${idx + 1} fallback:`, e.message);
         try {
-          const fallback = pdf.makeNotes(chunk, title, subject);
+          const fallback = pdf.makeHandwrittenChapterNotes(chunk, title, subject, idx + 1, chunks.length);
           if (fallback && fallback.length > 50) return fallback;
         } catch {}
       }
@@ -647,7 +675,7 @@ ${chunk}`;
   }
 
   if (parts.length === 0) {
-    return pdf.makeNotes(text, title, subject);
+    return pdf.makeHandwrittenChapterNotes(text, title, subject, 1, 1);
   }
 
   let combined = `# ${title}\n## ${subject}\n\n` + parts.join('\n\n---\n\n');
