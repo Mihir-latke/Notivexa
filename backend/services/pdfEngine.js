@@ -747,19 +747,20 @@ function makePodcastScript(text, title, subject) {
 }
 
 function makeVideoScript(text, title, subject) {
-  const chunks = getChunks(text, 7);
-  const facts = getKeyFacts(text, 8);
-  let s = '';
-  s += `[SLIDE 1: TITLE]\nTitle: ${title}\nSubject: ${subject}\nSource: Your Uploaded PDF Document\nNarration: Namaste! Today we study "${title}". All content is from your PDF.\nDuration: 30s\n\n`;
-  chunks.forEach((c, i) => {
-    const lines = c.split('\n').filter(l => l.trim().length > 8);
-    const head = lines[0]?.slice(0,70) || `Topic ${i+1}`;
-    const bullets = lines.slice(1,6).map(l => l.replace(/^[-•*\d.]+\s*/,'').slice(0,100)).filter(l=>l.length>5);
-    const narr = firstN(c, 3);
-    s += `[SLIDE ${i+2}: ${head.toUpperCase()}]\nVisual:\n${bullets.map(b=>`  • ${b}`).join('\n')||`  • ${head}`}\nNarration: ${narr}\nDuration: 90s\n\n`;
-  });
-  s += `[SLIDE ${chunks.length+2}: KEY TAKEAWAYS]\nVisual:\n${facts.slice(0,5).map(f=>`  • ${f.slice(0,90)}`).join('\n')}\nNarration: Let us recap. ${facts.slice(0,3).join(' ')} Thank you!\nDuration: 60s\n`;
-  return s;
+  const defs = getDefinitions(text, 5);
+  const facts = getKeyFacts(text, 5);
+  const coreTerm = defs[0]?.term || subject || title || 'this subject';
+  const coreFact = facts[0] ? facts[0].replace(/\.$/, '') : `Understanding the core concepts of ${coreTerm} is essential`;
+  const extraFact = facts[1] ? facts[1].replace(/\.$/, '') : `Key mechanisms focus on reliability, modularity, and structured design`;
+
+  return `[HOOK]
+Narration: Did you know how ${coreTerm} actually works in ${subject}? Let's break it down in 60 seconds!
+
+[BODY]
+Narration: ${coreFact}. Furthermore, ${extraFact}. These principles enable high system performance and seamless architecture.
+
+[OUTRO]
+Narration: That is the power of ${coreTerm}! Save this video, share it with your classmates, and follow for more quick concept breakdowns!`;
 }
 
 function makePPT(text, title, subject) {

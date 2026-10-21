@@ -453,7 +453,7 @@ exports.video = async (req, res, next) => {
     // Generate actual MP4 video with subtitles
     const videoResult = await createVideoFromAudio(audio.filePath, script, audio.duration);
     
-    if (doc.outputs) doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize:0 });
+    if (doc.outputs) doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
     await safeDocSave(doc);
     res.json({ success:true, script, pptData, slidesUrl:slideFile?`/uploads/generated/${slideFile.fileName}`:null, audioUrl:`/uploads/audio/${audio.fileName}`, videoUrl: videoResult.videoUrl, audioProvider:audio.provider, audioDuration:audio.duration, audioNote:audio.note, message:'Video generation complete: script + slides + video' });
   } catch(e) { next(e); }
