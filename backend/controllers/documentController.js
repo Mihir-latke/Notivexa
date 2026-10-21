@@ -308,90 +308,141 @@ exports.importUrl = async (req, res, next) => {
 
 exports.list = async (req, res, next) => {
   try {
-    if (!isDbConnected()) {
-      const { search, status } = req.query;
-      let docs = localStore.getDocsByUser(req.user?.id);
-      if (search) docs = docs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
-      if (status) docs = docs.filter(d => d.status === status);
-      return res.json({ success: true, documents: docs, isLocalStore: true });
-    }
     const { search, status } = req.query;
-    const filter = { user: req.user.id };
-    if (search) filter.title = { $regex: search, $options: 'i' };
-    if (status) filter.status = status;
-    const docs = await Document.find(filter).select('-extractedText').sort({ createdAt: -1 });
-    // If DB is empty, provide demo doc so user is not greeted by an empty screen
-    if (docs.length === 0) {
+    const userId = req.user?.id || req.user?._id;
+    let docs = [];
+
+    if (isDbConnected()) {
+      try {
+        const filter = { user: userId };
+        if (search) filter.title = { $regex: search, $options: 'i' };
+        if (status) filter.status = status;
+        docs = await Document.find(filter).select('-extractedText').sort({ createdAt: -1 });
+      } catch (err) {
+        console.warn('[DocList DB Error]', err.message);
+      }
+    }
+
+    // Always merge localStore docs so documents uploaded locally are accessible
+    let localDocs = localStore.getDocsByUser(userId);
+    if (search) localDocs = localDocs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
+    if (status) localDocs = localDocs.filter(d => d.status === status);
+
+    const existingIds = new Set(docs.map(d => (d._id || d.id).toString()));
+    for (const ld of localDocs) {
+      const idStr = (ld._id || ld.id).toString();
+      if (!existingIds.has(idStr)) {
+        docs.push(ld);
+        existingIds.add(idStr);
+      }
+    }
+
+    // If still empty, provide demo doc so user is not greeted by an empty screen
+    if (docs.length === 0 && SAMPLE_DEMO_DOCS?.length > 0) {
       return res.json({ success: true, documents: SAMPLE_DEMO_DOCS });
     }
+
     res.json({ success: true, documents: docs });
   } catch(e) { next(e); }
 };
 
 exports.get = async (req, res, next) => {
   try {
-    if (!isDbConnected()) {
-      let d = localStore.getDocById(req.params.id);
-      if (!d) {
-        d = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id);
+    const docId = req.params.id;
+    const userId = req.user?.id || req.user?._id;
+    let doc = null;
+
+    if (isDbConnected()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(docId)) {
+          doc = await Document.findOne({ _id: docId, user: userId });
+          if (!doc) doc = await Document.findById(docId);
+        }
+      } catch (err) {
+        console.warn('[DocGet DB Error]', err.message);
       }
-      if (!d) return res.status(404).json({ error: 'Document not found.' });
-      return res.json({ success: true, document: d });
     }
-    let doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
+
     if (!doc) {
-      doc = localStore.getDocById(req.params.id);
+      doc = localStore.getDocById(docId);
     }
-    if (!doc) {
-      doc = SAMPLE_DEMO_DOCS.find(x => x._id === req.params.id || x.id === req.params.id);
+
+    if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
+      doc = SAMPLE_DEMO_DOCS.find(x => (x._id && x._id.toString() === docId.toString()) || x.id === docId);
     }
+
     if (!doc) return res.status(404).json({ error: 'Document not found.' });
-    res.json({ success: true, document: doc });
+    return res.json({ success: true, document: doc });
   } catch(e) { next(e); }
 };
 
 exports.remove = async (req, res, next) => {
   try {
-    if (!isDbConnected()) {
-      const doc = localStore.getDocById(req.params.id);
-      if (doc && doc.filePath && fs.existsSync(doc.filePath)) {
-        try { fs.unlinkSync(doc.filePath); } catch {}
+    const docId = req.params.id;
+    const userId = req.user?.id || req.user?._id;
+    let doc = null;
+
+    if (isDbConnected()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(docId)) {
+          doc = await Document.findOne({ _id: docId, user: userId });
+        }
+      } catch (err) {
+        console.warn('[DocRemove DB Error]', err.message);
       }
-      localStore.deleteDoc(req.params.id);
-      return res.json({ success: true });
     }
-    const doc = await Document.findOne({ _id: req.params.id, user: req.user.id });
+
     if (!doc) {
-      localStore.deleteDoc(req.params.id);
+      const localDoc = localStore.getDocById(docId);
+      if (localDoc && localDoc.filePath && fs.existsSync(localDoc.filePath)) {
+        try { fs.unlinkSync(localDoc.filePath); } catch {}
+      }
+      localStore.deleteDoc(docId);
       return res.json({ success: true });
     }
-    if (fs.existsSync(doc.filePath)) { try { fs.unlinkSync(doc.filePath); } catch {} }
+
+    if (doc.filePath && fs.existsSync(doc.filePath)) {
+      try { fs.unlinkSync(doc.filePath); } catch {}
+    }
     await doc.deleteOne();
-    res.json({ success: true });
+    return res.json({ success: true });
   } catch(e) { next(e); }
 };
 
 exports.stats = async (req, res, next) => {
   try {
-    if (!isDbConnected()) {
-      const docs = localStore.getDocsByUser(req.user?.id);
-      const total = docs.length;
-      const ready = docs.filter(d => d.status === 'ready').length;
-      const processing = docs.filter(d => d.status === 'processing').length;
-      const error = docs.filter(d => d.status === 'error').length;
-      const totalSize = docs.reduce((acc, d) => acc + (d.size || 0), 0);
-      return res.json({
-        success: true,
-        stats: { total, ready, processing, error, totalSize }
-      });
+    const userId = req.user?.id || req.user?._id;
+    const localDocs = localStore.getDocsByUser(userId);
+    let total = localDocs.length;
+    let ready = localDocs.filter(d => d.status === 'ready').length;
+    let processing = localDocs.filter(d => d.status === 'processing').length;
+    let error = localDocs.filter(d => d.status === 'error').length;
+    let totalSize = localDocs.reduce((acc, d) => acc + (d.size || 0), 0);
+
+    if (isDbConnected()) {
+      try {
+        const [dbTotal, dbReady, dbProcessing, dbError] = await Promise.all([
+          Document.countDocuments({ user: userId }),
+          Document.countDocuments({ user: userId, status: 'ready' }),
+          Document.countDocuments({ user: userId, status: 'processing' }),
+          Document.countDocuments({ user: userId, status: 'error' })
+        ]);
+        total += dbTotal;
+        ready += dbReady;
+        processing += dbProcessing;
+        error += dbError;
+        if (mongoose.Types.ObjectId.isValid(userId)) {
+          const agg = await Document.aggregate([
+            { $match: { user: new mongoose.Types.ObjectId(userId) } },
+            { $group: { _id: null, size: { $sum: '$size' } } }
+          ]);
+          totalSize += (agg[0]?.size || 0);
+        }
+      } catch (err) {
+        console.warn('[DocStats DB Error]', err.message);
+      }
     }
-    const [total, ready, processing, error] = await Promise.all([
-      Document.countDocuments({ user: req.user.id }),
-      Document.countDocuments({ user: req.user.id, status: 'ready' }),
-      Document.countDocuments({ user: req.user.id, status: 'processing' }),
-      Document.countDocuments({ user: req.user.id, status: 'error' })
-    ]);
-    const agg = await Document.aggregate([{ $match: { user: req.user._id } }, { $group: { _id: null, size: { $sum: '$size' } } }]);
-    res.json({ success: true, stats: { total, ready, processing, error, totalSize: agg[0]?.size || 0 } });
+
+    res.json({ success: true, stats: { total, ready, processing, error, totalSize } });
   } catch(e) { next(e); }
 };
