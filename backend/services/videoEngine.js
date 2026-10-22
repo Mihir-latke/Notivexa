@@ -158,20 +158,12 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 45
     }
   }
 
-  // 3. Visual Assets (classroom background, teacher, student)
-  const customBgPath = [
-    path.join(__dirname, '../assets/cartoon/classroom_bg.png'),
-    path.join(__dirname, '../uploads/classroom_bg.png')
-  ].find(p => fs.existsSync(p)) || null;
-
-  const teacherImgPath = [
-    path.join(__dirname, '../assets/cartoon/cartoon_teacher.png'),
-    path.join(__dirname, '../uploads/cartoon_teacher.png')
-  ].find(p => fs.existsSync(p)) || null;
-
-  const studentImgPath = [
-    path.join(__dirname, '../assets/cartoon/cartoon_student.png'),
-    path.join(__dirname, '../uploads/cartoon_student.png')
+  // 3. Motion Video Footage (ACTUAL REAL VIDEO, NO STATIC IMAGES)
+  const motionVideoPath = [
+    path.join(__dirname, '../assets/videos/classroom_motion.mp4'),
+    path.join(__dirname, '../test_zoom.mp4'),
+    path.join(__dirname, '../assets/videos/presenter_motion.mp4'),
+    path.join(__dirname, '../uploads/teacher_stock.mp4')
   ].find(p => fs.existsSync(p)) || null;
 
   // 4. Parse Script into Topic, Blackboard Points & Dialogue
@@ -258,8 +250,8 @@ PlayResY: 1280
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
 Style: TopHeader,Arial,25,&H00FFFFFF,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,8,2,8,20,20,30,1
-Style: BoardTitle,Arial,25,&H0022D3EE,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,78,1
-Style: BoardBullets,Arial,22,&H00F0FDF4,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,118,1
+Style: BoardTitle,Arial,25,&H0022D3EE,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,68,1
+Style: BoardBullets,Arial,22,&H00F0FDF4,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,108,1
 Style: BottomPill,Arial,22,&H00FFFFFF,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,6,2,2,20,20,30,1
 Style: ActiveDialogue,Arial,36,&H00FFFFFF,&H00FFFFFF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,8,3,8,25,25,315,1
 
@@ -299,40 +291,24 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
         return await muxVeoWithAudio(videoBuffer, finalAudioPath, targetDuration, assPath, videoPath, fileName);
       }
     } catch (veoErr) {
-      console.log(`[Video] Veo not available (${veoErr.message}) -> Switching to Animated Classroom Engine`);
+      console.log(`[Video] Veo not available (${veoErr.message}) -> Switching to Motion Video Engine`);
     }
   }
 
-  // 7. HIGH-PERFORMANCE ANIMATED CLASSROOM ENGINE (FFmpeg)
+  // 7. REAL MOTION VIDEO LECTURE ENGINE (NO STATIC IMAGES)
   const renderJob = (withSubtitles = true) => {
     return new Promise((resolve, reject) => {
-      console.log(`[Video] Rendering Animated Classroom Short (${targetDuration}s, subs=${withSubtitles && hasAss})...`);
+      console.log(`[Video] Rendering Real Motion Video Lecture (${targetDuration}s, subs=${withSubtitles && hasAss})...`);
       let cmd = ffmpeg();
 
       // Input 0: Audio track
       cmd = cmd.input(finalAudioPath);
-      let nextInputIdx = 1;
 
-      // Input 1: Background
-      const bgInputIdx = nextInputIdx++;
-      if (customBgPath) {
-        cmd = cmd.input(customBgPath).inputOptions(['-loop', '1', '-framerate', '24', '-t', String(targetDuration)]);
+      // Input 1: Motion Video Footage (NO static image inputs)
+      if (motionVideoPath) {
+        cmd = cmd.input(motionVideoPath).inputOptions(['-stream_loop', '-1', '-t', String(targetDuration)]);
       } else {
         cmd = cmd.input('color=c=#0f172a:s=720x1280:r=24').inputFormat('lavfi').inputOptions(['-t', String(targetDuration)]);
-      }
-
-      // Input 2: Teacher
-      let teacherInputIdx = -1;
-      if (teacherImgPath) {
-        teacherInputIdx = nextInputIdx++;
-        cmd = cmd.input(teacherImgPath).inputOptions(['-loop', '1', '-framerate', '24', '-t', String(targetDuration)]);
-      }
-
-      // Input 3: Student
-      let studentInputIdx = -1;
-      if (studentImgPath) {
-        studentInputIdx = nextInputIdx++;
-        cmd = cmd.input(studentImgPath).inputOptions(['-loop', '1', '-framerate', '24', '-t', String(targetDuration)]);
       }
 
       // Filtergraph construction
@@ -340,36 +316,20 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
         '[0:a]asplit=2[a_wave][a_out]'
       ];
 
-      // Format background: crop & scale to vertical 9:16 (720x1280)
-      if (customBgPath) {
-        complexFilter.push(`[${bgInputIdx}:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280[bg]`);
+      // Format video: scale & crop to vertical 9:16 (720x1280)
+      if (motionVideoPath) {
+        complexFilter.push(`[1:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p[base_vid]`);
       } else {
-        complexFilter.push(`[${bgInputIdx}:v]format=rgba[bg]`);
+        complexFilter.push(`[1:v]format=yuv420p[base_vid]`);
       }
 
-      // Classroom chalkboard frame on top
-      complexFilter.push(`[bg]drawbox=x=25:y=60:w=670:h=230:color=#061c14@0.92:t=fill[bg_board]`);
-      complexFilter.push(`[bg_board]drawbox=x=25:y=60:w=670:h=230:color=#10b981@0.85:t=3[bg_board_framed]`);
-
-      let currentScene = '[bg_board_framed]';
-
-      // Overlay Teacher with smooth animated lecturing sway and nodding
-      if (teacherImgPath) {
-        complexFilter.push(`[${teacherInputIdx}:v]scale=340:-1[teacher]`);
-        complexFilter.push(`${currentScene}[teacher]overlay=x='20+3*sin(2*PI*t/3)':y='430+4*sin(2*PI*t/2)':shortest=1[scene_t]`);
-        currentScene = '[scene_t]';
-      }
-
-      // Overlay Student with natural attentive desk posture
-      if (studentImgPath) {
-        complexFilter.push(`[${studentInputIdx}:v]scale=360:-1[student]`);
-        complexFilter.push(`${currentScene}[student]overlay=x='260+2*cos(2*PI*t/4)':y='650+3*sin(2*PI*t/2.5)':shortest=1[scene_s]`);
-        currentScene = '[scene_s]';
-      }
+      // Classroom chalkboard frame on top with key syllabus concepts
+      complexFilter.push(`[base_vid]drawbox=x=25:y=50:w=670:h=225:color=#061c14@0.90:t=fill[bg_board]`);
+      complexFilter.push(`[bg_board]drawbox=x=25:y=50:w=670:h=225:color=#10b981@0.85:t=3[bg_board_framed]`);
 
       // Add audio visualizer waveform across bottom
       complexFilter.push(`[a_wave]showwaves=s=720x80:colors=#10b981:mode=cline:rate=24,colorkey=black:0.1:0.1[wave]`);
-      complexFilter.push(`${currentScene}[wave]overlay=0:H-h-110:shortest=1[scene_wave]`);
+      complexFilter.push(`[bg_board_framed][wave]overlay=0:H-h-110:shortest=1[scene_wave]`);
 
       if (withSubtitles && hasAss && relAssPath) {
         complexFilter.push(`[scene_wave]ass='${relAssPath}'[out_final]`);
@@ -396,7 +356,7 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
         .save(videoPath)
         .on('end', () => {
           const fileSize = fs.existsSync(videoPath) ? fs.statSync(videoPath).size : 0;
-          console.log(`[Video] Animated Classroom Short rendered: ${fileName} (${fileSize} bytes)`);
+          console.log(`[Video] Real Motion Video Lecture rendered: ${fileName} (${fileSize} bytes)`);
           if (fs.existsSync(assPath)) fs.unlinkSync(assPath);
           if (tempAudioCreated && fs.existsSync(finalAudioPath)) fs.unlinkSync(finalAudioPath);
           resolve({ fileName, videoPath, videoUrl: `/uploads/video/${fileName}`, fileSize, isVeo: false });
