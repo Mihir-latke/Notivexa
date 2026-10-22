@@ -4,13 +4,18 @@ import toast from 'react-hot-toast'
 import api from '../utils/api'
 
 export default function Upload() {
-  const [tab, setTab] = useState('file') // 'file' or 'url'
+  const [tab, setTab] = useState('file') // 'file', 'drive', 'url'
   const [files, setFiles] = useState([])
   const [dragOver, setDragOver] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState(null)
   const [subject, setSubject] = useState('')
   
+  // Google Drive state
+  const [driveUrl, setDriveUrl] = useState('')
+  const [driveTitle, setDriveTitle] = useState('')
+  const [driveLoading, setDriveLoading] = useState(false)
+
   // URL Link state
   const [url, setUrl] = useState('')
   const [urlTitle, setUrlTitle] = useState('')
@@ -54,6 +59,36 @@ export default function Upload() {
     } finally { setUploading(false) }
   }
 
+  const handleImportDrive = async () => {
+    const trimmed = driveUrl.trim()
+    if (!trimmed) { toast.error('Please enter a Google Drive or Google Docs link'); return }
+    if (!/^https?:\/\//i.test(trimmed)) { toast.error('Link must start with http:// or https://'); return }
+    if (!/drive\.google\.com|docs\.google\.com/i.test(trimmed)) {
+      toast.error('Link must be from drive.google.com or docs.google.com'); return
+    }
+
+    setDriveLoading(true)
+    try {
+      const res = await api.post('/documents/import-url', {
+        url: trimmed,
+        subject: subject.trim(),
+        title: driveTitle.trim()
+      })
+      const doc = res.data.document
+      toast.success('🎉 Google Drive resource successfully extracted!')
+      setResult(prev => ({
+        ...prev,
+        documents: [doc, ...(prev?.documents || [])]
+      }))
+      setDriveUrl('')
+      setDriveTitle('')
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to extract content from Google Drive. Ensure file sharing is set to "Anyone with the link".')
+    } finally {
+      setDriveLoading(false)
+    }
+  }
+
   const handleImportUrl = async () => {
     const trimmed = url.trim()
     if (!trimmed) { toast.error('Please enter a YouTube video URL or online PDF link'); return }
@@ -81,8 +116,16 @@ export default function Upload() {
     }
   }
 
+  // Detect link types
   const isYouTube = /(?:youtube\.com|youtu\.be)/i.test(url)
   const isPdf = /\.pdf($|\?)/i.test(url)
+  const isUrlDrive = /drive\.google\.com|docs\.google\.com/i.test(url)
+
+  const isGDriveDoc = /docs\.google\.com\/document/i.test(driveUrl)
+  const isGDriveSlides = /docs\.google\.com\/presentation/i.test(driveUrl)
+  const isGDriveSheets = /docs\.google\.com\/spreadsheets/i.test(driveUrl)
+  const isGDriveFile = /drive\.google\.com\/(file|open|uc)/i.test(driveUrl)
+  const isGDrive = isGDriveDoc || isGDriveSlides || isGDriveSheets || isGDriveFile || /drive\.google\.com|docs\.google\.com/i.test(driveUrl)
 
   return (
     <div className="tc" style={{ alignItems:'start' }}>
@@ -91,21 +134,38 @@ export default function Upload() {
         <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap' }}>
           <button 
             className={`btn ${tab === 'file' ? 'btn-p' : 'btn-s'}`}
-            style={{ flex:'1 1 160px', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
+            style={{ flex:'1 1 140px', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
             onClick={() => setTab('file')}
           >
             📁 Upload PDF / Image
           </button>
           <button 
+            className={`btn ${tab === 'drive' ? 'btn-p' : 'btn-s'}`}
+            style={{ 
+              flex:'1 1 140px', 
+              display:'flex', 
+              justifyContent:'center', 
+              alignItems:'center', 
+              gap:6,
+              background: tab === 'drive' ? 'var(--brand)' : '#F0FDF4',
+              color: tab === 'drive' ? '#fff' : '#15803D',
+              borderColor: tab === 'drive' ? 'var(--brand)' : '#BBF7D0',
+              fontWeight: 700
+            }}
+            onClick={() => setTab('drive')}
+          >
+            <span style={{ fontSize:16 }}>🔷</span> Google Drive
+          </button>
+          <button 
             className={`btn ${tab === 'url' ? 'btn-p' : 'btn-s'}`}
-            style={{ flex:'1 1 160px', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
+            style={{ flex:'1 1 140px', display:'flex', justifyContent:'center', alignItems:'center', gap:6 }}
             onClick={() => setTab('url')}
           >
-            🔗 Paste Link (YouTube / PDF)
+            🔗 Paste Link (YouTube / Web)
           </button>
         </div>
 
-        {tab === 'file' ? (
+        {tab === 'file' && (
           <div className="card" style={{ marginBottom:16 }}>
             <div className="ch"><div className="ct">📤 Upload PDF or Image</div></div>
             <div className="cb">
@@ -124,7 +184,18 @@ export default function Upload() {
               </div>
               <input ref={ref} type="file" multiple accept=".pdf,application/pdf,image/*" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
-              <button className="btn btn-s wf" style={{ marginTop: 12, display: 'flex', justifyContent: 'center' }} onClick={() => cameraRef.current?.click()}>📸 Take Photo from Camera</button>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:12 }}>
+                <button className="btn btn-s" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:5 }} onClick={() => cameraRef.current?.click()}>📸 Take Photo</button>
+                <a 
+                  href="https://drive.google.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="btn btn-s" 
+                  style={{ textDecoration:'none', display:'flex', justifyContent:'center', alignItems:'center', gap:5, background:'#EFF6FF', color:'#1D4ED8', borderColor:'#BFDBFE' }}
+                >
+                  🔷 Open Drive ↗
+                </a>
+              </div>
 
               {files.length > 0 && (
                 <div style={{ marginTop:13, display:'flex', flexDirection:'column', gap:7 }}>
@@ -145,7 +216,118 @@ export default function Upload() {
               )}
             </div>
           </div>
-        ) : (
+        )}
+
+        {tab === 'drive' && (
+          <div className="card" style={{ marginBottom:16 }}>
+            <div className="ch" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
+              <div className="ct">🔷 Import from Google Drive</div>
+              <a 
+                href="https://drive.google.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="btn btn-sm"
+                style={{ background:'#E8F0FE', color:'#1A73E8', border:'1px solid #D2E3FC', textDecoration:'none', fontWeight:700, display:'flex', alignItems:'center', gap:6 }}
+              >
+                🌐 Open Google Drive ↗
+              </a>
+            </div>
+            <div className="cb">
+              <div className="ib b" style={{ marginBottom:14, background:'#F0FDF4', borderColor:'#BBF7D0', color:'#166534' }}>
+                <strong>Google Drive Direct Import:</strong> Import PDFs, Google Docs, Slides, and lecture files directly from your Google Drive without needing to download them to your computer!
+              </div>
+
+              {/* Fast Open Google Drive Banner */}
+              <div style={{
+                background:'linear-gradient(135deg, #F8FAFC, #EFF6FF)',
+                border:'1px solid #DBEAFE',
+                borderRadius:10,
+                padding:'12px 14px',
+                marginBottom:16,
+                display:'flex',
+                alignItems:'center',
+                justifyContent:'space-between',
+                flexWrap:'wrap',
+                gap:10
+              }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                  <span style={{ fontSize:28 }}>📂</span>
+                  <div>
+                    <div style={{ fontWeight:700, fontSize:13, color:'var(--ink)' }}>Need to pick a document from your Google Drive?</div>
+                    <div style={{ fontSize:11.5, color:'var(--ink3)' }}>Click to open Google Drive in a new tab, copy any shared file link, and paste below.</div>
+                  </div>
+                </div>
+                <a 
+                  href="https://drive.google.com" 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  className="btn btn-sm"
+                  style={{ background:'#1A73E8', color:'#fff', border:'none', textDecoration:'none', fontWeight:700, padding:'7px 14px', borderRadius:8 }}
+                >
+                  🚀 Open Google Drive
+                </a>
+              </div>
+
+              <div className="fg" style={{ marginBottom:14 }}>
+                <label className="fl">Google Drive / Google Docs Link *</label>
+                <input 
+                  className="fi" 
+                  placeholder="https://drive.google.com/file/d/... or https://docs.google.com/document/d/..."
+                  value={driveUrl}
+                  onChange={e => setDriveUrl(e.target.value)}
+                />
+                {driveUrl && (
+                  <div style={{ marginTop:6, display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                    {isGDriveDoc && <span style={{ background:'#DBEAFE', color:'#1D4ED8', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📝 Google Doc Detected (Text auto-export)</span>}
+                    {isGDriveSlides && <span style={{ background:'#FEF3C7', color:'#B45309', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📊 Google Presentation / Slides Detected</span>}
+                    {isGDriveSheets && <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📈 Google Sheet / CSV Detected</span>}
+                    {isGDriveFile && <span style={{ background:'#E0E7FF', color:'#4338CA', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📄 Google Drive PDF / File Detected</span>}
+                    {!isGDrive && /^https?:\/\//i.test(driveUrl) && <span style={{ background:'#FEE2E2', color:'#B91C1C', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>⚠️ Please enter a drive.google.com or docs.google.com link</span>}
+                  </div>
+                )}
+              </div>
+
+              <div className="fg" style={{ marginBottom:14 }}>
+                <label className="fl">Custom Title (optional)</label>
+                <input 
+                  className="fi" 
+                  placeholder="Leave blank to use Drive file name" 
+                  value={driveTitle} 
+                  onChange={e => setDriveTitle(e.target.value)} 
+                />
+              </div>
+
+              {/* Step-by-step sharing instructions */}
+              <div style={{ background:'var(--bg)', borderRadius:9, padding:'11px 14px', fontSize:12, color:'var(--ink2)', marginBottom:16 }}>
+                <strong>📌 Easy 3-step sharing guide:</strong>
+                <ol style={{ margin:'6px 0 0 16px', padding:0, lineHeight:1.7 }}>
+                  <li>Open your document or file in Google Drive.</li>
+                  <li>Click <strong>Share</strong> (top right), then set General access to <strong>"Anyone with the link"</strong>.</li>
+                  <li>Click <strong>Copy link</strong>, paste it into the box above, and click <strong>Extract & Import</strong>!</li>
+                </ol>
+              </div>
+
+              <button 
+                className="btn btn-p btn-lg wf" 
+                onClick={handleImportDrive} 
+                disabled={driveLoading || !driveUrl.trim()}
+              >
+                {driveLoading ? '⏳ Extracting from Google Drive...' : '⚡ Extract & Import Drive Resource'}
+              </button>
+
+              {driveLoading && (
+                <div className="dots" style={{ marginTop:10, justifyContent:'center' }}>
+                  <div className="dot"/><div className="dot"/><div className="dot"/>
+                  <span style={{ fontSize:13, color:'var(--ink3)' }}>
+                    Downloading and reading Google Drive content...
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {tab === 'url' && (
           <div className="card" style={{ marginBottom:16 }}>
             <div className="ch"><div className="ct">🔗 Import from YouTube or Online Link</div></div>
             <div className="cb">
@@ -162,10 +344,11 @@ export default function Upload() {
                   onChange={e => setUrl(e.target.value)}
                 />
                 {url && (
-                  <div style={{ marginTop:6, display:'flex', gap:6, alignItems:'center' }}>
+                  <div style={{ marginTop:6, display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
                     {isYouTube && <span style={{ background:'#FEE2E2', color:'#B91C1C', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>🎥 YouTube Video Detected (Transcript extraction)</span>}
                     {isPdf && <span style={{ background:'#DBEAFE', color:'#1D4ED8', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📄 Online PDF Detected (Direct parsing)</span>}
-                    {!isYouTube && !isPdf && /^https?:\/\//i.test(url) && <span style={{ background:'#EDE9FE', color:'#6D28D9', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>🌐 Web Article / Link Detected</span>}
+                    {isUrlDrive && <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>🔷 Google Drive Resource Detected</span>}
+                    {!isYouTube && !isPdf && !isUrlDrive && /^https?:\/\//i.test(url) && <span style={{ background:'#EDE9FE', color:'#6D28D9', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>🌐 Web Article / Link Detected</span>}
                   </div>
                 )}
               </div>
@@ -250,7 +433,7 @@ export default function Upload() {
                 <div key={doc._id} style={{ background:'var(--bg)', borderRadius:9, padding:'12px 14px', marginBottom:9 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:5 }}>
                     <span style={{ fontSize:16 }}>
-                      {doc.fileType === 'youtube' ? '🎥' : doc.fileType === 'url' ? '🌐' : doc.fileType === 'image' ? '🖼️' : '📄'}
+                      {doc.fileType === 'gdrive' ? '🔷' : doc.fileType === 'youtube' ? '🎥' : doc.fileType === 'url' ? '🌐' : doc.fileType === 'image' ? '🖼️' : '📄'}
                     </span>
                     <div style={{ fontWeight:700, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
                   </div>
@@ -285,13 +468,14 @@ export default function Upload() {
           <div className="ch"><div className="ct">💡 Supported Sources</div></div>
           <div className="cb">
             {[
+              ['🔷','Google Drive files, shared PDFs, Google Docs & Slides'],
               ['🎥','YouTube lectures, video explanations, tutorial links'],
               ['📄','Online PDFs (links directly to .pdf documents)'],
               ['🌐','Web articles, blogs, research notes, Wikipedia'],
               ['📸','Camera photos & handwritten paper snapshots'],
               ['📦','Local textbook & courseware PDF uploads'],
             ].map(([ic,t],i) => (
-              <div key={i} style={{ display:'flex', gap:9, padding:'7px 0', borderBottom:i<4?'1px solid var(--bdr)':'none', fontSize:12.5 }}>
+              <div key={i} style={{ display:'flex', gap:9, padding:'7px 0', borderBottom:i<5?'1px solid var(--bdr)':'none', fontSize:12.5 }}>
                 <span style={{ fontSize:16, flexShrink:0 }}>{ic}</span>
                 <span style={{ color:'var(--ink2)' }}>{t}</span>
               </div>

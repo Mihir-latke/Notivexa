@@ -41,7 +41,7 @@ export default function Library() {
             <tbody>
               {filtered.map(d=>(
                 <tr key={d._id}>
-                  <td><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18}}>{d.fileType === 'youtube' ? '🎥' : d.fileType === 'url' ? '🌐' : d.fileType === 'image' ? '🖼️' : '📄'}</span><span style={{fontWeight:600,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.title}</span></div></td>
+                  <td><div style={{display:'flex',alignItems:'center',gap:8}}><span style={{fontSize:18}}>{d.fileType === 'gdrive' ? '🔷' : d.fileType === 'youtube' ? '🎥' : d.fileType === 'url' ? '🌐' : d.fileType === 'image' ? '🖼️' : '📄'}</span><span style={{fontWeight:600,maxWidth:220,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.title}</span></div></td>
                   <td>{d.wordCount?.toLocaleString()||'—'}</td>
                   <td>{d.pageCount||'—'}</td>
                   <td><span className={d.status==='ready'?'bok':d.status==='processing'?'bpr':'ber'}>{d.status==='ready'?'✓ Ready':d.status==='processing'?'⏳ Processing':'✗ Error'}</span></td>

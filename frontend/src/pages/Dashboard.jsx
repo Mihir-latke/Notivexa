@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import api from '../utils/api'
 
 const TOOLS = [
-  { path:'/upload',    icon:'📤', title:'Upload / Link',     desc:'PDF, Image, YouTube or Web Link',   color:'#EDE9FE', badge:'START' },
+  { path:'/upload',    icon:'📤', title:'Upload / Link',     desc:'PDF, Google Drive, YouTube & Web',   color:'#EDE9FE', badge:'START' },
   { path:'/notebook',  icon:'📓', title:'AI Notebook',      desc:'Notes, Q-papers, slides, mindmaps',color:'#DBEAFE', badge:'CORE'  },
   { path:'/flashcards',icon:'🃏', title:'Flashcard Studio', desc:'AI flip cards from your PDF',      color:'#DCFCE7', badge:null    },
   { path:'/chatbot',   icon:'🧠', title:'Ask Your PDF',     desc:'Detailed answers from document',   color:'#FEF9C3', badge:'NEW'   },

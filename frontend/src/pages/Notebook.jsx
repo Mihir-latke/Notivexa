@@ -1824,7 +1824,7 @@ export default function Notebook() {
             ) : (
               <select className="fi" value={docId} onChange={e=>setDocId(e.target.value)}>
                 <option value="">— Select a document / video —</option>
-                {docs.map(d => <option key={d._id} value={d._id}>{d.fileType === 'youtube' ? '🎥 ' : d.fileType === 'url' ? '🌐 ' : d.fileType === 'image' ? '🖼️ ' : '📄 '}{d.title} ({d.wordCount?.toLocaleString()} words)</option>)}
+                {docs.map(d => <option key={d._id} value={d._id}>{d.fileType === 'gdrive' ? '🔷 ' : d.fileType === 'youtube' ? '🎥 ' : d.fileType === 'url' ? '🌐 ' : d.fileType === 'image' ? '🖼️ ' : '📄 '}{d.title} ({d.wordCount?.toLocaleString()} words)</option>)}
               </select>
             )}
             {doc && (

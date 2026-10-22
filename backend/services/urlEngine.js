@@ -43,6 +43,34 @@ function isPdfUrl(url) {
   }
 }
 
+function isGoogleDriveUrl(url) {
+  if (!url || typeof url !== 'string') return false;
+  return /drive\.google\.com|docs\.google\.com/i.test(url);
+}
+
+function extractGoogleDriveInfo(url) {
+  if (!url) return null;
+  const isDoc = /docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
+  if (isDoc) return { type: 'doc', id: isDoc[1] };
+
+  const isSlides = /docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
+  if (isSlides) return { type: 'slides', id: isSlides[1] };
+
+  const isSheets = /docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
+  if (isSheets) return { type: 'sheets', id: isSheets[1] };
+
+  const isFile = /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
+  if (isFile) return { type: 'file', id: isFile[1] };
+
+  const isOpen = /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i.exec(url);
+  if (isOpen) return { type: 'file', id: isOpen[1] };
+
+  const isUc = /[?&]id=([a-zA-Z0-9_-]+)/i.exec(url);
+  if (isUc && /drive\.google\.com|docs\.google\.com/i.test(url)) return { type: 'file', id: isUc[1] };
+
+  return null;
+}
+
 // ═══════════════════════════════════════════════════════════════
 // YOUTUBE EXTRACTOR
 // ═══════════════════════════════════════════════════════════════
@@ -826,6 +854,217 @@ async function extractWebpage(url, userSubject = 'General') {
 }
 
 // ═══════════════════════════════════════════════════════════════
+// GOOGLE DRIVE EXTRACTOR
+// ═══════════════════════════════════════════════════════════════
+
+async function extractGoogleDrive(url, userSubject = 'General') {
+  console.log(`[URL Engine] Processing Google Drive link: ${url}`);
+  const info = extractGoogleDriveInfo(url);
+  if (!info || !info.id) {
+    throw new Error('Could not find a valid Google Drive file ID. Please check the link.');
+  }
+
+  const { type, id } = info;
+  let candidateUrls = [];
+
+  if (type === 'doc') {
+    candidateUrls = [
+      `https://docs.google.com/document/d/${id}/export?format=txt`,
+      `https://docs.google.com/document/d/${id}/export?format=pdf`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download`
+    ];
+  } else if (type === 'slides') {
+    candidateUrls = [
+      `https://docs.google.com/presentation/d/${id}/export/pdf`,
+      `https://docs.google.com/presentation/d/${id}/export/txt`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download`
+    ];
+  } else if (type === 'sheets') {
+    candidateUrls = [
+      `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download`
+    ];
+  } else {
+    // General Google Drive file (PDF, TXT, DOCX, image, etc.)
+    candidateUrls = [
+      `https://drive.usercontent.google.com/download?id=${id}&export=download`,
+      `https://drive.google.com/uc?export=download&id=${id}`,
+      `https://docs.google.com/uc?export=download&id=${id}`
+    ];
+  }
+
+  let finalRes = null;
+  let finalBuffer = null;
+  let lastError = null;
+
+  for (const downloadUrl of candidateUrls) {
+    try {
+      console.log(`[URL Engine] Attempting Google Drive download: ${downloadUrl}`);
+      const res = await fetch(downloadUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        },
+        redirect: 'follow',
+        timeout: 30000
+      });
+
+      // Check if redirected to Google sign-in
+      if (res.url && (res.url.includes('accounts.google.com') || res.url.includes('ServiceLogin'))) {
+        throw new Error('Google Drive file is private. Please open Google Drive, right-click the file, click "Share", set General Access to "Anyone with the link can view", and try again.');
+      }
+
+      if (res.status === 401 || res.status === 403) {
+        throw new Error('Access denied to Google Drive file. Please make sure the file is shared with "Anyone with the link".');
+      }
+
+      if (!res.ok) {
+        lastError = new Error(`Google Drive returned HTTP ${res.status}`);
+        continue;
+      }
+
+      const buf = await res.buffer();
+      if (!buf || buf.length === 0) {
+        lastError = new Error('Empty response from Google Drive');
+        continue;
+      }
+
+      // Check if response is an HTML page asking for virus scan confirmation
+      const textSample = buf.slice(0, 1000).toString('utf8');
+      if (textSample.includes('confirm=') && textSample.includes('uc-download-link')) {
+        const confirmMatch = textSample.match(/href="([^"]+confirm=[^"]+)"/i);
+        if (confirmMatch) {
+          const confirmUrl = confirmMatch[1].startsWith('http') ? confirmMatch[1] : `https://drive.google.com${confirmMatch[1]}`;
+          console.log(`[URL Engine] Following Google Drive confirmation link: ${confirmUrl}`);
+          const confirmRes = await fetch(confirmUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            },
+            redirect: 'follow',
+            timeout: 30000
+          });
+          if (confirmRes.ok) {
+            finalRes = confirmRes;
+            finalBuffer = await confirmRes.buffer();
+            break;
+          }
+        }
+      }
+
+      // Check if it's an HTML page warning about access denied or sign in
+      if (textSample.includes('Sign in - Google Accounts') || textSample.includes('Google Drive - Access Denied') || textSample.includes('meet the terms of service')) {
+        throw new Error('Google Drive file is private or access is restricted. Please open Google Drive, right-click the file, click "Share", set General Access to "Anyone with the link", and try again.');
+      }
+
+      finalRes = res;
+      finalBuffer = buf;
+      break;
+    } catch (e) {
+      lastError = e;
+      if (e.message.includes('private') || e.message.includes('Access denied') || e.message.includes('restricted')) {
+        throw e;
+      }
+    }
+  }
+
+  if (!finalBuffer || finalBuffer.length === 0) {
+    throw lastError || new Error('Could not download file from Google Drive. Please verify the link and sharing permissions (Anyone with the link).');
+  }
+
+  // Detect file name from Content-Disposition header if available
+  let originalName = 'Google_Drive_File';
+  const cd = finalRes ? finalRes.headers.get('content-disposition') : null;
+  if (cd) {
+    const fnMatch = cd.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i);
+    if (fnMatch && fnMatch[1]) {
+      originalName = decodeURIComponent(fnMatch[1].trim());
+    }
+  }
+
+  // Derive sensible title
+  let title = originalName.replace(/\.[a-zA-Z0-9]+$/, '').replace(/[_-]+/g, ' ').trim();
+  if (!title || title.toLowerCase() === 'google drive file' || title.length < 3) {
+    title = type === 'doc' ? 'Google Doc Lecture' : type === 'slides' ? 'Google Presentation' : 'Google Drive Resource';
+  }
+
+  // Check if buffer is PDF (starts with %PDF or content-type is pdf or ends in .pdf)
+  const isPdf = finalBuffer.slice(0, 5).toString('ascii').startsWith('%PDF') ||
+    (finalRes && finalRes.headers.get('content-type')?.includes('application/pdf')) ||
+    originalName.toLowerCase().endsWith('.pdf');
+
+  if (isPdf) {
+    const tempFileName = `gdrive_${uuidv4()}.pdf`;
+    const savedPath = path.join(PDF_DIR, tempFileName);
+    fs.writeFileSync(savedPath, finalBuffer);
+    console.log(`[URL Engine] Saved Google Drive PDF to ${savedPath} (${(finalBuffer.length / 1024 / 1024).toFixed(2)} MB)`);
+
+    const ext = await extractFromPDF(savedPath);
+    return {
+      text: ext.text,
+      sections: ext.sections,
+      pages: ext.pages,
+      words: ext.words,
+      title: title || ext.title || 'Google Drive Document',
+      originalName,
+      fileType: 'gdrive',
+      filePath: savedPath,
+      size: finalBuffer.length
+    };
+  }
+
+  // Plain text, Markdown, Google Doc, or CSV
+  const textContent = finalBuffer.toString('utf8').replace(/\r\n/g, '\n').trim();
+  if (textContent.length < 30) {
+    throw new Error('The downloaded Google Drive document contains little or no readable text.');
+  }
+
+  const lines = textContent.split('\n').map(l => l.trim()).filter(Boolean);
+  const words = textContent.split(/\s+/).filter(Boolean).length;
+  const pages = Math.max(1, Math.ceil(words / 350));
+
+  // Chunk into sections
+  const sections = [];
+  let currentSection = { title: title || 'Overview', content: '', wordCount: 0 };
+  const CHUNK_SIZE = 450;
+
+  for (const line of lines) {
+    if (line.startsWith('#') || (line.length < 60 && /^[A-Z0-9\s:.-]{4,}$/.test(line))) {
+      if (currentSection.content.trim()) {
+        currentSection.wordCount = currentSection.content.split(/\s+/).filter(Boolean).length;
+        sections.push(currentSection);
+      }
+      currentSection = { title: line.replace(/^#+\s*/, ''), content: '', wordCount: 0 };
+    } else {
+      currentSection.content += line + '\n\n';
+      const currentWords = currentSection.content.split(/\s+/).filter(Boolean).length;
+      if (currentWords >= CHUNK_SIZE) {
+        currentSection.wordCount = currentWords;
+        sections.push(currentSection);
+        currentSection = { title: `Section ${sections.length + 1}`, content: '', wordCount: 0 };
+      }
+    }
+  }
+  if (currentSection.content.trim()) {
+    currentSection.wordCount = currentSection.content.split(/\s+/).filter(Boolean).length;
+    sections.push(currentSection);
+  }
+
+  const docPath = path.join(DOC_DIR, `gdrive_${uuidv4()}.txt`);
+  fs.writeFileSync(docPath, textContent, 'utf8');
+
+  return {
+    text: textContent,
+    sections: sections.length ? sections : [{ title: 'Main Content', content: textContent, wordCount: words }],
+    pages,
+    words,
+    title,
+    originalName,
+    fileType: 'gdrive',
+    filePath: docPath,
+    size: finalBuffer.length
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════
 // MASTER EXTRACTOR
 // ═══════════════════════════════════════════════════════════════
 
@@ -838,7 +1077,9 @@ async function extractFromUrl(rawUrl, userSubject = 'General') {
     throw new Error('URL must start with http:// or https://');
   }
 
-  if (isYouTubeUrl(url)) {
+  if (isGoogleDriveUrl(url)) {
+    return await extractGoogleDrive(url, userSubject);
+  } else if (isYouTubeUrl(url)) {
     return await extractYouTube(url, userSubject);
   } else if (isPdfUrl(url)) {
     return await extractOnlinePdf(url, userSubject);
@@ -851,6 +1092,8 @@ async function extractFromUrl(rawUrl, userSubject = 'General') {
 module.exports = {
   extractFromUrl,
   isYouTubeUrl,
-  isPdfUrl
+  isPdfUrl,
+  isGoogleDriveUrl,
+  extractGoogleDrive
 };
 
