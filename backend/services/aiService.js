@@ -681,10 +681,10 @@ ${docSlice}`;
 }
 
 async function generateHandwrittenNotes(text, title, subject, lang = 'English') {
-  // ── Chapter-wise handwritten notes (80-120 pages target) ──────────
-  // For large books and textbooks (up to 3M+ chars), divide into 20-30 logical modules.
-  // Each module generates 3-5 pages of rich notes → total 80-120 pages.
-  const targetChunks = Math.min(30, Math.max(10, Math.ceil(text.length / 80000)));
+  // Dynamic chunking:
+  // - Short/medium text (< 16,000 chars): 1 single chunk -> finishes in 3-5s, never times out
+  // - Large text: 1 chunk per 16,000 chars, capped at 6 chunks to guarantee quick responses within gateway timeouts (<30s)
+  const targetChunks = Math.max(1, Math.min(6, Math.ceil(text.length / 16000)));
   const chunkSize = Math.ceil(text.length / targetChunks);
   const chunks = [];
   for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
@@ -723,7 +723,7 @@ RULES:
 - Write at least 700 words per chunk — EXPAND everything thoroughly, never summarise briefly
 - Include ALL formulas, theorems, dates, laws, algorithms found in the text`;
 
-  const CONCURRENCY = 3;
+  const CONCURRENCY = 2;
   const parts = [];
   for (let i = 0; i < chunks.length; i += CONCURRENCY) {
     const batch = chunks.slice(i, i + CONCURRENCY);

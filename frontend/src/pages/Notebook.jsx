@@ -89,6 +89,13 @@ function HandwrittenPage({ content, pageNum, total, fontId = 'caveat', paperStyl
           remarkPlugins={[remarkGfm, remarkMath]}
           rehypePlugins={[rehypeKatex]}
           components={{
+            p: ({ node, children, ...props }) => {
+              const hasImg = node?.children?.some(c => c.tagName === 'img');
+              if (hasImg) {
+                return <div style={{ margin: '12px 0' }} {...props}>{children}</div>;
+              }
+              return <p style={{ margin: '8px 0' }} {...props}>{children}</p>;
+            },
             img: ({ node, ...props }) => (
               <figure style={{ margin: '16px auto', textAlign: 'center' }}>
                 <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.15)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
@@ -1789,6 +1796,13 @@ export default function Notebook() {
                 remarkPlugins={[remarkGfm, remarkMath]} 
                 rehypePlugins={[rehypeKatex]}
                 components={{
+                  p: ({ node, children, ...props }) => {
+                    const hasImg = node?.children?.some(c => c.tagName === 'img');
+                    if (hasImg) {
+                      return <div style={{ margin: '12px 0' }} {...props}>{children}</div>;
+                    }
+                    return <p {...props}>{children}</p>;
+                  },
                   img: ({ node, ...props }) => (
                     <figure style={{ margin: '18px auto', textAlign: 'center' }}>
                       <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid var(--bdr2)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />

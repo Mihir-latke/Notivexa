@@ -256,5 +256,5 @@ if (MONGODB_URI && !isPlaceholderUri && !MONGODB_URI.includes('localhost')) {
   console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent storage.');
 }
 
-app.listen(PORT, () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
 module.exports = app;
