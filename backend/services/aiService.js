@@ -92,7 +92,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
 
 async function callGemini(system, user, maxTokens) {
   const key = process.env.GEMINI_API_KEY;
-  const models = ['gemini-flash-latest', 'gemini-3.5-flash'];
+  const models = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
   let lastErr;
   for (const model of models) {
     try {

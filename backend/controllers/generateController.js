@@ -166,7 +166,12 @@ async function getDocText(docId, userId, secIdx) {
   }
   if (!text) {
     text = doc.extractedText || '';
-    console.log(`[Content] Full doc: ${text.length}c`);
+    if (text.length > 35000) {
+      console.log(`[Content] Full doc is ${text.length}c. Truncating to 35,000c for memory safety and fast generation.`);
+      text = text.slice(0, 35000);
+    } else {
+      console.log(`[Content] Full doc: ${text.length}c`);
+    }
   }
   if (!text || text.trim().length < 30) throw new Error('No readable text. Please re-upload the PDF.');
   return { doc, text };
@@ -450,33 +455,21 @@ exports.video = async (req, res, next) => {
     // 2. Generate Audio via Edge TTS (Indian male voice)
     const audio = await ai.generateAudio(script, { language:'en-IN', voiceStyle:'male' });
 
-    // 3. Render realistic animated educational video (with Veo AI motion or Animated Classroom Engine)
+    // 3. Render realistic animated educational video (with Veo AI motion or Motion Video Engine)
     const videoResult = await createVideoFromAudio(audio.filePath, script, audio.duration);
-
-    // 4. Optionally generate slides in the background or safely
-    let pptData = null;
-    let slideFile = null;
-    try {
-      pptData = await ai.generatePPT(text, doc.title, doc.subject || doc.title, language);
-      if (pptData) slideFile = await slidePDF(pptData, { title: doc.title });
-    } catch (e) {
-      console.warn('[Video slides optional]', e.message);
-    }
     
     if (doc.outputs) doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
     await safeDocSave(doc);
     res.json({
       success: true,
       script,
-      pptData,
-      slidesUrl: slideFile ? `/uploads/generated/${slideFile.fileName}` : null,
       audioUrl: `/uploads/audio/${audio.fileName}`,
       videoUrl: videoResult.videoUrl,
       audioProvider: audio.provider,
       audioDuration: audio.duration,
       audioNote: audio.note,
       isVeo: videoResult.isVeo || false,
-      message: 'Video generation complete: script + audio + animated video'
+      message: 'Video generation complete: script + audio + motion video'
     });
   } catch(e) { next(e); }
 };

@@ -41,8 +41,8 @@ async function generateVeoClip(prompt, durationSec = 6, apiKey) {
 
   console.log(`[Veo] Operation started: ${operationName}. Polling for completion...`);
 
-  // Poll for completion (up to 2 minutes, every 5s)
-  const maxAttempts = 24;
+  // Poll for completion (up to 20s, every 5s)
+  const maxAttempts = 4;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     await new Promise(r => setTimeout(r, 5000));
     const pollUrl = `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`;
