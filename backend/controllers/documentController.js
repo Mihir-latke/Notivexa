@@ -4,6 +4,7 @@ const { Document, User } = require('../models');
 const { extractFromPDF } = require('../services/pdfEngine');
 const { extractFromImage } = require('../services/aiService');
 const { extractFromUrl } = require('../services/urlEngine');
+const { extractDocumentText } = require('../services/ocr/textExtractionService');
 const localStore = require('../utils/localStore');
 const { extractImagesFromPDF } = require('../services/pdfImageExtractor');
 
@@ -71,12 +72,7 @@ exports.upload = async (req, res, next) => {
         const subject = req.body.subject || 'General';
 
         try {
-          let ext;
-          if (isImage) {
-            ext = await extractFromImage(file.path, file.mimetype);
-          } else {
-            ext = await extractFromPDF(file.path);
-          }
+          const ext = await extractDocumentText(file.path, file.mimetype);
 
           const doc = localStore.createDoc({
             user: userId,
@@ -91,7 +87,11 @@ exports.upload = async (req, res, next) => {
             sections: ext.sections,
             pageCount: ext.pages,
             wordCount: ext.words,
-            status: 'ready',
+            contentHash: ext.contentHash,
+            extractionMethod: ext.extractionMethod,
+            ocrConfidence: ext.ocrConfidence,
+            pageResults: ext.pageResults,
+            status: ext.status || 'ready',
             imagePaths: []
           });
 
@@ -158,17 +158,16 @@ exports.upload = async (req, res, next) => {
       });
 
       try {
-        let ext;
-        if (isImage) {
-          ext = await extractFromImage(file.path, file.mimetype);
-        } else {
-          ext = await extractFromPDF(file.path);
-        }
-        doc.extractedText = ext.text;
-        doc.sections      = ext.sections;
-        doc.pageCount     = ext.pages;
-        doc.wordCount     = ext.words;
-        doc.status        = 'ready';
+        const ext = await extractDocumentText(file.path, file.mimetype);
+        doc.extractedText    = ext.text;
+        doc.sections         = ext.sections;
+        doc.pageCount        = ext.pages;
+        doc.wordCount        = ext.words;
+        doc.contentHash      = ext.contentHash;
+        doc.extractionMethod = ext.extractionMethod;
+        doc.ocrConfidence    = ext.ocrConfidence;
+        doc.pageResults      = ext.pageResults;
+        doc.status           = ext.status || 'ready';
         await doc.save();
 
         if (!isImage) {

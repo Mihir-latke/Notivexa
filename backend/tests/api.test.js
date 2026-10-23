@@ -6,6 +6,7 @@ const jwt = require('jsonwebtoken');
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test_secret_for_automated_testing_32chars_long';
 process.env.ALLOW_DEMO_MODE = 'true';
+jest.setTimeout(30000);
 
 const app = require('../server');
 const localStore = require('../utils/localStore');

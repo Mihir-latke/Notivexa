@@ -114,6 +114,9 @@ exports.register = async (req, res, next) => {
       message: 'Account created successfully!'
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Email is already registered. Please sign in.' });
+    }
     next(err);
   }
 };
@@ -213,6 +216,9 @@ exports.login = async (req, res, next) => {
 
     return res.status(401).json({ error: 'Invalid email or password.' });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Email is already registered. Please sign in.' });
+    }
     next(err);
   }
 };
@@ -234,6 +240,9 @@ exports.getProfile = async (req, res, next) => {
 
     res.json({ success: true, user: req.user });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Email is already registered. Please sign in.' });
+    }
     next(err);
   }
 };
@@ -259,6 +268,9 @@ exports.updateProfile = async (req, res, next) => {
 
     res.json({ success: true, user: { ...req.user, ...safeUpdates } });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Email is already registered. Please sign in.' });
+    }
     next(err);
   }
 };
@@ -294,6 +306,9 @@ exports.changePassword = async (req, res, next) => {
 
     res.status(404).json({ error: 'User account not found.' });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'Email is already registered. Please sign in.' });
+    }
     next(err);
   }
 };

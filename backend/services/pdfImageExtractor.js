@@ -35,7 +35,8 @@ async function extractImagesFromPDF(pdfPath, docId) {
 
   let pdfjsLib;
   try {
-    pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const dynamicImport = new Function('specifier', 'return import(specifier)');
+    pdfjsLib = await dynamicImport('pdfjs-dist/legacy/build/pdf.mjs');
   } catch (e) {
     console.warn('[ImgExtract] Cannot load pdfjs-dist:', e.message);
     return [];
@@ -227,7 +228,8 @@ async function extractPageImagesFromPDF(pdfPath, maxPages = 30) {
 
   let pdfjsLib;
   try {
-    pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const dynamicImport = new Function('specifier', 'return import(specifier)');
+    pdfjsLib = await dynamicImport('pdfjs-dist/legacy/build/pdf.mjs');
   } catch (e) {
     console.warn('[PageImgExtract] Cannot load pdfjs-dist:', e.message);
     return { results: [], totalPages: 0 };

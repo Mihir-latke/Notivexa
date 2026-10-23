@@ -12,84 +12,8 @@ const fs = require('fs');
 
 async function extractFromPDF(filePath) {
   if (!fs.existsSync(filePath)) throw new Error('File not found: ' + filePath);
-  const buf = fs.readFileSync(filePath);
-  let data;
-  try { data = await pdfParse(buf); }
-  catch (e) { throw new Error('Cannot read PDF: ' + e.message + '. Try re-saving as PDF/A format.'); }
-
-  const raw = (data.text || '').trim();
-  if (raw.length < 50) {
-    console.log('[PDF Engine] No readable text stream detected in PDF (scanned or image-only document).');
-    console.log('[PDF Engine] Initiating automated Multi-Page Scanned PDF OCR Pipeline...');
-    return await extractScannedPdfOCR(filePath);
-  }
-
-  const text = cleanText(raw);
-  const sections = buildSections(text);
-  const words = text.split(/\s+/).filter(Boolean).length;
-
-  console.log(`[PDF ✅] pages=${data.numpages} words=${words} sections=${sections.length} chars=${text.length}`);
-  return { text, sections, pages: data.numpages || 0, words };
-}
-
-/**
- * Automatically extracts and OCR-transcribes scanned / image-only PDFs.
- */
-async function extractScannedPdfOCR(filePath) {
-  const { extractPageImagesFromPDF } = require('./pdfImageExtractor');
-  const { ocrImageBuffer } = require('./aiService');
-
-  let scanRes;
-  try {
-    scanRes = await extractPageImagesFromPDF(filePath, 30);
-  } catch (err) {
-    console.warn('[Scanned PDF OCR] Image extraction failed:', err.message);
-  }
-
-  const pageImages = scanRes?.results || [];
-  const totalPages = scanRes?.totalPages || pageImages.length || 1;
-
-  if (pageImages.length === 0) {
-    throw new Error('PDF has no embedded text stream and scanned page images could not be rendered. Please check the PDF file.');
-  }
-
-  console.log(`[Scanned PDF OCR] Found ${pageImages.length} scanned page(s). Performing Vision OCR transcription...`);
-
-  const pageTexts = [];
-  let totalWords = 0;
-
-  for (const pageItem of pageImages) {
-    try {
-      const ocrResult = await ocrImageBuffer(pageItem.buffer, 'image/png');
-      const pageContent = (ocrResult?.text || '').trim();
-      if (pageContent.length > 15) {
-        pageTexts.push(`## Page ${pageItem.page}\n\n${pageContent}`);
-        totalWords += (ocrResult.words || pageContent.split(/\s+/).filter(Boolean).length);
-        console.log(`[Scanned PDF OCR ✅] Page ${pageItem.page} transcribed: ~${ocrResult.words} words`);
-      }
-      // Smooth pace to prevent API rate limiting
-      await new Promise(r => setTimeout(r, 400));
-    } catch (pageOcrErr) {
-      console.warn(`[Scanned PDF OCR] Page ${pageItem.page} OCR skipped:`, pageOcrErr.message);
-    }
-  }
-
-  if (pageTexts.length === 0) {
-    throw new Error('Could not transcribe text from scanned pages. Please ensure GEMINI_API_KEY is configured in your environment.');
-  }
-
-  const combinedText = cleanText(pageTexts.join('\n\n'));
-  const sections = buildSections(combinedText);
-  const words = totalWords || combinedText.split(/\s+/).filter(Boolean).length;
-
-  console.log(`[Scanned PDF OCR 🎉] Completed! Pages=${totalPages} Words=${words} Sections=${sections.length}`);
-  return {
-    text: combinedText,
-    sections,
-    pages: totalPages,
-    words,
-    isScannedOcr: true
-  };
+  const { extractDocumentText } = require('./ocr/textExtractionService');
+  return await extractDocumentText(filePath, 'application/pdf');
 }
 
 function cleanText(t) {

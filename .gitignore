@@ -46,6 +46,9 @@ backend/uploads/images/extracted/
 # Persistent local store data
 backend/data/*.json
 !backend/data/.gitkeep
+backend/data/ocr-cache/*
+!backend/data/ocr-cache/.gitkeep
+backend/temp_test.pdf
 
 # System & IDE files
 .DS_Store

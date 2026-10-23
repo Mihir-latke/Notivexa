@@ -1348,108 +1348,29 @@ ${text.slice(0, 9000)}`;
 
 
 async function ocrImageBuffer(imageInput, mimeType = 'image/png') {
-  const key = process.env.GEMINI_API_KEY;
-  if (!key || key.startsWith('your_')) {
-    throw new Error('Gemini API key is required to extract text from images. Add GEMINI_API_KEY to .env file.');
-  }
-
-  let imageBase64;
-  if (Buffer.isBuffer(imageInput)) {
-    imageBase64 = imageInput.toString('base64');
-  } else if (typeof imageInput === 'string') {
-    if (fs.existsSync(imageInput)) {
-      imageBase64 = fs.readFileSync(imageInput).toString('base64');
-    } else {
-      imageBase64 = imageInput; // assumed base64 string
-    }
-  } else {
-    throw new Error('Invalid image input for OCR');
-  }
-
-  const systemPrompt = `You are an expert OCR and academic document transcription AI.
-Transcribe all text from this scanned book page or image accurately and completely.
-Preserve headings, paragraphs, bullet points, numbering, formulas, and multilingual terms (English, Hindi, Marathi, Sanskrit, etc.).
-Do not add conversational filler. Output only the transcribed content clearly formatted in clean Markdown.`;
-
-  const models = [
-    'gemini-3-flash-preview',
-    'gemini-flash-latest',
-    'gemini-2.5-flash',
-    'gemini-3.1-flash-lite-preview',
-    'gemini-3.8-flash'
-  ];
-  let lastErr;
-
-  for (const model of models) {
-    try {
-      let res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [
-                { text: systemPrompt },
-                { inlineData: { mimeType: mimeType || 'image/png', data: imageBase64 } }
-              ]
-            }],
-            generationConfig: { maxOutputTokens: 2500, temperature: 0.1 }
-          }),
-          timeout: 30000
-        }
-      );
-
-      // Handle rate limits gracefully with backoff retry
-      if (res.status === 429) {
-        console.warn(`[Vision OCR] Rate limited on ${model}. Pausing 1.5s before retry...`);
-        await new Promise(r => setTimeout(r, 1500));
-        res = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contents: [{
-                parts: [
-                  { text: systemPrompt },
-                  { inlineData: { mimeType: mimeType || 'image/png', data: imageBase64 } }
-                ]
-              }],
-              generationConfig: { maxOutputTokens: 2500, temperature: 0.1 }
-            }),
-            timeout: 30000
-          }
-        );
-      }
-
-      if (!res.ok) {
-        lastErr = new Error(`Vision OCR (${model}) ${res.status}: ${await res.text()}`);
-        continue;
-      }
-
-      const d = await res.json();
-      const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (text && text.trim().length >= 10) {
-        const words = text.trim().split(/\s+/).filter(Boolean).length;
-        return { text: text.trim(), words };
-      }
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-
-  if (lastErr) throw lastErr;
-  throw new Error('Could not extract meaningful text from this image.');
+  const { recognizeImage } = require('./ocr/ocrService');
+  const res = await recognizeImage(imageInput, { retryOnLowConfidence: true });
+  return {
+    text: res.text,
+    words: res.words,
+    confidence: res.confidence,
+    status: res.status
+  };
 }
 
 async function extractFromImage(imagePath, mimeType) {
-  const ocrRes = await ocrImageBuffer(imagePath, mimeType);
-  const text = ocrRes.text;
-  const words = ocrRes.words;
-  console.log(`[Image OCR] Extracted ${words} words`);
-  const sections = [{ title: 'Image Content', content: text, wordCount: words }];
-  return { text, sections, pages: 1, words };
+  const { extractDocumentText } = require('./ocr/textExtractionService');
+  const res = await extractDocumentText(imagePath, mimeType || 'image/png');
+  return {
+    text: res.text,
+    sections: res.sections,
+    pages: res.pages || 1,
+    words: res.words,
+    contentHash: res.contentHash,
+    ocrConfidence: res.ocrConfidence,
+    extractionMethod: res.extractionMethod,
+    pageResults: res.pageResults
+  };
 }
 
 module.exports = {
