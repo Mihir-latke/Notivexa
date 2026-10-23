@@ -107,7 +107,7 @@ let isConnecting = false;
 let lastErrorLoggedTime = 0;
 
 /**
- * Attempts a connection to MongoDB (Atlas or local fallback).
+ * Attempts a connection exclusively to MongoDB Atlas.
  */
 async function attemptMongoConnect(uri) {
   if (!uri || isConnecting || mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
@@ -116,29 +116,15 @@ async function attemptMongoConnect(uri) {
   isConnecting = true;
   try {
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 8000,
     });
-    console.log(`✅ MongoDB connected successfully! (${uri.includes('127.0.0.1') || uri.includes('localhost') ? 'Local Database' : 'MongoDB Atlas'})`);
+    console.log('✅ MongoDB Atlas connected successfully!');
     await syncLocalDataToMongo();
   } catch (err) {
-    // If remote Atlas fails in development, try local MongoDB running on machine
-    if (process.env.NODE_ENV !== 'production' && !uri.includes('127.0.0.1') && !uri.includes('localhost')) {
-      try {
-        await mongoose.connect('mongodb://127.0.0.1:27017/notivexa', {
-          serverSelectionTimeoutMS: 2000,
-        });
-        console.log('✅ Local MongoDB connected successfully! (mongodb://127.0.0.1:27017/notivexa)');
-        await syncLocalDataToMongo();
-        return;
-      } catch (localErr) {
-        // Both failed
-      }
-    }
-
     const now = Date.now();
     // Throttle duplicate warning logs to once every 30 seconds
     if (now - lastErrorLoggedTime > 30000) {
-      console.warn('⚠️  MongoDB connection failed:', err.message);
+      console.warn('⚠️  MongoDB Atlas connection failed:', err.message);
       console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
       lastErrorLoggedTime = now;
     }
