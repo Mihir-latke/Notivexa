@@ -608,6 +608,7 @@ export default function Notebook() {
   const [exportingWord, setExportingWord] = useState(false)
   const [exportingPptx, setExportingPptx] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [notesViewMode, setNotesViewMode] = useState('formatted') // 'formatted' | 'handwritten'
 
   useEffect(() => {
     if (!slideshowOpen) return
@@ -653,7 +654,7 @@ export default function Notebook() {
         payload.className = className || "SY-MCA"
         payload.sets = sets
       }
-      if (tool === 'handwritten') {
+      if (tool === 'handwritten' || tool === 'notes' || tool === 'summary') {
         payload.font = hwFont
         payload.style = hwPaper
       }
@@ -2612,8 +2613,82 @@ export default function Notebook() {
     const text = data.content || data.notes || data.summary || data.questions || data.paperContent || ''
     const currentText = editText !== '' && isEditing ? editText : (data.content || text)
 
+    // Paginate currentText into handwritten notebook pages for live notebook preview
+    const hwParagraphs = currentText ? currentText.split(/\n\n+/) : [];
+    const hwPages = [];
+    let hwCurPage = '';
+    const hwTargetChars = 750;
+    for (const p of hwParagraphs) {
+      if (!hwCurPage) {
+        hwCurPage = p;
+      } else if (hwCurPage.length + p.length < hwTargetChars) {
+        hwCurPage += '\n\n' + p;
+      } else {
+        hwPages.push(hwCurPage.trim());
+        hwCurPage = p;
+      }
+    }
+    if (hwCurPage.trim()) hwPages.push(hwCurPage.trim());
+    const displayHwPages = hwPages.length > 0 ? hwPages : [currentText];
+    const totalHwPages = displayHwPages.length;
+
     return (
       <div>
+        {/* Handwriting & Paper Style Toolbar */}
+        {(t === 'notes' || t === 'summary' || t === 'questions') && (
+          <div style={{ background:'var(--card)', border:'1.5px solid var(--bdr)', borderRadius:12, padding:'10px 14px', marginBottom:14 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                <span style={{ fontSize:12, fontWeight:700, color:'var(--ink)' }}>✍️ Handwriting Style:</span>
+                <select 
+                  className="fi" 
+                  style={{ width:'auto', minWidth:180, padding:'5px 10px', fontSize:12.5, fontWeight:600 }}
+                  value={hwFont} 
+                  onChange={e => setHwFont(e.target.value)}
+                >
+                  {HANDWRITING_FONTS.map(f => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} — {f.tag}
+                    </option>
+                  ))}
+                </select>
+
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:12, fontWeight:600, color:'var(--ink2)' }}>📄 Paper:</span>
+                  <select 
+                    className="fi" 
+                    style={{ width:'auto', padding:'5px 10px', fontSize:12 }}
+                    value={hwPaper} 
+                    onChange={e => setHwPaper(e.target.value)}
+                  >
+                    {PAPER_STYLES.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* View Switcher: Formatted View vs Handwritten Notebook Preview */}
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                <button
+                  className="btn btn-sm"
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    background: notesViewMode === 'handwritten' ? 'var(--brand)' : 'var(--bg2)',
+                    color: notesViewMode === 'handwritten' ? '#fff' : 'var(--ink2)',
+                    border: '1px solid var(--bdr)'
+                  }}
+                  onClick={() => setNotesViewMode(prev => prev === 'handwritten' ? 'formatted' : 'handwritten')}
+                >
+                  {notesViewMode === 'handwritten' ? '📄 Switch to Formatted View' : '✍️ Preview Handwritten Notebook'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center' }}>
           <button
             className="btn btn-sm"
@@ -2654,14 +2729,34 @@ export default function Notebook() {
             </button>
           )}
 
-          {/* Download PDF */}
+          {/* Download Handwritten Notes PDF (Primary) */}
           <button
             className="btn btn-p btn-sm"
-            onClick={() => downloadPdf(currentText, t === 'summary' ? 'notes' : t, doc?.title)}
+            onClick={() => downloadPdf(currentText, 'handwritten', doc?.title || (t === 'summary' ? 'Summary' : 'Study Notes'))}
+            disabled={exportingPdf}
+            style={{
+              background: 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 2px 8px rgba(79,70,229,0.25)',
+              cursor: 'pointer'
+            }}
+          >
+            {exportingPdf ? '⏳ Generating PDF…' : '✍️ Download Handwritten Notes PDF'}
+          </button>
+
+          {/* Download Academic Clean PDF */}
+          <button
+            className="btn btn-s btn-sm"
+            onClick={() => downloadPdf(currentText, 'academic', doc?.title || (t === 'summary' ? 'Summary' : 'Study Notes'))}
             disabled={exportingPdf}
             style={{ display:'inline-flex', alignItems:'center', gap:6 }}
           >
-            {exportingPdf ? '⏳ Preparing PDF…' : '⬇️ Download PDF'}
+            📄 Academic PDF
           </button>
 
           {/* Download Word (.docx) */}
@@ -2671,7 +2766,7 @@ export default function Notebook() {
             onClick={() => downloadDocx(currentText, doc?.title)}
             disabled={exportingWord}
           >
-            {exportingWord ? '⏳ Exporting…' : '📄 Download Word (.docx)'}
+            {exportingWord ? '⏳ Exporting…' : '📝 Word (.docx)'}
           </button>
 
           {currentText && (
@@ -2708,32 +2803,58 @@ export default function Notebook() {
             />
           </div>
         ) : (
-          currentText ? (
-            <div className="ob">
-              <ReactMarkdown 
-                remarkPlugins={[remarkGfm, remarkMath]} 
-                rehypePlugins={[rehypeKatex]}
-                components={{
-                  p: ({ node, children, ...props }) => {
-                    const hasImg = node?.children?.some(c => c.tagName === 'img');
-                    if (hasImg) {
-                      return <div style={{ margin: '12px 0' }} {...props}>{children}</div>;
-                    }
-                    return <p {...props}>{children}</p>;
-                  },
-                  img: ({ node, ...props }) => (
-                    <figure style={{ margin: '18px auto', textAlign: 'center' }}>
-                      <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid var(--bdr2)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
-                      {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
-                    </figure>
-                  )
-                }}
-              >
-                {currentText}
-              </ReactMarkdown>
+          notesViewMode === 'handwritten' ? (
+            <div>
+              <HandwrittenPage
+                content={displayHwPages[hwPage] || displayHwPages[0]}
+                pageNum={hwPage + 1}
+                total={totalHwPages}
+                fontId={hwFont}
+                paperStyle={hwPaper}
+                sizeMod={hwSizeMod}
+              />
+              {totalHwPages > 1 && (
+                <div style={{ display:'flex', gap:8, justifyContent:'center', marginTop:10, marginBottom:16 }}>
+                  <button className="btn btn-g btn-sm" disabled={hwPage === 0} onClick={() => setHwPage(p => p - 1)}>
+                    ◀ Prev Page
+                  </button>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', display: 'inline-flex', alignItems: 'center' }}>
+                    Page {hwPage + 1} of {totalHwPages}
+                  </span>
+                  <button className="btn btn-g btn-sm" disabled={hwPage === totalHwPages - 1} onClick={() => setHwPage(p => p + 1)}>
+                    Next Page ▶
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
-            <div style={{ background:'#FEF3F2', border:'1px solid #FCA5A5', borderRadius:9, padding:'12px 14px', fontSize:13, color:'#B91C1C' }}>No content returned. Try again.</div>
+            currentText ? (
+              <div className="ob">
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm, remarkMath]} 
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    p: ({ node, children, ...props }) => {
+                      const hasImg = node?.children?.some(c => c.tagName === 'img');
+                      if (hasImg) {
+                        return <div style={{ margin: '12px 0' }} {...props}>{children}</div>;
+                      }
+                      return <p {...props}>{children}</p>;
+                    },
+                    img: ({ node, ...props }) => (
+                      <figure style={{ margin: '18px auto', textAlign: 'center' }}>
+                        <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid var(--bdr2)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
+                        {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
+                      </figure>
+                    )
+                  }}
+                >
+                  {currentText}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <div style={{ background:'#FEF3F2', border:'1px solid #FCA5A5', borderRadius:9, padding:'12px 14px', fontSize:13, color:'#B91C1C' }}>No content returned. Try again.</div>
+            )
           )
         )}
       </div>

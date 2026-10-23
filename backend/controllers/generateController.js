@@ -231,7 +231,7 @@ exports.notes = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
     const language = req.body.language || req.body.lang || 'English';
-    const { sectionIndex } = req.body;
+    const { sectionIndex, font = 'caveat', style = 'yellow' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const subj = doc.subject || doc.title;
     console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language}`);
@@ -239,7 +239,7 @@ exports.notes = async (req, res, next) => {
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
-    const pdf = await notesPDF(finalContent, { title: doc.title, subject: subj, imagePaths });
+    const pdf = await handwrittenPDF(finalContent, { title: doc.title, subject: subj, style, fontName: font, imagePaths });
     if (doc.outputs) doc.outputs.push({ type:'notes', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     await safeUserStatsUpdate(req.user?.id, { $inc: { 'studyStats.notesGenerated': 1 } });
@@ -251,10 +251,14 @@ exports.summary = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
     const language = req.body.language || req.body.lang || 'English';
-    const { sectionIndex } = req.body;
+    const { sectionIndex, font = 'caveat', style = 'yellow' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const content = await ai.generateSummary(text, doc.title, doc.subject || doc.title, language);
-    res.json({ success:true, content });
+    const imagePaths = await resolveDocImages(doc);
+    const docId = (doc._id || doc.id || '').toString();
+    const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
+    const pdf = await handwrittenPDF(finalContent, { title: `${doc.title} — Summary`, subject: doc.subject || doc.title, style, fontName: font, imagePaths });
+    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize });
   } catch(e) { next(e); }
 };
 
@@ -521,7 +525,7 @@ exports.exportPptx = async (req, res, next) => {
 
 exports.exportPdf = async (req, res, next) => {
   try {
-    const { content, title = 'Notes', subject = 'General', type = 'notes', theme = 'indigo', font = 'caveat', style = 'yellow', totalMarks = 60, timeHours = 2, documentId, docId } = req.body;
+    const { content, title = 'Notes', subject = 'General', type = 'notes', theme = 'obsidian', font = 'caveat', style = 'yellow', totalMarks = 60, timeHours = 2, documentId, docId, format = 'handwritten' } = req.body;
     let imagePaths = [];
     const dId = documentId || docId;
     let doc = null;
@@ -537,12 +541,13 @@ exports.exportPdf = async (req, res, next) => {
     if (type === 'ppt' || type === 'slides') {
       const slidesData = Array.isArray(content) ? content : (content?.slides || req.body.slides || []);
       pdf = await slidePDF(slidesData, { title, theme });
-    } else if (type === 'handwritten') {
-      pdf = await handwrittenPDF(finalContent, { title, subject, style, fontName: font, imagePaths });
     } else if (type === 'paper') {
       pdf = await questionPaperPDF(content, { title, subject, totalMarks, timeHours });
-    } else {
+    } else if (type === 'academic' || format === 'academic') {
       pdf = await notesPDF(finalContent, { title, subject, imagePaths });
+    } else {
+      // Default: authentic handwritten notebook PDF (for 'handwritten', 'notes', and 'summary')
+      pdf = await handwrittenPDF(finalContent, { title, subject, style, fontName: font, imagePaths });
     }
     res.json({ success: true, downloadUrl: `/uploads/generated/${pdf.fileName}`, fileName: pdf.fileName, fileSize: pdf.fileSize });
   } catch(e) { next(e); }

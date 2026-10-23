@@ -61,8 +61,6 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
     // ── Content renderer ──────────────────────────────────────────────
     // Parse the full markdown content and render with proper formatting.
     const cleanContent = (content || '')
-      .replace(/!\[.*?\]\(.*?\)/g, '')
-      .replace(/^\*Figure \d+:.*?\*\s*$/gm, '')
       .replace(/\n{4,}/g, '\n\n\n')
       .trim();
 
@@ -70,6 +68,9 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
     let y = 90;
     const bodyFont = 'Helvetica';
     const boldFont = 'Helvetica-Bold';
+    const validImages = Array.isArray(imagePaths)
+      ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p))
+      : [];
 
     const ensureSpace = (needed) => {
       const bottom = H - 56;
@@ -97,6 +98,30 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
       const line = rawLine.replace(/\*\*/g, '').trim();
       if (!line) { y += 5; continue; }
 
+      // Markdown image tag: ![Figure 1: Diagram from Document](/uploads/images/extracted/...)
+      const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)/);
+      if (imgMatch) {
+        const caption = imgMatch[1];
+        const imgUrl = imgMatch[2];
+        const localImg = resolveLocalPath(imgUrl) || 
+          (imgUrl.startsWith('/') ? path.join(__dirname, '..', imgUrl.slice(1)) : path.join(__dirname, '..', imgUrl));
+        if (localImg && fs.existsSync(localImg)) {
+          ensureSpace(230);
+          try {
+            doc.rect(L, y, CW, 205).fill('#FFFFFF');
+            doc.strokeColor('#CBD5E1').lineWidth(0.8).rect(L, y, CW, 205).stroke();
+            doc.image(localImg, L + 10, y + 8, { fit: [CW - 20, 170], align: 'center' });
+            doc.font(boldFont).fontSize(9).fillColor('#64748B').text(caption || 'Figure from Source Document', L + 10, y + 186, { width: CW - 20, align: 'center' });
+            y += 218;
+            const fn = path.basename(localImg);
+            const pIdx = validImages.findIndex(p => path.basename(p) === fn);
+            if (pIdx !== -1) validImages.splice(pIdx, 1);
+          } catch(e) {}
+        }
+        continue;
+      }
+      if (/^\*Figure \d+:.*?\*$/i.test(line)) continue;
+
       if (line.startsWith('# ')) {
         const t = line.slice(2).trim();
         ensureSpace(42);
@@ -123,8 +148,8 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
         doc.strokeColor('#C7D2FE').lineWidth(0.8).moveTo(L, y + 5).lineTo(R, y + 5).stroke();
         y += 14;
 
-      } else if (line.startsWith('DEFINITION:')) {
-        const t = line.slice(11).trim();
+      } else if (line.toUpperCase().startsWith('DEFINITION:') || line.toUpperCase().startsWith('### DEFINITION')) {
+        const t = line.replace(/^#+\s*/, '').replace(/^DEFINITION[:\s-]*/i, '').trim();
         if (!t) continue;
         doc.font(boldFont).fontSize(10.5);
         const th = doc.heightOfString(t, { width: CW - 20 });
@@ -135,8 +160,8 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
         doc.font(bodyFont).fontSize(11).fillColor('#78350F').text(t, L + 10, y + 16, { width: CW - 20 });
         y += th + 22;
 
-      } else if (line.startsWith('SUMMARY:')) {
-        const t = line.slice(8).trim();
+      } else if (line.toUpperCase().startsWith('SUMMARY:') || line.toUpperCase().startsWith('### SUMMARY') || line.toUpperCase().startsWith('KEY SUMMARY:')) {
+        const t = line.replace(/^#+\s*/, '').replace(/^(KEY SUMMARY|SUMMARY)[:\s-]*/i, '').trim();
         if (!t) continue;
         doc.font(bodyFont).fontSize(11);
         const th = doc.heightOfString(t, { width: CW - 20 });
@@ -183,25 +208,23 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
       } else if (line.startsWith('**') && line.endsWith('**')) {
         writePara(line.slice(2, -2), { bold: true, fontSize: 12, color: '#1E1B4B', gap: 8 });
 
-      } else if (line.startsWith('> ')) {
-        const t = line.slice(2).trim();
+      } else if (line.startsWith('> ') || line.toUpperCase().startsWith('KEY TAKEAWAY:')) {
+        const t = line.replace(/^>\s*/, '').replace(/^KEY TAKEAWAY:\s*/i, '').trim();
         doc.font(bodyFont).fontSize(11);
         const th = doc.heightOfString(t, { width: CW - 24 });
-        ensureSpace(th + 16);
-        doc.fillColor('#F3F4F6').roundedRect(L, y, CW, th + 12, 4).fill();
-        doc.fillColor('#4F46E5').roundedRect(L, y, 3, th + 12, 1.5).fill();
-        doc.fillColor('#374151').font(bodyFont).fontSize(11).text(t, L + 12, y + 6, { width: CW - 24 });
-        y += th + 18;
+        ensureSpace(th + 18);
+        doc.fillColor('#FFFBEB').roundedRect(L, y, CW, th + 14, 4).fill();
+        doc.fillColor('#F59E0B').roundedRect(L, y, 3.5, th + 14, 1.5).fill();
+        doc.fillColor('#B45309').font(boldFont).fontSize(9).text('⚡ KEY TAKEAWAY', L + 12, y + 4);
+        doc.fillColor('#78350F').font(bodyFont).fontSize(10.5).text(t, L + 12, y + 15, { width: CW - 24 });
+        y += th + 20;
 
       } else {
         writePara(line, { color: '#1E293B', fontSize: 11, lineGap: 3, gap: 6 });
       }
     }
 
-    // Authentic diagrams section
-    const validImages = Array.isArray(imagePaths)
-      ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p))
-      : [];
+    // Authentic diagrams section (any remaining figures not embedded inline)
     if (validImages.length > 0) {
       doc.addPage();
       pageNum++;
@@ -341,8 +364,9 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
            .text(`${new Date().toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}  •  Notivexa AI`, R - 180, 30, { width: 180, align: 'right', lineBreak: false });
 
         // Big Document Title
-        doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(20 + FS_MOD)
-           .text(title, L, 50, { width: CW, lineBreak: false });
+        const titleFontSize = title.length > 50 ? 15 + FS_MOD : (title.length > 30 ? 17 + FS_MOD : 20 + FS_MOD);
+        doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(titleFontSize)
+           .text(title, L, 48, { width: CW, height: 42, ellipsis: true });
 
         // Decorative separator rule
         doc.strokeColor('#4F46E5').lineWidth(1.5).moveTo(L, 95).lineTo(R, 95).stroke();
@@ -590,6 +614,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
     let tableRows = null;
     let mode = null;
     let modeLines = [];
+    let inCodeBlock = false;
 
     const flushMode = () => {
       if (!mode) return;
@@ -628,19 +653,37 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
         continue;
       }
 
+      // Code blocks
+      if (t.startsWith('```')) {
+        flushMode();
+        inCodeBlock = !inCodeBlock;
+        continue;
+      }
+      if (inCodeBlock) {
+        doc.font('Courier').fontSize(9.5);
+        const codeH = doc.heightOfString(t, { width: CW - 24, lineGap: 2 });
+        ensureSpace(codeH + 5);
+        doc.fillColor(pStyle.bg === '#1E293B' ? '#0F172A' : '#F1F5F9').rect(L, y, CW, codeH + 5).fill();
+        doc.fillColor(pStyle.bg === '#1E293B' ? '#E2E8F0' : '#1E293B').text(t, L + 10, y + 2, { width: CW - 20, lineGap: 2 });
+        y += codeH + 5;
+        continue;
+      }
+
       if (tableRows && !t.includes('|')) {
         drawTable(tableRows);
         tableRows = null;
       }
 
-      if (upper.startsWith('DEFINITION:')) {
+      if (upper.startsWith('DEFINITION:') || upper.startsWith('### DEFINITION') || upper.startsWith('## DEFINITION')) {
         flushMode();
-        drawDefinition(t.slice(11).trim());
+        const defText = t.replace(/^#+\s*/, '').replace(/^(DEFINITION)[:\s-]*/i, '').trim();
+        if (defText) drawDefinition(defText);
         continue;
       }
-      if (upper.startsWith('SUMMARY:')) {
+      if (upper.startsWith('SUMMARY:') || upper.startsWith('### SUMMARY') || upper.startsWith('## SUMMARY') || upper.startsWith('KEY SUMMARY:')) {
         flushMode();
-        drawSummary(t.slice(8).trim());
+        const sumText = t.replace(/^#+\s*/, '').replace(/^(KEY SUMMARY|SUMMARY)[:\s-]*/i, '').trim();
+        if (sumText) drawSummary(sumText);
         continue;
       }
       if (upper.startsWith('DIAGRAM:')) {
@@ -675,6 +718,24 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
       if (!t) {
         y += 6;
         continue;
+      }
+
+      if (t.startsWith('> ') || upper.startsWith('KEY TAKEAWAY:') || upper.startsWith('IMPORTANT:') || upper.startsWith('NOTE:')) {
+        flushMode();
+        const quoteText = t.replace(/^>\s*/, '').replace(/^(KEY TAKEAWAY|IMPORTANT|NOTE)[:\s-]*/i, '').trim();
+        if (quoteText) {
+          doc.font(FONT_REG).fontSize(11 + FS_MOD);
+          const qH = doc.heightOfString(quoteText, { width: CW - 24, lineGap: 3 });
+          const cardH = qH + 18;
+          ensureSpace(cardH + 10);
+          doc.fillColor('#FFFBEB').roundedRect(L, y, CW, cardH, 5).fill();
+          doc.strokeColor('#FDE68A').lineWidth(0.8).roundedRect(L, y, CW, cardH, 5).stroke();
+          doc.fillColor('#F59E0B').roundedRect(L, y, 4, cardH, 2).fill();
+          doc.fillColor('#B45309').font(FONT_BOLD).fontSize(9).text('⚡ KEY TAKEAWAY', L + 12, y + 5, { lineBreak: false });
+          doc.fillColor('#78350F').font(FONT_REG).fontSize(11 + FS_MOD).text(quoteText, L + 12, y + 17, { width: CW - 24, lineGap: 3 });
+          y += cardH + 10;
+          continue;
+        }
       }
 
       if (upper.startsWith('TABLE:')) {
@@ -727,12 +788,35 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
         doc.fillColor('#4F46E5').circle(L + 6, y + 6, 2).fill();
         doc.fillColor('#1E293B').text(bulletText, L + 16, y, { width: CW - 20, lineGap: 3 });
         y += bH + 6;
-      } else {
+      } else if (/^\d+\.\s/.test(t)) {
+        flushMode();
+        const numMatch = t.match(/^(\d+)\.\s*(.*)/);
+        const num = numMatch[1];
+        const itemText = numMatch[2].trim();
         doc.font(FONT_REG).fontSize(11 + FS_MOD);
-        const tH = doc.heightOfString(t, { width: CW });
-        ensureSpace(tH + 6);
-        doc.fillColor('#1E293B').text(t, L, y, { width: CW, lineGap: 3 });
-        y += tH + 6;
+        const iH = doc.heightOfString(itemText, { width: CW - 26, lineGap: 3 });
+        ensureSpace(iH + 6);
+        doc.fillColor('#4F46E5').font(FONT_BOLD).fontSize(10.5 + FS_MOD / 2).text(`${num}.`, L + 4, y, { lineBreak: false });
+        doc.fillColor('#1E293B').font(FONT_REG).fontSize(11 + FS_MOD).text(itemText, L + 22, y, { width: CW - 26, lineGap: 3 });
+        y += iH + 6;
+      } else {
+        const colonIdx = t.indexOf(': ');
+        if (colonIdx > 0 && colonIdx < 35 && !t.startsWith('http') && !t.startsWith('Figure')) {
+          const label = t.substring(0, colonIdx);
+          const desc = t.substring(colonIdx + 2);
+          doc.font(FONT_REG).fontSize(11 + FS_MOD);
+          const fullH = doc.heightOfString(t, { width: CW, lineGap: 3 });
+          ensureSpace(fullH + 6);
+          doc.fillColor('#312E81').font(FONT_BOLD).fontSize(11 + FS_MOD).text(`${label}: `, L, y, { continued: true });
+          doc.fillColor('#1E293B').font(FONT_REG).fontSize(11 + FS_MOD).text(desc, { lineGap: 3 });
+          y += fullH + 6;
+        } else {
+          doc.font(FONT_REG).fontSize(11 + FS_MOD);
+          const tH = doc.heightOfString(t, { width: CW });
+          ensureSpace(tH + 6);
+          doc.fillColor('#1E293B').text(t, L, y, { width: CW, lineGap: 3 });
+          y += tH + 6;
+        }
       }
     }
 
