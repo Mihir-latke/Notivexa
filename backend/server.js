@@ -17,10 +17,21 @@ fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
   fs.mkdirSync(path.join(__dirname, 'uploads', d), { recursive: true });
 });
 
-// Resolve and enforce persistent cryptographically secure JWT Secret
-const DEFAULT_JWT_SECRET = 'notivexa_production_secure_jwt_secret_key_2026_cluster0';
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'notivexa_secret' || process.env.JWT_SECRET.trim().length < 16) {
-  process.env.JWT_SECRET = DEFAULT_JWT_SECRET;
+// Resolve and enforce cryptographically secure JWT Secret
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'notivexa_secret' || process.env.JWT_SECRET.trim().length < 32) {
+    console.error('FATAL: In production, process.env.JWT_SECRET must be set to a secure string of at least 32 characters.');
+    process.exit(1);
+  }
+  if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('<db_password>') || process.env.MONGODB_URI.includes('<password>')) {
+    console.error('FATAL: In production, process.env.MONGODB_URI must be configured with valid MongoDB Atlas credentials.');
+    process.exit(1);
+  }
+} else {
+  const DEV_JWT_FALLBACK = 'notivexa_dev_jwt_secret_key_minimum_32_characters_for_local_testing';
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim().length < 16) {
+    process.env.JWT_SECRET = DEV_JWT_FALLBACK;
+  }
 }
 
 // Security headers
@@ -161,6 +172,11 @@ app.get('/uploads/video/:filename', (req, res, next) => {
   }
 });
 
+// Block unauthenticated direct access to private uploaded documents and raw PDFs
+app.use(['/uploads/docs', '/uploads/pdfs'], (req, res) => {
+  res.status(403).json({ error: 'Direct access to private document storage is forbidden. Use authenticated document endpoints.' });
+});
+
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
@@ -204,8 +220,9 @@ app.get('/api/setup', (req, res) => {
   
   res.json({ 
     status,
-    hasAI: status.gemini || status.groq || status.claude,
-    hasTTS: status.googleTTS || status.elevenLabs || true,
+    hasAI: Boolean(status.gemini || status.groq || status.claude),
+    hasTTS: Boolean(status.googleTTS || status.elevenLabs),
+    edgeTTS: true,
     instructions,
     freeAPIs: [
       { name: 'Google Gemini (FREE)', url: 'https://aistudio.google.com', envKey: 'GEMINI_API_KEY', description: 'Free Gemini 3.8 Flash AI' },
@@ -217,14 +234,18 @@ app.get('/api/setup', (req, res) => {
 });
 
 app.get('/api/health', (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production';
   const dbConnected = mongoose.connection.readyState === 1;
-  res.json({
-    status: 'ok',
+  const status = dbConnected ? 'ok' : (isProd ? 'unhealthy' : 'degraded');
+  const httpStatus = (isProd && !dbConnected) ? 503 : 200;
+
+  res.status(httpStatus).json({
+    status,
     app: 'Notivexa v2.0',
     environment: process.env.NODE_ENV || 'development',
     dbConnected,
     dbState: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
-    storageMode: dbConnected ? 'mongodb_atlas' : 'autonomous_local_storage',
+    storageMode: dbConnected ? 'mongodb_atlas' : (isProd ? 'offline_error' : 'autonomous_local_storage'),
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString()
   });
@@ -263,10 +284,37 @@ mongoose.set('bufferCommands', false);
 
 const { startMongoManager, resolveMongoUri } = require('./utils/dbSync');
 const effectiveMongoUri = resolveMongoUri(process.env.MONGODB_URI);
-startMongoManager(effectiveMongoUri);
-
-if (require.main === module) {
-  app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
+if (effectiveMongoUri) {
+  startMongoManager(effectiveMongoUri);
+} else if (process.env.NODE_ENV === 'production') {
+  console.error('FATAL: In production, valid MONGODB_URI is required. Please set MONGODB_URI in environment.');
+  process.exit(1);
 }
+
+let server = null;
+if (require.main === module) {
+  server = app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
+}
+
+function handleGracefulShutdown(signal) {
+  console.log(`[SHUTDOWN] Received ${signal}. Closing server gracefully...`);
+  if (server) {
+    server.close(async () => {
+      console.log('[SHUTDOWN] HTTP server closed.');
+      try {
+        await mongoose.connection.close(false);
+        console.log('[SHUTDOWN] MongoDB connection closed.');
+      } catch (err) {
+        console.warn('[SHUTDOWN] Error closing MongoDB connection:', err.message);
+      }
+      process.exit(0);
+    });
+  } else {
+    process.exit(0);
+  }
+}
+
+process.on('SIGTERM', () => handleGracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => handleGracefulShutdown('SIGINT'));
 
 module.exports = app;

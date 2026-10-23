@@ -70,7 +70,11 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // 2. If MongoDB is not connected, use the autonomous local database store
+    // 2. If MongoDB is not connected, use the autonomous local database store (or reject in production)
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
+      return res.status(503).json({ error: 'Database service is currently unavailable. Please try again shortly.' });
+    }
+
     console.log(`[Auth] MongoDB not connected: Registering "${normEmail}" in autonomous local store`);
     const existingLocal = localStore.findUserByEmail(normEmail);
     if (existingLocal) {
@@ -114,6 +118,7 @@ exports.login = async (req, res, next) => {
     }
 
     const normEmail = email.toLowerCase().trim();
+    const allowDemoMode = process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
 
     // 1. Try MongoDB if connected
     if (isDbConnected()) {
@@ -121,8 +126,8 @@ exports.login = async (req, res, next) => {
       if (user) {
         let isMatch = await user.comparePassword(password);
 
-        // Support demo aliases for demo accounts
-        if (!isMatch && (normEmail === 'student@demo.com' || normEmail === 'teacher@demo.com')) {
+        // Support demo aliases ONLY if demo mode is explicitly enabled
+        if (allowDemoMode && !isMatch && (normEmail === 'student@demo.com' || normEmail === 'teacher@demo.com')) {
           if (password === 'demo1234' || password === 'student123' || password === 'teacher123') {
             isMatch = true;
           }
@@ -192,7 +197,11 @@ exports.login = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // 2. Fallback to local store when DB disconnected
+    // 2. Fallback to local store when DB disconnected (disallowed in production unless demo mode enabled)
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
+      return res.status(503).json({ error: 'Database service is currently unavailable. Please try again shortly.' });
+    }
+
     const localUser = localStore.findUserByEmail(normEmail);
     if (localUser) {
       const isMatch = await localStore.comparePassword(localUser, password);

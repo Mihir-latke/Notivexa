@@ -3,15 +3,15 @@ const { User, Document, Flashcard, Plan } = require('../models');
 const localStore = require('./localStore');
 const { seedUsers } = require('./seed');
 
-const DEFAULT_MONGODB_URI = 'mongodb+srv://Notivexa:Notivexa@cluster0.t09sptg.mongodb.net/notivexa?retryWrites=true&w=majority&appName=Cluster0';
-
 function resolveMongoUri(inputUri) {
-  let uri = inputUri || process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
-  if (uri.includes('<db_password>')) {
-    uri = uri.replace('<db_password>', 'Notivexa');
-  }
-  if (!uri || uri.includes('<username>') || uri.includes('<password>') || uri.includes('YOUR_')) {
-    uri = DEFAULT_MONGODB_URI;
+  const isProd = process.env.NODE_ENV === 'production';
+  let uri = inputUri || process.env.MONGODB_URI;
+
+  if (!uri || uri.includes('<db_password>') || uri.includes('<password>') || uri.includes('YOUR_')) {
+    if (isProd) {
+      return null;
+    }
+    return process.env.DEV_MONGODB_URI || 'mongodb://127.0.0.1:27017/notivexa';
   }
   return uri;
 }
@@ -28,11 +28,14 @@ async function syncLocalDataToMongo() {
   try {
     console.log('🔄 [DB Sync] Synchronizing local accounts & assets with MongoDB Atlas...');
 
-    // 1. Ensure standard demo accounts exist in MongoDB
-    try {
-      await seedUsers();
-    } catch (e) {
-      console.warn('[DB Sync] seedUsers warning:', e.message);
+    // 1. Ensure standard demo accounts exist in MongoDB ONLY if demo mode is explicitly enabled
+    const allowDemo = process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
+    if (allowDemo) {
+      try {
+        await seedUsers();
+      } catch (e) {
+        console.warn('[DB Sync] seedUsers warning:', e.message);
+      }
     }
 
     // 2. Synchronize all registered users from localStore into MongoDB
@@ -188,6 +191,7 @@ async function ensureDbState(maxWaitMs = 4000) {
  */
 function startMongoManager(inputUri) {
   const uri = resolveMongoUri(inputUri);
+  if (!uri) return;
 
   // 1. Initial attempt
   attemptMongoConnect(uri);
@@ -204,7 +208,6 @@ function startMongoManager(inputUri) {
 }
 
 module.exports = {
-  DEFAULT_MONGODB_URI,
   resolveMongoUri,
   ensureDbState,
   syncLocalDataToMongo,

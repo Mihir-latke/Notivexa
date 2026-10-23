@@ -8,5 +8,7 @@ r.post('/import-url', c.importUrl);
 r.get('/', c.list);
 r.get('/stats', c.stats);
 r.get('/:id', c.get);
+r.get('/:id/file', c.getFile);
+r.get('/:id/download', c.downloadFile);
 r.delete('/:id', c.remove);
 module.exports = r;

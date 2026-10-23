@@ -3,13 +3,14 @@ const mongoose = require('mongoose');
 const { User } = require('../models');
 const localStore = require('../utils/localStore');
 
-const DEFAULT_JWT_SECRET = 'notivexa_production_secure_jwt_secret_key_2026_cluster0';
-
 function getJwtSecret() {
   if (process.env.JWT_SECRET && process.env.JWT_SECRET !== 'notivexa_secret' && process.env.JWT_SECRET.trim().length >= 16) {
     return process.env.JWT_SECRET;
   }
-  return DEFAULT_JWT_SECRET;
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('FATAL: JWT_SECRET must be securely configured with at least 32 characters in production.');
+  }
+  return 'notivexa_dev_jwt_secret_key_minimum_32_characters_for_local_testing';
 }
 
 function signToken(userId) {

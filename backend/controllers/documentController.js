@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 const { Document, User } = require('../models');
 const { extractFromPDF } = require('../services/pdfEngine');
@@ -9,6 +10,42 @@ const localStore = require('../utils/localStore');
 const { extractImagesFromPDF } = require('../services/pdfImageExtractor');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
+
+function validateMagicBytes(filePath) {
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const stat = fs.statSync(filePath);
+    if (stat.size < 4) return null;
+
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(16);
+    fs.readSync(fd, buf, 0, Math.min(16, stat.size), 0);
+    fs.closeSync(fd);
+
+    // PDF check: starts with %PDF-
+    if (buf.subarray(0, 5).toString('ascii') === '%PDF-') return 'application/pdf';
+
+    // PNG check: 89 50 4E 47 0D 0A 1A 0A
+    if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47 &&
+        buf[4] === 0x0D && buf[5] === 0x0A && buf[6] === 0x1A && buf[7] === 0x0A) {
+      return 'image/png';
+    }
+
+    // JPEG check: FF D8 FF
+    if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF) {
+      return 'image/jpeg';
+    }
+
+    // WEBP check: RIFF....WEBP
+    if (stat.size >= 12 && buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') {
+      return 'image/webp';
+    }
+
+    return null;
+  } catch (err) {
+    return null;
+  }
+}
 
 // Built-in sample documents for demo mode and initial preview
 const SAMPLE_DEMO_DOCS = [
@@ -59,6 +96,17 @@ exports.upload = async (req, res, next) => {
   try {
     if (!req.files?.length) {
       return res.status(400).json({ error: 'No files uploaded. Please select at least one PDF or image.' });
+    }
+
+    // Verify magic bytes of all uploaded files before processing
+    for (const file of req.files) {
+      const detected = validateMagicBytes(file.path);
+      if (!detected) {
+        req.files.forEach(f => { try { if (fs.existsSync(f.path)) fs.unlinkSync(f.path); } catch {} });
+        return res.status(400).json({
+          error: `Security verification failed for "${file.originalname}": file content does not match genuine PDF or image format.`
+        });
+      }
     }
 
     const userId = req.user?.id || req.user?._id;
@@ -474,3 +522,53 @@ exports.stats = async (req, res, next) => {
     next(e);
   }
 };
+
+exports.getFile = async (req, res, next) => {
+  try {
+    const docId = req.params.id;
+    const userId = req.user?.id || req.user?._id;
+    let doc = null;
+
+    if (isDbConnected() && mongoose.Types.ObjectId.isValid(docId)) {
+      doc = await Document.findOne({ _id: docId, user: userId });
+    }
+    if (!doc) {
+      doc = localStore.getDocById(docId, userId);
+    }
+    if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
+      doc = SAMPLE_DEMO_DOCS.find(d => (d._id && d._id.toString() === docId.toString()) || d.id === docId);
+    }
+
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found or access denied.' });
+    }
+
+    if (!doc.filePath) {
+      return res.status(404).json({ error: 'Document file path not recorded.' });
+    }
+
+    const uploadsDir = path.resolve(__dirname, '../uploads');
+    const resolvedPath = path.resolve(doc.filePath);
+
+    // Path traversal check: must stay within uploads directory
+    if (!resolvedPath.startsWith(uploadsDir) || !fs.existsSync(resolvedPath)) {
+      return res.status(404).json({ error: 'Document file not found on server storage.' });
+    }
+
+    const isDownload = req.path.endsWith('/download');
+    const contentType = doc.mimeType || (doc.fileType === 'image' ? 'image/png' : 'application/pdf');
+    res.setHeader('Content-Type', contentType);
+    if (isDownload) {
+      const safeName = (doc.originalName || `${doc.title}.${doc.fileType || 'pdf'}`).replace(/["\r\n]/g, '');
+      res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    } else {
+      res.setHeader('Content-Disposition', 'inline');
+    }
+
+    fs.createReadStream(resolvedPath).pipe(res);
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.downloadFile = (req, res, next) => exports.getFile(req, res, next);

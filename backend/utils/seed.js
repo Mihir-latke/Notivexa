@@ -1,5 +1,11 @@
 const { User } = require('../models');
+
 async function seedUsers() {
+  // In production, NEVER auto-seed or reset accounts unless ALLOW_DEMO_MODE is explicitly enabled
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
+    return;
+  }
+
   const users = [
     { name:'Aryan Sharma', email:'student@demo.com', password:'demo1234', role:'student', institution:'Demo College, Mumbai' },
     { name:'Prof. Meera Joshi', email:'teacher@demo.com', password:'demo1234', role:'teacher', institution:'Demo College, Mumbai' }

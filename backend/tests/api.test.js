@@ -227,5 +227,62 @@ describe('Notivexa API Audit & Security Test Suite', () => {
       const res = await request(app).get('/uploads/video/../../server.js');
       expect([400, 404]).toContain(res.status);
     });
+
+    it('Direct unauthenticated access to /uploads/docs and /uploads/pdfs is blocked with 403 Forbidden', async () => {
+      const resDocs = await request(app).get('/uploads/docs/confidential.pdf');
+      expect(resDocs.status).toBe(403);
+      expect(resDocs.body.error).toMatch(/forbidden/i);
+
+      const resPdfs = await request(app).get('/uploads/pdfs/confidential.pdf');
+      expect(resPdfs.status).toBe(403);
+      expect(resPdfs.body.error).toMatch(/forbidden/i);
+    });
+
+    it('Upload rejects files with spoofed PDF extension but invalid magic bytes', async () => {
+      const spoofedContent = Buffer.from('THIS_IS_NOT_A_REAL_PDF_BUT_PLAIN_TEXT_PAYLOAD');
+      const res = await request(app)
+        .post('/api/documents/upload')
+        .set('Authorization', `Bearer ${user1Token}`)
+        .attach('files', spoofedContent, { filename: 'spoofed.pdf', contentType: 'application/pdf' });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/genuine PDF or image|Security verification/i);
+    });
+
+    it('Authenticated document file route allows owner and blocks non-owner (IDOR)', async () => {
+      // Create a genuine minimal PDF for User 1
+      const minimalPdf = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Count 0>>endobj\nxref\n0 3\n0000000000 65535 f\n0000000009 00000 n\n0000000052 00000 n\ntrailer<</Size 3/Root 1 0 R>>\nstartxref\n99\n%%EOF');
+      const uploadRes = await request(app)
+        .post('/api/documents/upload')
+        .set('Authorization', `Bearer ${user1Token}`)
+        .attach('files', minimalPdf, { filename: 'owner_doc.pdf', contentType: 'application/pdf' });
+
+      expect(uploadRes.status).toBe(201);
+      const doc = uploadRes.body.documents[0];
+      const docId = doc._id || doc.id;
+
+      // Owner can access file
+      const ownerGet = await request(app)
+        .get(`/api/documents/${docId}/file`)
+        .set('Authorization', `Bearer ${user1Token}`);
+      expect(ownerGet.status).toBe(200);
+      expect(ownerGet.headers['content-type']).toMatch(/pdf/);
+
+      // Non-owner cannot access file (IDOR prevention)
+      const nonOwnerGet = await request(app)
+        .get(`/api/documents/${docId}/file`)
+        .set('Authorization', `Bearer ${user2Token}`);
+      expect(nonOwnerGet.status).toBe(404);
+      expect(nonOwnerGet.body.error).toMatch(/not found or access denied/i);
+    });
+
+    it('Setup status does not hardcode hasTTS to true by default', async () => {
+      const res = await request(app).get('/api/setup');
+      expect(res.status).toBe(200);
+      const expectedTTS = Boolean(process.env.GOOGLE_TTS_API_KEY && !process.env.GOOGLE_TTS_API_KEY.startsWith('your_')) ||
+                          Boolean(process.env.ELEVENLABS_API_KEY && !process.env.ELEVENLABS_API_KEY.startsWith('your_'));
+      expect(res.body.hasTTS).toBe(expectedTTS);
+      expect(res.body.edgeTTS).toBe(true);
+    });
   });
 });
