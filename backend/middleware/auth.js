@@ -3,20 +3,18 @@ const mongoose = require('mongoose');
 const { User } = require('../models');
 const localStore = require('../utils/localStore');
 
-const DEV_FALLBACK_SECRET = 'notivexa_development_jwt_secret_key_32chars_min';
+const crypto = require('crypto');
+let cachedRuntimeSecret = null;
 
 function getJwtSecret() {
-  const secret = process.env.JWT_SECRET;
-  const isProd = process.env.NODE_ENV === 'production';
-
-  if (isProd) {
-    if (!secret || secret.trim().length < 16 || secret === 'notivexa_secret') {
-      throw new Error('FATAL: A secure JWT_SECRET (>= 16 characters) is required in production.');
-    }
-    return secret;
+  if (process.env.JWT_SECRET && process.env.JWT_SECRET !== 'notivexa_secret' && process.env.JWT_SECRET.trim().length >= 16) {
+    return process.env.JWT_SECRET;
   }
-
-  return secret || DEV_FALLBACK_SECRET;
+  if (!cachedRuntimeSecret) {
+    cachedRuntimeSecret = crypto.randomBytes(32).toString('hex');
+    process.env.JWT_SECRET = cachedRuntimeSecret;
+  }
+  return cachedRuntimeSecret;
 }
 
 function signToken(userId) {

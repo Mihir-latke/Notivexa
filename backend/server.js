@@ -16,12 +16,17 @@ fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
   fs.mkdirSync(path.join(__dirname, 'uploads', d), { recursive: true });
 });
 
-// Production Security Pre-flight Check
-if (process.env.NODE_ENV === 'production') {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || secret.trim().length < 16 || secret === 'notivexa_secret') {
-    console.error('❌ CRITICAL SECURITY ERROR: Missing or insecure JWT_SECRET in production. Minimum 16 characters required.');
-    process.exit(1);
+// Resolve and enforce cryptographically secure JWT Secret
+const crypto = require('crypto');
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'notivexa_secret' || process.env.JWT_SECRET.trim().length < 16) {
+  if (process.env.NODE_ENV === 'production') {
+    const runtimeSecret = crypto.randomBytes(32).toString('hex');
+    process.env.JWT_SECRET = runtimeSecret;
+    console.warn('⚠️  SECURITY NOTICE: JWT_SECRET was not found in environment.');
+    console.warn('🔑 Automatically provisioned a secure 64-char cryptographic secret for this runtime session.');
+    console.warn('👉 To persist user sessions across server redeploys, set JWT_SECRET in Render Dashboard -> Environment.');
+  } else {
+    process.env.JWT_SECRET = 'notivexa_development_jwt_secret_key_32chars_min';
   }
 }
 
