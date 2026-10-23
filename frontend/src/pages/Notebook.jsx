@@ -1652,7 +1652,7 @@ export default function Notebook() {
               <video
                 controls
                 playsInline
-                preload="auto"
+                preload="metadata"
                 style={{
                   maxWidth: 360,
                   width: '100%',

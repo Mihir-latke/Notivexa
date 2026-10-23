@@ -12,7 +12,7 @@ const app = express();
 
 // Ensure upload and local data directories exist
 fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
-['pdfs','images','audio','generated'].forEach(d => {
+['pdfs','images','audio','video','generated'].forEach(d => {
   fs.mkdirSync(path.join(__dirname, 'uploads', d), { recursive: true });
 });
 
@@ -67,6 +67,75 @@ app.get('/uploads/images/extracted/:docId/:fileName', async (req, res, next) => 
     console.warn('[Diagram Static Restore Error]', err.message);
   }
   next();
+});
+
+// Optimized Range-Streaming for generated MP4 videos (prevents ECONNRESET / socket stalls)
+app.get('/uploads/video/:filename', (req, res, next) => {
+  const filePath = path.join(__dirname, 'uploads/video', req.params.filename);
+  if (!fs.existsSync(filePath)) return next();
+
+  let stat;
+  try {
+    stat = fs.statSync(filePath);
+  } catch (err) {
+    return next();
+  }
+
+  const fileSize = stat.size;
+  const range = req.headers.range;
+
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Content-Type', 'video/mp4');
+
+  if (range) {
+    const parts = range.replace(/bytes=/, '').split('-');
+    const start = parseInt(parts[0], 10);
+    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+
+    if (start >= fileSize || end >= fileSize || start > end) {
+      res.status(416).setHeader('Content-Range', `bytes */${fileSize}`);
+      return res.end();
+    }
+
+    const chunksize = end - start + 1;
+    res.writeHead(206, {
+      'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+      'Accept-Ranges': 'bytes',
+      'Content-Length': chunksize,
+      'Content-Type': 'video/mp4',
+      'Cache-Control': 'public, max-age=3600'
+    });
+
+    const fileStream = fs.createReadStream(filePath, { start, end });
+    fileStream.on('error', () => {
+      if (!res.headersSent) res.status(500).end();
+    });
+
+    // Safely destroy file stream when client seeks or disconnects
+    req.on('close', () => {
+      fileStream.destroy();
+    });
+
+    fileStream.pipe(res);
+  } else {
+    res.writeHead(200, {
+      'Content-Length': fileSize,
+      'Content-Type': 'video/mp4',
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'public, max-age=3600'
+    });
+
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.on('error', () => {
+      if (!res.headersSent) res.status(500).end();
+    });
+
+    req.on('close', () => {
+      fileStream.destroy();
+    });
+
+    fileStream.pipe(res);
+  }
 });
 
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
