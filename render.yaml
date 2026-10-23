@@ -9,3 +9,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: MONGODB_URI
+        value: mongodb+srv://Notivexa:Notivexa@cluster0.t09sptg.mongodb.net/notivexa?retryWrites=true&w=majority&appName=Cluster0
+      - key: JWT_SECRET
+        value: notivexa_secure_production_secret_key_2025_987654321
+      - key: JWT_EXPIRES_IN
+        value: 7d

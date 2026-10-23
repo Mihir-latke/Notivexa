@@ -64,6 +64,20 @@ exports.register = async (req, res, next) => {
         isActive: true
       });
 
+      // Dual-write to local store so both stores remain fully populated
+      try {
+        await localStore.createUser({
+          name: name.trim(),
+          email: normEmail,
+          password,
+          role: assignedRole,
+          institution: institution ? institution.trim() : '',
+          preferredLanguage: preferredLanguage ? preferredLanguage.trim() : 'English'
+        });
+      } catch (e) {
+        // Local cache ignore if duplicate
+      }
+
       return res.status(201).json({
         success: true,
         token: signToken(user._id),
@@ -86,6 +100,12 @@ exports.register = async (req, res, next) => {
       institution: institution ? institution.trim() : '',
       preferredLanguage: preferredLanguage ? preferredLanguage.trim() : 'English'
     });
+
+    // Trigger background attempt to connect & sync to MongoDB Atlas
+    const { attemptMongoConnect } = require('../utils/dbSync');
+    if (process.env.MONGODB_URI) {
+      attemptMongoConnect(process.env.MONGODB_URI).catch(() => {});
+    }
 
     return res.status(201).json({
       success: true,
@@ -123,9 +143,50 @@ exports.login = async (req, res, next) => {
           });
         }
       }
+
+      // If user registered in localStore before DB connected, find and migrate now!
+      const localUser = localStore.findUserByEmail(normEmail);
+      if (localUser) {
+        const isMatch = await localStore.comparePassword(localUser, password);
+        if (isMatch) {
+          if (!localUser.isActive) {
+            return res.status(403).json({ error: 'Account has been deactivated.' });
+          }
+          // Migrate into MongoDB Atlas
+          try {
+            const syncedUser = await User.create({
+              name: localUser.name,
+              email: normEmail,
+              password,
+              role: localUser.role || 'student',
+              institution: localUser.institution || '',
+              preferredLanguage: localUser.preferredLanguage || 'English',
+              isActive: true
+            });
+            console.log(`[Auth Login] Auto-migrated local user to MongoDB Atlas: ${normEmail}`);
+            return res.json({
+              success: true,
+              token: signToken(syncedUser._id),
+              user: syncedUser
+            });
+          } catch (migrateErr) {
+            console.warn('[Auth Auto-Migration Warn]', migrateErr.message);
+          }
+
+          const safeUser = { ...localUser };
+          delete safeUser.passwordHash;
+          return res.json({
+            success: true,
+            token: signToken(safeUser._id || safeUser.id),
+            user: safeUser
+          });
+        }
+      }
+
+      return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    // 2. Fallback to local store
+    // 2. Fallback to local store when DB disconnected
     const localUser = localStore.findUserByEmail(normEmail);
     if (localUser) {
       const isMatch = await localStore.comparePassword(localUser, password);
@@ -135,6 +196,13 @@ exports.login = async (req, res, next) => {
         }
         const safeUser = { ...localUser };
         delete safeUser.passwordHash;
+
+        // Trigger background attempt to connect & sync
+        const { attemptMongoConnect } = require('../utils/dbSync');
+        if (process.env.MONGODB_URI) {
+          attemptMongoConnect(process.env.MONGODB_URI).catch(() => {});
+        }
+
         return res.json({
           success: true,
           token: signToken(safeUser._id || safeUser.id),

@@ -251,49 +251,23 @@ app.use((err, req, res, next) => {
   res.status(status).json({ error: message });
 });
 
-// Start
+// Database Connection & Synchronization Manager
 const PORT = process.env.PORT || 5000;
 mongoose.set('bufferCommands', false);
 
 const MONGODB_URI = process.env.MONGODB_URI;
 const isPlaceholderUri = MONGODB_URI && (MONGODB_URI.includes('<username>') || MONGODB_URI.includes('<password>') || MONGODB_URI.includes('YOUR_'));
+const { startMongoManager } = require('./utils/dbSync');
 
-if (MONGODB_URI && !isPlaceholderUri && !MONGODB_URI.includes('localhost')) {
-  console.log('🔄 Connecting to MongoDB Atlas...');
-  mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
-  })
-    .then(async () => {
-      console.log('✅ MongoDB connected');
-      await require('./utils/seed').seedUsers();
-    })
-    .catch(err => {
-      console.warn('⚠️  MongoDB connection failed:', err.message);
-      console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
-      if (process.env.NODE_ENV === 'production') {
-        console.warn('ℹ️  Running in Production with autonomous local database store (multi-tenant isolated).');
-      } else {
-        console.warn('ℹ️  Running in Demo Mode.');
-      }
-    });
-} else if (MONGODB_URI && MONGODB_URI.includes('localhost') && process.env.NODE_ENV !== 'production') {
-  mongoose.connect(MONGODB_URI, {
-    serverSelectionTimeoutMS: 2000,
-  })
-    .then(async () => {
-      console.log('✅ Local MongoDB connected');
-      await require('./utils/seed').seedUsers();
-    })
-    .catch(() => {
-      console.log('ℹ️  Local MongoDB not running. Running in Demo Mode.');
-    });
+if (MONGODB_URI && !isPlaceholderUri) {
+  startMongoManager(MONGODB_URI);
 } else {
   if (isPlaceholderUri) {
     console.log('ℹ️  Please replace <username> and <password> in MONGODB_URI with your MongoDB Atlas credentials.');
   } else {
-    console.log('ℹ️  No MONGODB_URI provided.');
+    console.log('ℹ️  No MONGODB_URI provided in environment. Running in autonomous local store mode.');
   }
-  console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent storage.');
+  console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent database storage.');
 }
 
 if (require.main === module) {
