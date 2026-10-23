@@ -30,9 +30,6 @@ r.get('/', async (req, res, next) => {
     const userId = req.user?.id || req.user?._id;
 
     if (!isDbConnected()) {
-      if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
-        return res.status(503).json({ error: 'Database service unavailable.' });
-      }
       const plans = localStore.getPlansByUser(userId).filter(p => p.isActive !== false);
       return res.json({ success: true, plans: plans.length ? plans : [SAMPLE_PLAN] });
     }
@@ -67,9 +64,6 @@ r.post('/generate', async (req, res, next) => {
     }
 
     if (!isDbConnected()) {
-      if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
-        return res.status(503).json({ error: 'Database service unavailable. Persistent database required.' });
-      }
       const plan = {
         _id: 'plan_' + Date.now(),
         id: 'plan_' + Date.now(),
@@ -126,20 +120,18 @@ r.patch('/:planId/tasks/:taskId', async (req, res, next) => {
       return res.json({ success: true, plan });
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const plans = localStore.getPlans();
-      const plan = plans.find(p => ((p._id && p._id.toString() === req.params.planId) || (p.id && p.id.toString() === req.params.planId)) && (p.user && p.user.toString() === userId.toString()));
-      if (plan) {
-        const task = (plan.tasks || []).find((t, idx) => (t._id && t._id.toString() === req.params.taskId) || (t.id && t.id.toString() === req.params.taskId) || idx.toString() === req.params.taskId);
-        if (task) {
-          if (req.body.completed !== undefined) task.completed = Boolean(req.body.completed);
-          if (req.body.task) task.task = req.body.task;
-          if (req.body.duration) task.duration = Number(req.body.duration);
-          if (req.body.priority) task.priority = req.body.priority;
-        }
-        localStore.savePlans(plans);
-        return res.json({ success: true, plan });
+    const plans = localStore.getPlans();
+    const plan = plans.find(p => ((p._id && p._id.toString() === req.params.planId) || (p.id && p.id.toString() === req.params.planId)) && (p.user && p.user.toString() === userId.toString()));
+    if (plan) {
+      const task = (plan.tasks || []).find((t, idx) => (t._id && t._id.toString() === req.params.taskId) || (t.id && t.id.toString() === req.params.taskId) || idx.toString() === req.params.taskId);
+      if (task) {
+        if (req.body.completed !== undefined) task.completed = Boolean(req.body.completed);
+        if (req.body.task) task.task = req.body.task;
+        if (req.body.duration) task.duration = Number(req.body.duration);
+        if (req.body.priority) task.priority = req.body.priority;
       }
+      localStore.savePlans(plans);
+      return res.json({ success: true, plan });
     }
 
     return res.status(404).json({ error: 'Plan not found or access denied.' });
@@ -161,13 +153,9 @@ r.delete('/:id', async (req, res, next) => {
       return res.json({ success: true });
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const success = localStore.deletePlan(req.params.id, userId);
-      if (!success) return res.status(404).json({ error: 'Plan not found or access denied.' });
-      return res.json({ success: true });
-    }
-
-    res.status(503).json({ error: 'Database service unavailable.' });
+    const success = localStore.deletePlan(req.params.id, userId);
+    if (!success) return res.status(404).json({ error: 'Plan not found or access denied.' });
+    return res.json({ success: true });
   } catch (e) {
     next(e);
   }

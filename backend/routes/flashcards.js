@@ -32,9 +32,6 @@ r.get('/', async (req, res, next) => {
     const userId = req.user?.id || req.user?._id;
 
     if (!isDbConnected()) {
-      if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
-        return res.status(503).json({ error: 'Database service unavailable.' });
-      }
       const sets = localStore.getFlashcardsByUser(userId);
       return res.json({ success: true, flashcardSets: sets.length ? sets : SAMPLE_FLASHCARDS });
     }
@@ -58,7 +55,7 @@ r.get('/:id', async (req, res, next) => {
       s = await Flashcard.findOne({ _id: req.params.id, user: userId });
     }
 
-    if (!s && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+    if (!s) {
       const sets = localStore.getFlashcardsByUser(userId);
       s = sets.find(f => (f._id && f._id.toString() === req.params.id) || (f.id && f.id.toString() === req.params.id));
     }
@@ -98,19 +95,17 @@ r.patch('/:sid/cards/:cid', async (req, res, next) => {
       return res.json({ success: true, flashcardSet: s });
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const sets = localStore.getFlashcards();
-      const s = sets.find(f => ((f._id && f._id.toString() === req.params.sid) || (f.id && f.id.toString() === req.params.sid)) && (f.user && f.user.toString() === userId.toString()));
-      if (s) {
-        const card = (s.cards || []).find(c => (c._id && c._id.toString() === req.params.cid) || (c.id && c.id.toString() === req.params.cid));
-        if (card) {
-          if (req.body.isKnown !== undefined) card.isKnown = Boolean(req.body.isKnown);
-          if (req.body.difficulty) card.difficulty = req.body.difficulty;
-        }
-        s.masteredCards = (s.cards || []).filter(c => c.isKnown).length;
-        localStore.saveFlashcards(sets);
-        return res.json({ success: true, flashcardSet: s });
+    const sets = localStore.getFlashcards();
+    const s = sets.find(f => ((f._id && f._id.toString() === req.params.sid) || (f.id && f.id.toString() === req.params.sid)) && (f.user && f.user.toString() === userId.toString()));
+    if (s) {
+      const card = (s.cards || []).find(c => (c._id && c._id.toString() === req.params.cid) || (c.id && c.id.toString() === req.params.cid));
+      if (card) {
+        if (req.body.isKnown !== undefined) card.isKnown = Boolean(req.body.isKnown);
+        if (req.body.difficulty) card.difficulty = req.body.difficulty;
       }
+      s.masteredCards = (s.cards || []).filter(c => c.isKnown).length;
+      localStore.saveFlashcards(sets);
+      return res.json({ success: true, flashcardSet: s });
     }
 
     return res.status(404).json({ error: 'Flashcard set not found or access denied.' });
@@ -132,13 +127,9 @@ r.delete('/:id', async (req, res, next) => {
       return res.json({ success: true });
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const success = localStore.deleteFlashcard(req.params.id, userId);
-      if (!success) return res.status(404).json({ error: 'Flashcard set not found or access denied.' });
-      return res.json({ success: true });
-    }
-
-    res.status(503).json({ error: 'Database service unavailable.' });
+    const success = localStore.deleteFlashcard(req.params.id, userId);
+    if (!success) return res.status(404).json({ error: 'Flashcard set not found or access denied.' });
+    return res.json({ success: true });
   } catch (e) {
     next(e);
   }

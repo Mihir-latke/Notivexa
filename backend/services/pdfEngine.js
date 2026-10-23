@@ -771,22 +771,79 @@ Professor: Excellent question! It directly governs execution stability. Keep the
 function makePPT(text, title, subject) {
   const chunks = getChunks(text, 8);
   const topics = getTopics(text);
-  const facts = getKeyFacts(text, 8);
+  const facts = getKeyFacts(text, 12);
+  const cleanTitle = (title || 'Academic Presentation').slice(0, 60);
+
+  const categories = ['CORE PRINCIPLE', 'STEP-BY-STEP', 'DEEP DIVE', 'CORE PRINCIPLE', 'STEP-BY-STEP', 'CASE STUDY'];
+
   const slides = [
     {
-      slideNumber: 1, title: title.slice(0,60),
-      bullets: [`Subject: ${subject}`, 'Source: Your uploaded PDF document', topics.length > 0 ? `Topics: ${topics.slice(0,3).join(', ')}` : 'See following slides'],
-      speakerNotes: 'Introduce the document topic.', layout: 'title'
+      slideNumber: 1,
+      category: 'INTRODUCTION',
+      title: cleanTitle,
+      keyTakeaway: `${cleanTitle} establishes the foundational paradigm for analytical and systematic problem-solving.`,
+      bullets: [
+        `Subject Overview: Academic lecture covering ${subject || 'core engineering principles'} from foundational theory to practical application.`,
+        topics.length > 0 ? `Key Coverage: Exploring ${topics.slice(0, 3).join(', ')} and their theoretical models.` : 'Key Coverage: Comprehensive curriculum review grounded directly in syllabus objectives.',
+        'Learning Objectives: Understand core principles, analyze performance tradeoffs, and master systematic problem analysis.'
+      ],
+      analogy: 'A master architectural blueprint guides every phase of construction before complex execution begins.',
+      speakerNotes: `Welcome students. Today we are analyzing ${cleanTitle}. We will explore its foundational mechanics, practical steps, and critical exam takeaways.`,
+      layout: 'title'
     }
   ];
+
   chunks.forEach((c, i) => {
-    const lines = c.split('\n').filter(l=>l.trim().length>8);
-    const head = lines[0]?.slice(0,60) || `Part ${i+1}`;
-    const bullets = lines.slice(1,7).map(l=>l.replace(/^[-•*\d.]+\s*/,'').slice(0,100)).filter(l=>l.length>5);
-    slides.push({ slideNumber:i+2, title:head, bullets:bullets.length>0?bullets:[firstN(c,2)], speakerNotes:`Explain ${head}. Duration: ~2 min.`, layout:'content' });
+    const lines = c.split('\n').filter(l => l.trim().length > 8);
+    const rawHead = lines[0]?.slice(0, 55).replace(/^[-•#*\d.]+\s*/, '') || `Part ${i + 1}: Core Mechanics`;
+    const head = rawHead.length > 5 ? rawHead : `Core Concepts & Methods (Part ${i + 1})`;
+    const cat = categories[i % categories.length];
+
+    const rawBullets = lines.slice(1, 6)
+      .map(l => l.replace(/^[-•*\d.]+\s*/, '').trim())
+      .filter(l => l.length > 8);
+
+    const labels = ['Core Principle', 'Operational Flow', 'System Behavior', 'Performance Bound', 'Application'];
+    const formattedBullets = (rawBullets.length > 0 ? rawBullets.slice(0, 4) : [firstN(c, 2)]).map((b, bIdx) => {
+      if (b.includes(': ')) return b.slice(0, 140);
+      const label = labels[bIdx % labels.length];
+      return `${label}: ${b.slice(0, 130)}`;
+    });
+
+    const takeawayFact = facts[i % facts.length] || `Mastering ${head} ensures optimal performance and deterministic execution.`;
+
+    slides.push({
+      slideNumber: i + 2,
+      category: cat,
+      title: head,
+      keyTakeaway: takeawayFact.replace(/^KEY TAKEAWAY:\s*/i, '').slice(0, 120),
+      bullets: formattedBullets,
+      analogy: `Similar to an automated assembly line, each step operates with strict deterministic bounds to guarantee consistent output.`,
+      speakerNotes: `Explain ${head}. Focus on the operational criteria, constraints, and why this concept is essential for exam questions. Duration: ~3 min.`,
+      layout: 'content'
+    });
   });
-  slides.push({ slideNumber:slides.length+1, title:'Summary & Key Points', bullets:facts.slice(0,6).map(f=>f.slice(0,90)), speakerNotes:'Recap main points. Open for Q&A.', layout:'content' });
-  return { title, subtitle:'From your uploaded PDF', slides };
+
+  slides.push({
+    slideNumber: slides.length + 1,
+    category: 'QUICK SUMMARY',
+    title: 'Summary & Knowledge Check',
+    keyTakeaway: 'Consistent application of these foundational methods is essential for robust engineering solutions.',
+    bullets: facts.length >= 3 ? [
+      `Review Item 1: ${facts[0].slice(0, 110)}`,
+      `Review Item 2: ${facts[1].slice(0, 110)}`,
+      `Self-Test Check: How do the operational constraints discussed today govern practical implementation efficiency?`
+    ] : [
+      'Comprehensive Review: Mastered core theory, operational flow, and efficiency bounds.',
+      'Key Exam Preparation: Memorize criteria, definitions, and step-by-step algorithms.',
+      'Self-Test Check: Can you contrast the best-case versus worst-case operational complexities?'
+    ],
+    analogy: 'Reviewing core milestones consolidates knowledge just like saving checkpoints in critical data systems.',
+    speakerNotes: 'Recap the primary definitions, highlight potential exam questions, and open the floor for student discussion.',
+    layout: 'content'
+  });
+
+  return { title: cleanTitle, subtitle: 'Comprehensive Academic Lecture Deck', slides };
 }
 
 function makeMindmap(text, title) {

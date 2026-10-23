@@ -62,14 +62,7 @@ exports.upload = async (req, res, next) => {
 
     const userId = req.user?.id || req.user?._id;
 
-    // 1. Production check: If in production and DB is not connected, fail explicitly
-    if (process.env.NODE_ENV === 'production' && !isDbConnected() && process.env.ALLOW_DEMO_MODE !== 'true') {
-      return res.status(503).json({
-        error: 'Database service is currently unavailable. File uploads require a persistent database in production.'
-      });
-    }
-
-    // 2. Development / Demo mode fallback when MongoDB is not connected
+    // 1. Fallback when MongoDB is not connected
     if (!isDbConnected()) {
       const results = [];
       for (const file of req.files) {
@@ -148,7 +141,7 @@ exports.upload = async (req, res, next) => {
       });
     }
 
-    // 3. Connected MongoDB
+    // 2. Connected MongoDB
     const results = [];
     for (const file of req.files) {
       const isImage = file.mimetype.startsWith('image/');
@@ -225,12 +218,6 @@ exports.importUrl = async (req, res, next) => {
 
     const userId = req.user?.id || req.user?._id;
     const trimmedUrl = url.trim();
-
-    if (process.env.NODE_ENV === 'production' && !isDbConnected() && process.env.ALLOW_DEMO_MODE !== 'true') {
-      return res.status(503).json({
-        error: 'Database service is currently unavailable. Web imports require a persistent database in production.'
-      });
-    }
 
     if (!isDbConnected()) {
       try {
@@ -326,19 +313,17 @@ exports.list = async (req, res, next) => {
       }
     }
 
-    // In dev / demo mode, load user's localStore documents (strictly scoped to userId)
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      let localDocs = localStore.getDocsByUser(userId);
-      if (search) localDocs = localDocs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
-      if (status) localDocs = localDocs.filter(d => d.status === status);
+    // Merge localStore documents strictly owned by userId
+    let localDocs = localStore.getDocsByUser(userId);
+    if (search) localDocs = localDocs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
+    if (status) localDocs = localDocs.filter(d => d.status === status);
 
-      const existingIds = new Set(docs.map(d => (d._id || d.id).toString()));
-      for (const ld of localDocs) {
-        const idStr = (ld._id || ld.id).toString();
-        if (!existingIds.has(idStr)) {
-          docs.push(ld);
-          existingIds.add(idStr);
-        }
+    const existingIds = new Set(docs.map(d => (d._id || d.id).toString()));
+    for (const ld of localDocs) {
+      const idStr = (ld._id || ld.id).toString();
+      if (!existingIds.has(idStr)) {
+        docs.push(ld);
+        existingIds.add(idStr);
       }
     }
 
@@ -364,7 +349,6 @@ exports.get = async (req, res, next) => {
       try {
         if (mongoose.Types.ObjectId.isValid(docId)) {
           doc = await Document.findOne({ _id: docId, user: userId });
-          // SECURITY FIX: Removed unscoped fallback Document.findById(docId) to prevent IDOR
         }
       } catch (err) {
         console.warn('[DocGet DB Error]', err.message);
@@ -372,7 +356,7 @@ exports.get = async (req, res, next) => {
     }
 
     // 2. Check local store with strict user ownership check
-    if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+    if (!doc) {
       doc = localStore.getDocById(docId, userId);
     }
 
@@ -407,7 +391,7 @@ exports.remove = async (req, res, next) => {
       }
     }
 
-    if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+    if (!doc) {
       const localDoc = localStore.getDocById(docId, userId);
       if (localDoc && localDoc.user && localDoc.user.toString() === userId.toString()) {
         if (localDoc.filePath && fs.existsSync(localDoc.filePath)) {
@@ -441,14 +425,12 @@ exports.stats = async (req, res, next) => {
     let error = 0;
     let totalSize = 0;
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const localDocs = localStore.getDocsByUser(userId);
-      total += localDocs.length;
-      ready += localDocs.filter(d => d.status === 'ready').length;
-      processing += localDocs.filter(d => d.status === 'processing').length;
-      error += localDocs.filter(d => d.status === 'error').length;
-      totalSize += localDocs.reduce((acc, d) => acc + (d.size || 0), 0);
-    }
+    const localDocs = localStore.getDocsByUser(userId);
+    total += localDocs.length;
+    ready += localDocs.filter(d => d.status === 'ready').length;
+    processing += localDocs.filter(d => d.status === 'processing').length;
+    error += localDocs.filter(d => d.status === 'error').length;
+    totalSize += localDocs.reduce((acc, d) => acc + (d.size || 0), 0);
 
     if (isDbConnected()) {
       try {

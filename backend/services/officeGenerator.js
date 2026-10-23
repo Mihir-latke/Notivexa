@@ -13,157 +13,221 @@ function ensureDir() {
 // 1. PPT Themes & Generator
 // ==========================================
 const PPT_THEMES = {
+  light: {
+    id: 'light',
+    name: 'Clean Academic (Standard)',
+    bg: 'FFFFFF',
+    categoryColor: 'E11D48',
+    titleColor: '0F172A',
+    takeawayBg: 'FEF3C7',
+    takeawayBorder: 'F59E0B',
+    takeawayLabel: 'B45309',
+    takeawayText: '78350F',
+    bulletLabelColor: '0F172A',
+    textColor: '334155',
+    analogyBg: 'E0F2FE',
+    analogyBorder: '38BDF8',
+    analogyLabel: '0369A1',
+    analogyText: '0C4A6E',
+    numColor: '888888',
+    isDark: false
+  },
   indigo: {
     id: 'indigo',
     name: 'Academic Indigo',
     bg: '0F172A',
-    headerBg: '4F46E5',
-    text: 'E2E8F0',
-    titleText: 'FFFFFF',
-    accent: '818CF8',
-    cardBg: '1E293B',
+    categoryColor: '818CF8',
+    titleColor: 'FFFFFF',
+    takeawayBg: '1E293B',
+    takeawayBorder: 'F59E0B',
+    takeawayLabel: 'FBBF24',
+    takeawayText: 'FDE68A',
+    bulletLabelColor: 'FFFFFF',
+    textColor: 'E2E8F0',
+    analogyBg: '0F243A',
+    analogyBorder: '38BDF8',
+    analogyLabel: '38BDF8',
+    analogyText: 'BAE6FD',
+    numColor: '64748B',
     isDark: true
-  },
-  light: {
-    id: 'light',
-    name: 'Clean Light',
-    bg: 'F8FAFC',
-    headerBg: '2563EB',
-    text: '334155',
-    titleText: '0F172A',
-    accent: '2563EB',
-    cardBg: 'FFFFFF',
-    isDark: false
   },
   emerald: {
     id: 'emerald',
     name: 'Emerald Forest',
     bg: '064E3B',
-    headerBg: '059669',
-    text: 'D1FAE5',
-    titleText: 'FFFFFF',
-    accent: '34D399',
-    cardBg: '065F46',
+    categoryColor: '34D399',
+    titleColor: 'FFFFFF',
+    takeawayBg: '065F46',
+    takeawayBorder: 'F59E0B',
+    takeawayLabel: 'FBBF24',
+    takeawayText: 'FEF3C7',
+    bulletLabelColor: 'FFFFFF',
+    textColor: 'D1FAE5',
+    analogyBg: '04382B',
+    analogyBorder: '38BDF8',
+    analogyLabel: '67E8F9',
+    analogyText: 'E0F2FE',
+    numColor: '059669',
     isDark: true
   },
   sunset: {
     id: 'sunset',
     name: 'Sunset Crimson',
     bg: '4C0519',
-    headerBg: 'E11D48',
-    text: 'FFE4E6',
-    titleText: 'FFFFFF',
-    accent: 'FB7185',
-    cardBg: '881337',
+    categoryColor: 'FB7185',
+    titleColor: 'FFFFFF',
+    takeawayBg: '881337',
+    takeawayBorder: 'F59E0B',
+    takeawayLabel: 'FBBF24',
+    takeawayText: 'FEF3C7',
+    bulletLabelColor: 'FFFFFF',
+    textColor: 'FFE4E6',
+    analogyBg: '701A75',
+    analogyBorder: '38BDF8',
+    analogyLabel: '38BDF8',
+    analogyText: 'E0F2FE',
+    numColor: '9F1239',
     isDark: true
   },
   cyber: {
     id: 'cyber',
     name: 'Cyber Purple',
     bg: '180828',
-    headerBg: '9333EA',
-    text: 'F3E8FF',
-    titleText: 'FFFFFF',
-    accent: 'C084FC',
-    cardBg: '2E1065',
+    categoryColor: 'C084FC',
+    titleColor: 'FFFFFF',
+    takeawayBg: '2E1065',
+    takeawayBorder: 'F59E0B',
+    takeawayLabel: 'FBBF24',
+    takeawayText: 'FEF3C7',
+    bulletLabelColor: 'FFFFFF',
+    textColor: 'F3E8FF',
+    analogyBg: '1E1B4B',
+    analogyBorder: '38BDF8',
+    analogyLabel: '38BDF8',
+    analogyText: 'E0F2FE',
+    numColor: '7E22CE',
     isDark: true
   }
 };
 
-async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Academic Lecture', theme = 'indigo' } = {}) {
+async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Academic Lecture', theme = 'light' } = {}) {
   ensureDir();
-  const themeObj = PPT_THEMES[theme] || PPT_THEMES.indigo;
-  const slides = Array.isArray(slidesInput) ? slidesInput : (slidesInput?.slides || []);
-  if (!slides || slides.length === 0) throw new Error('No slides to generate');
+  const themeObj = PPT_THEMES[theme] || PPT_THEMES.light || PPT_THEMES.indigo;
+  const rawSlides = Array.isArray(slidesInput) ? slidesInput : (slidesInput?.slides || []);
+  if (!rawSlides || rawSlides.length === 0) throw new Error('No slides to generate');
 
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_16x9';
 
-  // --- Title / Cover Slide ---
-  const cover = pres.addSlide();
-  cover.background = { color: themeObj.bg };
-
-  // Top accent bar
-  cover.addShape(pres.ShapeType.rect, {
-    x: 0, y: 0, w: '100%', h: 0.15,
-    fill: { color: themeObj.accent }
-  });
-
-  // Notivexa brand tag
-  cover.addText('NOTIVEXA ACADEMIC INTELLIGENCE', {
-    x: 1.0, y: 1.5, w: 8.0, h: 0.4,
-    fontSize: 12, bold: true, color: themeObj.accent,
-    letterSpacing: 2
-  });
-
-  // Main presentation title
-  cover.addText(title, {
-    x: 1.0, y: 2.1, w: 10.5, h: 1.8,
-    fontSize: 36, bold: true, color: themeObj.titleText,
-    fontFace: 'Segoe UI'
-  });
-
-  // Subject and subtitle
-  cover.addText(`Topic: ${subject} • ${slides.length} Comprehensive Slides`, {
-    x: 1.0, y: 4.2, w: 9.0, h: 0.6,
-    fontSize: 16, color: themeObj.text,
-    fontFace: 'Segoe UI'
-  });
-
-  // --- Content Slides ---
-  slides.forEach((s, idx) => {
+  rawSlides.forEach((s, idx) => {
     const slide = pres.addSlide();
     slide.background = { color: themeObj.bg };
 
-    // Slide header card
-    slide.addShape(pres.ShapeType.rect, {
-      x: 0.8, y: 0.5, w: 11.7, h: 1.0,
-      fill: { color: themeObj.cardBg },
-      line: { color: themeObj.headerBg, width: 1.5 },
-      rectRadius: 0.1
-    });
+    const category = (s.category || (idx === 0 ? 'INTRODUCTION' : idx === rawSlides.length - 1 ? 'QUICK SUMMARY' : 'CORE PRINCIPLE')).toUpperCase();
+    const slideTitle = s.title || `Slide ${idx + 1}`;
+    const rawTakeaway = s.keyTakeaway || s.takeaway || '';
+    const cleanTakeaway = rawTakeaway.replace(/^KEY TAKEAWAY:\s*/i, '').trim();
+    const rawAnalogy = s.analogy || s.realWorldAnalogy || '';
+    const cleanAnalogy = rawAnalogy.replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '').trim();
+    const bullets = Array.isArray(s.bullets) ? s.bullets : [];
 
-    // Slide category / tag
-    slide.addText(`SLIDE ${s.slideNumber || idx + 1} OF ${slides.length}`, {
-      x: 1.0, y: 0.6, w: 4.0, h: 0.25,
-      fontSize: 9, bold: true, color: themeObj.accent,
-      letterSpacing: 1
-    });
-
-    // Slide title
-    slide.addText(s.title || `Slide ${idx + 1}`, {
-      x: 1.0, y: 0.85, w: 11.0, h: 0.55,
-      fontSize: 20, bold: true, color: themeObj.titleText,
+    // 1. Category Badge (Top)
+    slide.addText(category, {
+      x: 0.6, y: 0.35, w: 8.8, h: 0.28,
+      fontSize: 10, bold: true, color: themeObj.categoryColor,
       fontFace: 'Segoe UI'
     });
 
-    // Bullet points card
-    const bullets = Array.isArray(s.bullets) ? s.bullets : [];
-    if (bullets.length > 0) {
-      slide.addShape(pres.ShapeType.rect, {
-        x: 0.8, y: 1.7, w: 11.7, h: 4.8,
-        fill: { color: themeObj.cardBg },
-        rectRadius: 0.1
+    // 2. Slide Title
+    slide.addText(slideTitle, {
+      x: 0.6, y: 0.62, w: 8.8, h: 0.85,
+      fontSize: 26, bold: true, color: themeObj.titleColor,
+      fontFace: 'Segoe UI'
+    });
+
+    // 3. KEY TAKEAWAY Banner Card
+    const hasTakeaway = Boolean(cleanTakeaway);
+    if (hasTakeaway) {
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 0.6, y: 1.55, w: 8.8, h: 0.48,
+        fill: { color: themeObj.takeawayBg },
+        line: { color: themeObj.takeawayBorder, width: 1.0 },
+        rectRadius: 0.05
       });
 
-      const bulletItems = bullets.map(b => ({
-        text: b.trim(),
-        options: {
-          bullet: { type: 'bullet', code: '2022' },
-          color: themeObj.text,
-          fontSize: 15,
-          fontFace: 'Segoe UI',
-          paraSpaceAfter: 12,
-          lineSpacingMultiple: 1.2
-        }
-      }));
-
-      slide.addText(bulletItems, {
-        x: 1.2, y: 2.0, w: 10.9, h: 4.2
+      slide.addText([
+        { text: 'KEY TAKEAWAY:  ', options: { bold: true, color: themeObj.takeawayLabel, fontSize: 11, fontFace: 'Segoe UI' } },
+        { text: cleanTakeaway, options: { bold: false, color: themeObj.takeawayText, fontSize: 11, fontFace: 'Segoe UI' } }
+      ], {
+        x: 0.75, y: 1.57, w: 8.5, h: 0.44,
+        valign: 'middle'
       });
     }
 
-    // Speaker notes
+    // 4. Content Bullets Area
+    const hasAnalogy = Boolean(cleanAnalogy);
+    const bulletY = hasTakeaway ? 2.15 : 1.60;
+    const bulletH = hasAnalogy ? 2.30 : (hasTakeaway ? 2.95 : 3.45);
+
+    if (bullets.length > 0) {
+      const textRuns = [];
+      bullets.forEach((b, bIdx) => {
+        const str = String(b).trim();
+        const colonIdx = str.indexOf(': ');
+        const isLast = bIdx === bullets.length - 1;
+
+        if (colonIdx > 0 && colonIdx < 45) {
+          const label = str.substring(0, colonIdx + 2);
+          const desc = str.substring(colonIdx + 2);
+          textRuns.push(
+            { text: label, options: { bold: true, color: themeObj.bulletLabelColor, fontSize: 15, fontFace: 'Segoe UI', bullet: { type: 'bullet', code: '2022' } } },
+            { text: desc + (isLast ? '' : '\n'), options: { bold: false, color: themeObj.textColor, fontSize: 15, fontFace: 'Segoe UI', paraSpaceAfter: 12, lineSpacingMultiple: 1.2 } }
+          );
+        } else {
+          textRuns.push({
+            text: str + (isLast ? '' : '\n'),
+            options: {
+              bullet: { type: 'bullet', code: '2022' },
+              color: themeObj.textColor,
+              fontSize: 15,
+              fontFace: 'Segoe UI',
+              paraSpaceAfter: 12,
+              lineSpacingMultiple: 1.2
+            }
+          });
+        }
+      });
+
+      slide.addText(textRuns, {
+        x: 0.6, y: bulletY, w: 8.8, h: bulletH
+      });
+    }
+
+    // 5. REAL-WORLD ANALOGY Banner Card
+    if (hasAnalogy) {
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 0.6, y: 4.65, w: 8.8, h: 0.48,
+        fill: { color: themeObj.analogyBg },
+        line: { color: themeObj.analogyBorder, width: 1.0 },
+        rectRadius: 0.05
+      });
+
+      slide.addText([
+        { text: 'REAL-WORLD ANALOGY:  ', options: { bold: true, color: themeObj.analogyLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+        { text: cleanAnalogy, options: { bold: false, color: themeObj.analogyText, fontSize: 10, fontFace: 'Segoe UI' } }
+      ], {
+        x: 0.75, y: 4.67, w: 8.5, h: 0.44,
+        valign: 'middle'
+      });
+    }
+
+    // 6. Slide Number
+    slide.addText(String(s.slideNumber || idx + 1), {
+      x: 9.3, y: 5.25, w: 0.5, h: 0.3,
+      fontSize: 10, color: themeObj.numColor, align: 'right', fontFace: 'Segoe UI'
+    });
+
+    // 7. Speaker Notes
     if (s.speakerNotes) {
       slide.addNotes(s.speakerNotes);
     }

@@ -144,7 +144,7 @@ async function getDocText(docId, userId, secIdx) {
     }
   }
   
-  if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+  if (!doc) {
     doc = localStore.getDocById(docId, userId);
   }
   

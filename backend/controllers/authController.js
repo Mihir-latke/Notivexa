@@ -71,18 +71,11 @@ exports.register = async (req, res, next) => {
       });
     }
 
-    // 2. Production requirement: Disallow silent fallback to ephemeral storage in production
-    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_MODE !== 'true') {
-      return res.status(503).json({
-        error: 'Database service is currently unavailable. Please check MONGODB_URI in environment configuration.'
-      });
-    }
-
-    // 3. Development / Demo mode persistent local store
-    console.log(`[Auth] MongoDB not connected: Registering "${normEmail}" in development local store`);
+    // 2. If MongoDB is not connected, use the autonomous local database store
+    console.log(`[Auth] MongoDB not connected: Registering "${normEmail}" in autonomous local store`);
     const existingLocal = localStore.findUserByEmail(normEmail);
     if (existingLocal) {
-      return res.status(409).json({ error: 'Email is already registered.' });
+      return res.status(409).json({ error: 'Email is already registered. Please sign in.' });
     }
 
     const newUser = await localStore.createUser({
@@ -98,7 +91,7 @@ exports.register = async (req, res, next) => {
       success: true,
       token: signToken(newUser._id || newUser.id),
       user: newUser,
-      message: 'Account created successfully in development mode.'
+      message: 'Account created successfully!'
     });
   } catch (err) {
     next(err);
@@ -132,23 +125,21 @@ exports.login = async (req, res, next) => {
       }
     }
 
-    // 2. Fallback to local store (for demo / dev mode)
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const localUser = localStore.findUserByEmail(normEmail);
-      if (localUser) {
-        const isMatch = await localStore.comparePassword(localUser, password);
-        if (isMatch) {
-          if (!localUser.isActive) {
-            return res.status(403).json({ error: 'Account has been deactivated.' });
-          }
-          const safeUser = { ...localUser };
-          delete safeUser.passwordHash;
-          return res.json({
-            success: true,
-            token: signToken(safeUser._id || safeUser.id),
-            user: safeUser
-          });
+    // 2. Fallback to local store
+    const localUser = localStore.findUserByEmail(normEmail);
+    if (localUser) {
+      const isMatch = await localStore.comparePassword(localUser, password);
+      if (isMatch) {
+        if (!localUser.isActive) {
+          return res.status(403).json({ error: 'Account has been deactivated.' });
         }
+        const safeUser = { ...localUser };
+        delete safeUser.passwordHash;
+        return res.json({
+          success: true,
+          token: signToken(safeUser._id || safeUser.id),
+          user: safeUser
+        });
       }
     }
 
@@ -166,13 +157,11 @@ exports.getProfile = async (req, res, next) => {
       if (user) return res.json({ success: true, user });
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const localUser = localStore.findUserById(userId);
-      if (localUser) {
-        const safe = { ...localUser };
-        delete safe.passwordHash;
-        return res.json({ success: true, user: safe });
-      }
+    const localUser = localStore.findUserById(userId);
+    if (localUser) {
+      const safe = { ...localUser };
+      delete safe.passwordHash;
+      return res.json({ success: true, user: safe });
     }
 
     res.json({ success: true, user: req.user });
@@ -195,9 +184,9 @@ exports.updateProfile = async (req, res, next) => {
       if (user) return res.json({ success: true, user });
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const updated = localStore.updateUser(userId, safeUpdates);
-      return res.json({ success: true, user: updated || { ...req.user, ...safeUpdates } });
+    const updated = localStore.updateUser(userId, safeUpdates);
+    if (updated) {
+      return res.json({ success: true, user: updated });
     }
 
     res.json({ success: true, user: { ...req.user, ...safeUpdates } });
@@ -226,15 +215,13 @@ exports.changePassword = async (req, res, next) => {
       }
     }
 
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const localUser = localStore.findUserById(userId);
-      if (localUser) {
-        const match = await localStore.comparePassword(localUser, currentPassword);
-        if (!match) return res.status(401).json({ error: 'Current password is incorrect.' });
-        const bcrypt = require('bcryptjs');
-        localStore.updateUser(userId, { passwordHash: await bcrypt.hash(newPassword, 12) });
-        return res.json({ success: true, message: 'Password updated successfully.' });
-      }
+    const localUser = localStore.findUserById(userId);
+    if (localUser) {
+      const match = await localStore.comparePassword(localUser, currentPassword);
+      if (!match) return res.status(401).json({ error: 'Current password is incorrect.' });
+      const bcrypt = require('bcryptjs');
+      localStore.updateUser(userId, { passwordHash: await bcrypt.hash(newPassword, 12) });
+      return res.json({ success: true, message: 'Password updated successfully.' });
     }
 
     res.status(404).json({ error: 'User account not found.' });

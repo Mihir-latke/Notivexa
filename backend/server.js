@@ -272,7 +272,7 @@ if (MONGODB_URI && !isPlaceholderUri && !MONGODB_URI.includes('localhost')) {
       console.warn('⚠️  MongoDB connection failed:', err.message);
       console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
       if (process.env.NODE_ENV === 'production') {
-        console.warn('⚠️  Running in Production with degraded database capability. Operations requiring database persistence will return 503.');
+        console.warn('ℹ️  Running in Production with autonomous local database store (multi-tenant isolated).');
       } else {
         console.warn('ℹ️  Running in Demo Mode.');
       }

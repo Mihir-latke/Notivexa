@@ -57,18 +57,16 @@ const authenticate = async (req, res, next) => {
       }
     }
 
-    // 2. Check local store (in development or demo mode only)
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      const localUser = localStore.findUserById(decoded.id);
-      if (localUser) {
-        if (!localUser.isActive) {
-          return res.status(403).json({ error: 'Account has been deactivated.' });
-        }
-        const safe = { ...localUser };
-        delete safe.passwordHash;
-        req.user = safe;
-        return next();
+    // 2. Check local store fallback
+    const localUser = localStore.findUserById(decoded.id);
+    if (localUser) {
+      if (!localUser.isActive) {
+        return res.status(403).json({ error: 'Account has been deactivated.' });
       }
+      const safe = { ...localUser };
+      delete safe.passwordHash;
+      req.user = safe;
+      return next();
     }
 
     // 3. User could not be mapped to any active account - STRICTLY REJECT (IDOR/Security fix)

@@ -844,36 +844,69 @@ ${chunk}`;
 }
 
 async function generatePPT(text, title, subject, lang = 'English') {
-  const prompt = `Create a detailed presentation from this document.
+  const prompt = `Create a high-impact, professional academic slide deck from this document.
 Title: "${title}" | Subject: ${subject}
 
-Return ONLY valid JSON:
+Return ONLY valid JSON matching this EXACT structure:
 {
-  "title": "${title}",
-  "subtitle": "Based on your uploaded document",
+  "title": "${title.slice(0, 70)}",
+  "subtitle": "Comprehensive Academic Presentation",
   "slides": [
     {
       "slideNumber": 1,
-      "title": "slide title",
-      "bullets": ["detailed point 1 (full sentence)", "point 2", "point 3", "point 4", "point 5"],
-      "speakerNotes": "Detailed notes for speaker - at least 3 sentences explaining the content",
-      "layout": "title|content|two-column"
+      "category": "INTRODUCTION",
+      "title": "Comprehensive Topic Overview",
+      "keyTakeaway": "An intuitive, high-value 1-sentence summary of the core thesis.",
+      "bullets": [
+        "Core Overview: Detailed explanation of the primary subject area and objectives.",
+        "Target Scope: Key concepts, analytical methodologies, and scope of study.",
+        "Significance: Why mastering this topic is essential for practical applications."
+      ],
+      "analogy": "A blueprint serves as the master guide before constructing complex architectures.",
+      "speakerNotes": "Introduce the document and establish context for the core syllabus principles."
+    },
+    {
+      "slideNumber": 2,
+      "category": "CORE PRINCIPLE",
+      "title": "Concept or Theorem Name",
+      "keyTakeaway": "Clear takeaway explaining the foundational rule or definition.",
+      "bullets": [
+        "Definition: Clear formal definition and standard terminology.",
+        "Input/Output: Resource requirements, domain bounds, and expected yields.",
+        "Operational Criteria: Finiteness, correctness, and procedural rules."
+      ],
+      "analogy": "A recipe describes a step-by-step procedure with finite ingredients and a guaranteed termination point.",
+      "speakerNotes": "Walk students through the operational criteria and historical rationale."
     }
   ]
 }
 
-Rules:
-- 10-15 slides covering ALL document content
-- Each slide has 4-6 detailed bullet points (full sentences not fragments)
-- Speaker notes must be detailed (50+ words each)
-- Only use document content
+Structure Rules:
+- 10 to 15 comprehensive slides covering the entire document systematically.
+- "category" MUST be one of: "INTRODUCTION", "CORE PRINCIPLE", "STEP-BY-STEP", "DEEP DIVE", "VISUAL SUMMARY", "QUICK SUMMARY", "CASE STUDY".
+- "keyTakeaway" MUST be a single, punchy 1-sentence synthesis (do NOT prepend "KEY TAKEAWAY:").
+- "bullets" MUST be 3 to 4 detailed points, EACH starting with a bold label prefix like "Label: Explanation..."
+- "analogy" MUST be an intuitive real-world analogy or practical mental model (do NOT prepend "REAL-WORLD ANALOGY:").
+- "speakerNotes" MUST provide 2-3 sentences of lecture talking points.
+- Ground all content strictly in the document text.
 
 Document:
 ${text.slice(0, 10000)}`;
 
-  const result = await callAI('Return only valid JSON.', prompt, 3000);
+  const result = await callAI('Return only valid JSON.', prompt, 3500);
   const data = parseJSON(result, null);
-  if (data?.slides?.length > 0) return data;
+  if (data?.slides?.length > 0) {
+    data.slides = data.slides.map((s, idx) => ({
+      slideNumber: s.slideNumber || idx + 1,
+      category: (s.category || (idx === 0 ? 'INTRODUCTION' : idx === data.slides.length - 1 ? 'QUICK SUMMARY' : 'CORE PRINCIPLE')).toUpperCase(),
+      title: s.title || `Slide ${idx + 1}`,
+      keyTakeaway: (s.keyTakeaway || s.takeaway || '').replace(/^KEY TAKEAWAY:\s*/i, '').trim(),
+      bullets: Array.isArray(s.bullets) ? s.bullets.map(b => typeof b === 'string' ? b.trim() : String(b)) : [],
+      analogy: (s.analogy || s.realWorldAnalogy || '').replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '').trim(),
+      speakerNotes: s.speakerNotes || ''
+    }));
+    return data;
+  }
   return pdf.makePPT(text, title, subject);
 }
 

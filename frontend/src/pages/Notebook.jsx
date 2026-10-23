@@ -56,11 +56,111 @@ export const PAPER_STYLES = [
 ];
 
 export const PPT_THEMES_LIST = [
-  { id: 'indigo', name: '🌌 Academic Indigo', bg: '#0F172A', card: '#1E293B', header: '#4F46E5', text: '#E2E8F0', title: '#FFFFFF', accent: '#818CF8', border: '#312E81' },
-  { id: 'light', name: '📄 Clean Light', bg: '#F8FAFC', card: '#FFFFFF', header: '#2563EB', text: '#334155', title: '#0F172A', accent: '#2563EB', border: '#CBD5E1' },
-  { id: 'emerald', name: '🌿 Emerald Forest', bg: '#064E3B', card: '#065F46', header: '#059669', text: '#D1FAE5', title: '#FFFFFF', accent: '#34D399', border: '#047857' },
-  { id: 'sunset', name: '🌅 Sunset Crimson', bg: '#4C0519', card: '#881337', header: '#E11D48', text: '#FFE4E6', title: '#FFFFFF', accent: '#FB7185', border: '#BE123C' },
-  { id: 'cyber', name: '⚡ Cyber Purple', bg: '#180828', card: '#2E1065', header: '#9333EA', text: '#F3E8FF', title: '#FFFFFF', accent: '#C084FC', border: '#6B21A8' }
+  {
+    id: 'light',
+    name: '📄 Clean Academic (Standard)',
+    bg: '#FFFFFF',
+    card: '#FFFFFF',
+    header: '#E11D48',
+    badge: '#E11D48',
+    text: '#334155',
+    title: '#0F172A',
+    accent: '#E11D48',
+    border: '#CBD5E1',
+    takeawayBg: '#FEF3C7',
+    takeawayBorder: '#F59E0B',
+    takeawayLabel: '#B45309',
+    takeawayText: '#78350F',
+    analogyBg: '#E0F2FE',
+    analogyBorder: '#38BDF8',
+    analogyLabel: '#0369A1',
+    analogyText: '#0C4A6E',
+    numColor: '#888888'
+  },
+  {
+    id: 'indigo',
+    name: '🌌 Academic Indigo',
+    bg: '#0F172A',
+    card: '#1E293B',
+    header: '#4F46E5',
+    badge: '#818CF8',
+    text: '#E2E8F0',
+    title: '#FFFFFF',
+    accent: '#818CF8',
+    border: '#312E81',
+    takeawayBg: '#1E293B',
+    takeawayBorder: '#F59E0B',
+    takeawayLabel: '#FBBF24',
+    takeawayText: '#FDE68A',
+    analogyBg: '#0F243A',
+    analogyBorder: '#38BDF8',
+    analogyLabel: '#38BDF8',
+    analogyText: '#BAE6FD',
+    numColor: '#64748B'
+  },
+  {
+    id: 'emerald',
+    name: '🌿 Emerald Forest',
+    bg: '#064E3B',
+    card: '#065F46',
+    header: '#059669',
+    badge: '#34D399',
+    text: '#D1FAE5',
+    title: '#FFFFFF',
+    accent: '#34D399',
+    border: '#047857',
+    takeawayBg: '#065F46',
+    takeawayBorder: '#F59E0B',
+    takeawayLabel: '#FBBF24',
+    takeawayText: '#FEF3C7',
+    analogyBg: '#04382B',
+    analogyBorder: '#38BDF8',
+    analogyLabel: '#67E8F9',
+    analogyText: '#E0F2FE',
+    numColor: '#059669'
+  },
+  {
+    id: 'sunset',
+    name: '🌅 Sunset Crimson',
+    bg: '#4C0519',
+    card: '#881337',
+    header: '#E11D48',
+    badge: '#FB7185',
+    text: '#FFE4E6',
+    title: '#FFFFFF',
+    accent: '#FB7185',
+    border: '#BE123C',
+    takeawayBg: '#881337',
+    takeawayBorder: '#F59E0B',
+    takeawayLabel: '#FBBF24',
+    takeawayText: '#FEF3C7',
+    analogyBg: '#701A75',
+    analogyBorder: '#38BDF8',
+    analogyLabel: '#38BDF8',
+    analogyText: '#E0F2FE',
+    numColor: '#9F1239'
+  },
+  {
+    id: 'cyber',
+    name: '⚡ Cyber Purple',
+    bg: '#180828',
+    card: '#2E1065',
+    header: '#9333EA',
+    badge: '#C084FC',
+    text: '#F3E8FF',
+    title: '#FFFFFF',
+    accent: '#C084FC',
+    border: '#6B21A8',
+    takeawayBg: '#2E1065',
+    takeawayBorder: '#F59E0B',
+    takeawayLabel: '#FBBF24',
+    takeawayText: '#FEF3C7',
+    analogyBg: '#1E1B4B',
+    analogyBorder: '#38BDF8',
+    analogyLabel: '#38BDF8',
+    analogyText: '#E0F2FE',
+    numColor: '#7E22CE'
+  }
 ];
 
 // Renders a handwritten-style page
@@ -429,7 +529,7 @@ export default function Notebook() {
   const [editSlides, setEditSlides] = useState([])
   const [editPaperData, setEditPaperData] = useState(null)
   const [paperEditMode, setPaperEditMode] = useState('visual') // 'visual' | 'json'
-  const [pptTheme, setPptTheme] = useState('indigo')
+  const [pptTheme, setPptTheme] = useState('light')
   const [exportingWord, setExportingWord] = useState(false)
   const [exportingPptx, setExportingPptx] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
@@ -1443,8 +1543,11 @@ export default function Notebook() {
                   onClick={() => {
                     const newSlide = {
                       slideNumber: editSlides.length + 1,
-                      title: 'New Slide Title',
-                      bullets: ['Key takeaway point 1', 'Key takeaway point 2'],
+                      category: 'CORE PRINCIPLE',
+                      title: 'New Concept Title',
+                      keyTakeaway: 'Key takeaway summarizing this slide.',
+                      bullets: ['Core Principle: Major foundational point', 'Operational Flow: Step-by-step procedure'],
+                      analogy: 'An intuitive real-world mental model for this topic.',
                       speakerNotes: 'Speaker notes for this slide'
                     }
                     setEditSlides([...editSlides, newSlide])
@@ -1496,19 +1599,26 @@ export default function Notebook() {
                   color: activeThemeObj.text
                 }}
               >
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10 }}>
-                  <span
-                    style={{
-                      background: activeThemeObj.header,
-                      color: '#fff',
-                      fontSize: 11,
-                      fontWeight: 700,
-                      padding: '3px 10px',
-                      borderRadius: 20
-                    }}
-                  >
-                    SLIDE {s.slideNumber || i + 1} OF {slides.length}
-                  </span>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 12 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
+                    <span
+                      style={{
+                        background: activeThemeObj.badge || activeThemeObj.header || '#E11D48',
+                        color: '#fff',
+                        fontSize: 11,
+                        fontWeight: 800,
+                        padding: '3px 10px',
+                        borderRadius: 6,
+                        letterSpacing: '0.8px',
+                        textTransform: 'uppercase'
+                      }}
+                    >
+                      {s.category || (i === 0 ? 'INTRODUCTION' : i === slides.length - 1 ? 'QUICK SUMMARY' : 'CORE PRINCIPLE')}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: activeThemeObj.numColor || 'var(--ink3)' }}>
+                      SLIDE {s.slideNumber || i + 1} OF {slides.length}
+                    </span>
+                  </div>
 
                   {isEditing && (
                     <button
@@ -1527,22 +1637,60 @@ export default function Notebook() {
 
                 {isEditing ? (
                   <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 10 }}>
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Category Badge:</label>
+                        <select
+                          className="fi"
+                          style={{ width: '100%', fontSize: 13, fontWeight: 700 }}
+                          value={s.category || 'CORE PRINCIPLE'}
+                          onChange={e => {
+                            const updated = [...editSlides]
+                            updated[i].category = e.target.value
+                            setEditSlides(updated)
+                          }}
+                        >
+                          <option value="INTRODUCTION">INTRODUCTION</option>
+                          <option value="CORE PRINCIPLE">CORE PRINCIPLE</option>
+                          <option value="STEP-BY-STEP">STEP-BY-STEP</option>
+                          <option value="DEEP DIVE">DEEP DIVE</option>
+                          <option value="VISUAL SUMMARY">VISUAL SUMMARY</option>
+                          <option value="QUICK SUMMARY">QUICK SUMMARY</option>
+                          <option value="CASE STUDY">CASE STUDY</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Slide Title:</label>
+                        <input
+                          className="fi"
+                          style={{ width: '100%', fontSize: 14, fontWeight: 700 }}
+                          value={s.title || ''}
+                          onChange={e => {
+                            const updated = [...editSlides]
+                            updated[i].title = e.target.value
+                            setEditSlides(updated)
+                          }}
+                        />
+                      </div>
+                    </div>
+
                     <div style={{ marginBottom: 10 }}>
-                      <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Slide Title:</label>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Key Takeaway Banner:</label>
                       <input
                         className="fi"
-                        style={{ width: '100%', fontSize: 14, fontWeight: 700 }}
-                        value={s.title || ''}
+                        style={{ width: '100%', fontSize: 13 }}
+                        placeholder="Single, punchy 1-sentence synthesis..."
+                        value={s.keyTakeaway || s.takeaway || ''}
                         onChange={e => {
                           const updated = [...editSlides]
-                          updated[i].title = e.target.value
+                          updated[i].keyTakeaway = e.target.value
                           setEditSlides(updated)
                         }}
                       />
                     </div>
 
                     <div style={{ marginBottom: 10 }}>
-                      <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Bullet Points:</label>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Bullet Points (Label: Detail):</label>
                       {(s.bullets || []).map((b, j) => (
                         <div key={j} style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
                           <input
@@ -1573,7 +1721,7 @@ export default function Notebook() {
                         style={{ fontSize: 11, marginTop: 4 }}
                         onClick={() => {
                           const updated = [...editSlides]
-                          updated[i].bullets = [...(updated[i].bullets || []), 'New key point']
+                          updated[i].bullets = [...(updated[i].bullets || []), 'Key Insight: Explanation']
                           setEditSlides(updated)
                         }}
                       >
@@ -1581,11 +1729,26 @@ export default function Notebook() {
                       </button>
                     </div>
 
+                    <div style={{ marginBottom: 10 }}>
+                      <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Real-World Analogy (or Key Insight):</label>
+                      <input
+                        className="fi"
+                        style={{ width: '100%', fontSize: 13 }}
+                        placeholder="Intuitive mental model or analogy..."
+                        value={s.analogy || s.realWorldAnalogy || ''}
+                        onChange={e => {
+                          const updated = [...editSlides]
+                          updated[i].analogy = e.target.value
+                          setEditSlides(updated)
+                        }}
+                      />
+                    </div>
+
                     <div>
                       <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ink2)', display: 'block', marginBottom: 4 }}>Speaker Notes:</label>
                       <textarea
                         className="fi"
-                        style={{ width: '100%', minHeight: 60, fontSize: 12 }}
+                        style={{ width: '100%', minHeight: 50, fontSize: 12 }}
                         value={s.speakerNotes || ''}
                         onChange={e => {
                           const updated = [...editSlides]
@@ -1600,31 +1763,115 @@ export default function Notebook() {
                     <div
                       style={{
                         fontFamily: 'Sora, sans-serif',
-                        fontSize: 16,
-                        fontWeight: 700,
+                        fontSize: 19,
+                        fontWeight: 800,
                         color: activeThemeObj.title,
-                        margin: '8px 0 12px'
+                        margin: '6px 0 12px'
                       }}
                     >
                       {s.title}
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {(s.bullets || []).map((b, j) => (
-                        <div
-                          key={j}
+                    {/* KEY TAKEAWAY Banner Card */}
+                    {(s.keyTakeaway || s.takeaway) && (
+                      <div
+                        style={{
+                          background: activeThemeObj.takeawayBg || '#FEF3C7',
+                          border: `1.5px solid ${activeThemeObj.takeawayBorder || '#F59E0B'}`,
+                          borderRadius: 8,
+                          padding: '10px 14px',
+                          marginBottom: 14,
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: 8,
+                          boxShadow: '0 2px 6px rgba(245,158,11,0.08)'
+                        }}
+                      >
+                        <span
                           style={{
-                            fontSize: 13.5,
-                            lineHeight: 1.6,
-                            paddingLeft: 12,
-                            borderLeft: `3px solid ${activeThemeObj.accent}`,
-                            color: activeThemeObj.text
+                            color: activeThemeObj.takeawayLabel || '#B45309',
+                            fontWeight: 800,
+                            fontSize: 11,
+                            letterSpacing: '0.5px',
+                            whiteSpace: 'nowrap'
                           }}
                         >
-                          {b}
-                        </div>
-                      ))}
+                          KEY TAKEAWAY:
+                        </span>
+                        <span
+                          style={{
+                            color: activeThemeObj.takeawayText || '#78350F',
+                            fontSize: 13,
+                            fontWeight: 500,
+                            lineHeight: 1.5
+                          }}
+                        >
+                          {(s.keyTakeaway || s.takeaway).replace(/^KEY TAKEAWAY:\s*/i, '')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Content Bullets with bold label prefixes */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
+                      {(s.bullets || []).map((b, j) => {
+                        const str = String(b).trim();
+                        const colonIdx = str.indexOf(': ');
+                        let label = '';
+                        let desc = str;
+                        if (colonIdx > 0 && colonIdx < 45) {
+                          label = str.substring(0, colonIdx);
+                          desc = str.substring(colonIdx + 2);
+                        }
+                        return (
+                          <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                            <span style={{ color: activeThemeObj.badge || activeThemeObj.accent, fontSize: 13, lineHeight: 1.6 }}>•</span>
+                            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: activeThemeObj.text }}>
+                              {label ? <strong style={{ color: activeThemeObj.title, fontWeight: 700 }}>{label}: </strong> : null}
+                              <span>{desc}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
+
+                    {/* REAL-WORLD ANALOGY Banner Card */}
+                    {(s.analogy || s.realWorldAnalogy) && (
+                      <div
+                        style={{
+                          background: activeThemeObj.analogyBg || '#E0F2FE',
+                          border: `1.5px solid ${activeThemeObj.analogyBorder || '#38BDF8'}`,
+                          borderRadius: 8,
+                          padding: '10px 14px',
+                          marginTop: 14,
+                          display: 'flex',
+                          alignItems: 'baseline',
+                          gap: 8,
+                          boxShadow: '0 2px 6px rgba(56,189,248,0.08)'
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: activeThemeObj.analogyLabel || '#0369A1',
+                            fontWeight: 800,
+                            fontSize: 10.5,
+                            letterSpacing: '0.5px',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          💡 REAL-WORLD ANALOGY:
+                        </span>
+                        <span
+                          style={{
+                            color: activeThemeObj.analogyText || '#0C4A6E',
+                            fontSize: 12.5,
+                            fontWeight: 500,
+                            lineHeight: 1.5
+                          }}
+                        >
+                          {(s.analogy || s.realWorldAnalogy).replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '')}
+                        </span>
+                      </div>
+                    )}
 
                     {s.speakerNotes && (
                       <div
@@ -1634,11 +1881,11 @@ export default function Notebook() {
                           opacity: 0.75,
                           marginTop: 12,
                           fontStyle: 'italic',
-                          borderTop: `1px solid ${activeThemeObj.border}`,
+                          borderTop: `1px dashed ${activeThemeObj.border}`,
                           paddingTop: 8
                         }}
                       >
-                        📝 Speaker Notes: {s.speakerNotes}
+                        🎙️ Speaker Notes: {s.speakerNotes}
                       </div>
                     )}
                   </div>
