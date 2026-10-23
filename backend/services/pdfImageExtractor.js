@@ -291,42 +291,70 @@ async function extractPageImagesFromPDF(pdfPath, maxPages = 30) {
         });
       }
 
+function downscaleRGBA(srcData, srcW, srcH, maxDim = 1600) {
+  if (srcW <= maxDim && srcH <= maxDim) {
+    return { data: srcData, width: srcW, height: srcH };
+  }
+  const scale = maxDim / Math.max(srcW, srcH);
+  const dstW = Math.round(srcW * scale);
+  const dstH = Math.round(srcH * scale);
+  const dstData = Buffer.alloc(dstW * dstH * 4);
+  for (let y = 0; y < dstH; y++) {
+    const srcY = Math.min(srcH - 1, Math.floor(y / scale));
+    for (let x = 0; x < dstW; x++) {
+      const srcX = Math.min(srcW - 1, Math.floor(x / scale));
+      const srcIdx = (srcY * srcW + srcX) * 4;
+      const dstIdx = (y * dstW + x) * 4;
+      dstData[dstIdx]     = srcData[srcIdx];
+      dstData[dstIdx + 1] = srcData[srcIdx + 1];
+      dstData[dstIdx + 2] = srcData[srcIdx + 2];
+      dstData[dstIdx + 3] = srcData[srcIdx + 3];
+    }
+  }
+  return { data: dstData, width: dstW, height: dstH };
+}
+
       if (largestImg && maxArea >= 5000) {
         const w = largestImg.width;
         const h = largestImg.height;
-        const png = new PNG({ width: w, height: h });
         const src = largestImg.data;
+        const fullRgba = Buffer.alloc(w * h * 4);
 
         if (largestImg.kind === 2) {
           // RGB (24-bit)
           for (let p = 0; p < w * h; p++) {
-            png.data[p * 4]     = src[p * 3];
-            png.data[p * 4 + 1] = src[p * 3 + 1];
-            png.data[p * 4 + 2] = src[p * 3 + 2];
-            png.data[p * 4 + 3] = 255;
+            fullRgba[p * 4]     = src[p * 3];
+            fullRgba[p * 4 + 1] = src[p * 3 + 1];
+            fullRgba[p * 4 + 2] = src[p * 3 + 2];
+            fullRgba[p * 4 + 3] = 255;
           }
         } else if (largestImg.kind === 3) {
           // RGBA (32-bit)
-          png.data.set(src);
+          fullRgba.set(src);
         } else {
           // Grayscale (8-bit)
           for (let p = 0; p < w * h; p++) {
             const val = src[p] !== undefined ? src[p] : 0;
-            png.data[p * 4]     = val;
-            png.data[p * 4 + 1] = val;
-            png.data[p * 4 + 2] = val;
-            png.data[p * 4 + 3] = 255;
+            fullRgba[p * 4]     = val;
+            fullRgba[p * 4 + 1] = val;
+            fullRgba[p * 4 + 2] = val;
+            fullRgba[p * 4 + 3] = 255;
           }
         }
+
+        // Downscale oversized scans (e.g. 2525x4256) for optimal OCR speed & payload safety
+        const scaled = downscaleRGBA(fullRgba, w, h, 1600);
+        const png = new PNG({ width: scaled.width, height: scaled.height });
+        png.data.set(scaled.data);
 
         const pngBuf = PNG.sync.write(png);
         results.push({
           page: pageNum,
           buffer: pngBuf,
-          width: w,
-          height: h
+          width: scaled.width,
+          height: scaled.height
         });
-        console.log(`[PageImgExtract ✅] Page ${pageNum} scanned page image extracted (${w}x${h})`);
+        console.log(`[PageImgExtract ✅] Page ${pageNum} scanned page image extracted (${scaled.width}x${scaled.height})`);
       }
     } catch (err) {
       console.warn(`[PageImgExtract] Error on page ${pageNum}:`, err.message);

@@ -67,6 +67,8 @@ async function extractScannedPdfOCR(filePath) {
         totalWords += (ocrResult.words || pageContent.split(/\s+/).filter(Boolean).length);
         console.log(`[Scanned PDF OCR ✅] Page ${pageItem.page} transcribed: ~${ocrResult.words} words`);
       }
+      // Smooth pace to prevent API rate limiting
+      await new Promise(r => setTimeout(r, 400));
     } catch (pageOcrErr) {
       console.warn(`[Scanned PDF OCR] Page ${pageItem.page} OCR skipped:`, pageOcrErr.message);
     }

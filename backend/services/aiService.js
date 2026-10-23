@@ -1371,12 +1371,18 @@ Transcribe all text from this scanned book page or image accurately and complete
 Preserve headings, paragraphs, bullet points, numbering, formulas, and multilingual terms (English, Hindi, Marathi, Sanskrit, etc.).
 Do not add conversational filler. Output only the transcribed content clearly formatted in clean Markdown.`;
 
-  const models = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'];
+  const models = [
+    'gemini-3-flash-preview',
+    'gemini-flash-latest',
+    'gemini-2.5-flash',
+    'gemini-3.1-flash-lite-preview',
+    'gemini-3.8-flash'
+  ];
   let lastErr;
 
   for (const model of models) {
     try {
-      const res = await fetch(
+      let res = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
         {
           method: 'POST',
@@ -1390,9 +1396,32 @@ Do not add conversational filler. Output only the transcribed content clearly fo
             }],
             generationConfig: { maxOutputTokens: 2500, temperature: 0.1 }
           }),
-          timeout: 25000
+          timeout: 30000
         }
       );
+
+      // Handle rate limits gracefully with backoff retry
+      if (res.status === 429) {
+        console.warn(`[Vision OCR] Rate limited on ${model}. Pausing 1.5s before retry...`);
+        await new Promise(r => setTimeout(r, 1500));
+        res = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{
+                parts: [
+                  { text: systemPrompt },
+                  { inlineData: { mimeType: mimeType || 'image/png', data: imageBase64 } }
+                ]
+              }],
+              generationConfig: { maxOutputTokens: 2500, temperature: 0.1 }
+            }),
+            timeout: 30000
+          }
+        );
+      }
 
       if (!res.ok) {
         lastErr = new Error(`Vision OCR (${model}) ${res.status}: ${await res.text()}`);
