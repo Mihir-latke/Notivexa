@@ -16,25 +16,39 @@ fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
   fs.mkdirSync(path.join(__dirname, 'uploads', d), { recursive: true });
 });
 
-// Security
+// Production Security Pre-flight Check
+if (process.env.NODE_ENV === 'production') {
+  const secret = process.env.JWT_SECRET;
+  if (!secret || secret.trim().length < 16 || secret === 'notivexa_secret') {
+    console.error('❌ CRITICAL SECURITY ERROR: Missing or insecure JWT_SECRET in production. Minimum 16 characters required.');
+    process.exit(1);
+  }
+}
+
+// Security headers
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
   'https://notivexa.com',
   'https://www.notivexa.com',
+  'https://notivexa.onrender.com',
   process.env.FRONTEND_URL
 ].filter(Boolean);
+
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
       return callback(null, true);
     }
-    return callback(null, true);
+    return callback(new Error('CORS blocked: Origin not authorized.'));
   },
   credentials: true,
-  methods: ['GET','POST','PUT','DELETE','PATCH']
+  methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 500, message: { error: 'Too many requests.' } }));
 app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
@@ -42,21 +56,24 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Serve uploaded files and auto-restore extracted diagrams from DB if missing on disk
 app.get('/uploads/images/extracted/:docId/:fileName', async (req, res, next) => {
-  const { docId, fileName } = req.params;
-  const targetPath = path.join(__dirname, 'uploads/images/extracted', docId, fileName);
+  const safeDocId = path.basename(req.params.docId);
+  const safeFileName = path.basename(req.params.fileName);
+  const targetPath = path.join(__dirname, 'uploads/images/extracted', safeDocId, safeFileName);
+
   if (fs.existsSync(targetPath)) {
     return res.sendFile(targetPath);
   }
+
   try {
     const { Document } = require('./models');
-    const localStore = require('./services/localStore');
+    const localStore = require('./utils/localStore');
     let doc = null;
     if (mongoose.connection.readyState === 1) {
-      try { doc = await Document.findById(docId).lean(); } catch {}
+      try { doc = await Document.findById(safeDocId).lean(); } catch {}
     }
-    if (!doc) doc = localStore.getDocById(docId);
+    if (!doc) doc = localStore.getDocById(safeDocId);
     if (doc && Array.isArray(doc.diagrams)) {
-      const match = doc.diagrams.find(d => d.fileName === fileName);
+      const match = doc.diagrams.find(d => d.fileName === safeFileName);
       if (match && match.base64) {
         fs.mkdirSync(path.dirname(targetPath), { recursive: true });
         fs.writeFileSync(targetPath, Buffer.from(match.base64, 'base64'));
@@ -71,7 +88,8 @@ app.get('/uploads/images/extracted/:docId/:fileName', async (req, res, next) => 
 
 // Optimized Range-Streaming for generated MP4 videos (prevents ECONNRESET / socket stalls)
 app.get('/uploads/video/:filename', (req, res, next) => {
-  const filePath = path.join(__dirname, 'uploads/video', req.params.filename);
+  const safeFileName = path.basename(req.params.filename);
+  const filePath = path.join(__dirname, 'uploads/video', safeFileName);
   if (!fs.existsSync(filePath)) return next();
 
   let stat;
@@ -111,7 +129,6 @@ app.get('/uploads/video/:filename', (req, res, next) => {
       if (!res.headersSent) res.status(500).end();
     });
 
-    // Safely destroy file stream when client seeks or disconnects
     req.on('close', () => {
       fileStream.destroy();
     });
@@ -151,14 +168,13 @@ app.use('/api/library',    require('./routes/library'));
 app.use('/api/ebooks',     require('./routes/ebooks'));
 app.use('/api/planner',    require('./routes/planner'));
 
-
 // API Setup status endpoint
 app.get('/api/setup', (req, res) => {
   const keys = {
-    gemini:  process.env.GEMINI_API_KEY,
-    groq:    process.env.GROQ_API_KEY,
-    claude:  process.env.ANTHROPIC_API_KEY,
-    googleTTS: process.env.GOOGLE_TTS_API_KEY,
+    gemini:     process.env.GEMINI_API_KEY,
+    groq:       process.env.GROQ_API_KEY,
+    claude:     process.env.ANTHROPIC_API_KEY,
+    googleTTS:  process.env.GOOGLE_TTS_API_KEY,
     elevenLabs: process.env.ELEVENLABS_API_KEY,
   };
   const status = {};
@@ -169,33 +185,40 @@ app.get('/api/setup', (req, res) => {
   });
   
   if (!status.gemini && !status.groq && !status.claude) {
-    instructions.ai = 'Add GROQ_API_KEY (free at console.groq.com) for much better AI output';
+    instructions.ai = 'Add GROQ_API_KEY (free at console.groq.com) or GEMINI_API_KEY (free at aistudio.google.com)';
   }
   if (!status.googleTTS && !status.elevenLabs) {
-    instructions.tts = 'Add GOOGLE_TTS_API_KEY (free at console.cloud.google.com) for real audio';
+    instructions.tts = 'Using high-speed Edge TTS for audio narration.';
   }
   
   res.json({ 
     status,
     hasAI: status.gemini || status.groq || status.claude,
-    hasTTS: status.googleTTS || status.elevenLabs,
+    hasTTS: status.googleTTS || status.elevenLabs || true,
     instructions,
     freeAPIs: [
-      { name: 'Groq AI (FREE)', url: 'https://console.groq.com', envKey: 'GROQ_API_KEY', description: 'Free Llama 3 AI - best for students' },
-      { name: 'Google Gemini (FREE)', url: 'https://aistudio.google.com', envKey: 'GEMINI_API_KEY', description: 'Free Gemini AI' },
+      { name: 'Google Gemini (FREE)', url: 'https://aistudio.google.com', envKey: 'GEMINI_API_KEY', description: 'Free Gemini 3.8 Flash AI' },
+      { name: 'Groq AI (FREE)', url: 'https://console.groq.com', envKey: 'GROQ_API_KEY', description: 'Free ultra-fast Llama 3 & Qwen AI' },
       { name: 'Google TTS (FREE)', url: 'https://console.cloud.google.com', envKey: 'GOOGLE_TTS_API_KEY', description: '1M chars/month free audio' },
       { name: 'ElevenLabs (FREE)', url: 'https://elevenlabs.io', envKey: 'ELEVENLABS_API_KEY', description: '10K chars/month free audio' },
     ]
   });
 });
 
-app.get('/api/health', (req, res) => res.json({
-  status: 'ok',
-  app: 'Notivexa v2.0',
-  dbConnected: mongoose.connection.readyState === 1,
-  dbState: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
-  time: new Date().toISOString()
-}));
+app.get('/api/health', (req, res) => {
+  const dbConnected = mongoose.connection.readyState === 1;
+  const isProd = process.env.NODE_ENV === 'production';
+  res.json({
+    status: dbConnected ? 'ok' : (isProd ? 'degraded_no_database' : 'demo_mode'),
+    app: 'Notivexa v2.0',
+    environment: process.env.NODE_ENV || 'development',
+    dbConnected,
+    dbState: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
+    storageMode: dbConnected ? 'mongodb_atlas' : (isProd ? 'database_required' : 'local_store_demo'),
+    uptimeSeconds: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Serve frontend dist in production or when built
 const distPath = path.join(__dirname, '../frontend/dist');
@@ -211,8 +234,17 @@ if (fs.existsSync(distPath)) {
 app.use((req, res, next) => res.status(404).json({ error: `Route not found: ${req.originalUrl}` }));
 app.use((err, req, res, next) => {
   console.error('[ERROR]', err.message);
-  if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File too large. Max 50MB.' });
-  res.status(err.status || 500).json({ error: err.message || 'Internal server error' });
+  if (err.message && err.message.includes('CORS blocked')) {
+    return res.status(403).json({ error: err.message });
+  }
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'File too large. Maximum file size is 50MB.' });
+  }
+  const status = err.status || 500;
+  const message = process.env.NODE_ENV === 'production' && status === 500
+    ? 'Internal server error'
+    : (err.message || 'Internal server error');
+  res.status(status).json({ error: message });
 });
 
 // Start
@@ -234,7 +266,11 @@ if (MONGODB_URI && !isPlaceholderUri && !MONGODB_URI.includes('localhost')) {
     .catch(err => {
       console.warn('⚠️  MongoDB connection failed:', err.message);
       console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
-      console.warn('ℹ️  Running in Demo Mode.');
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('⚠️  Running in Production with degraded database capability. Operations requiring database persistence will return 503.');
+      } else {
+        console.warn('ℹ️  Running in Demo Mode.');
+      }
     });
 } else if (MONGODB_URI && MONGODB_URI.includes('localhost') && process.env.NODE_ENV !== 'production') {
   mongoose.connect(MONGODB_URI, {
@@ -251,10 +287,13 @@ if (MONGODB_URI && !isPlaceholderUri && !MONGODB_URI.includes('localhost')) {
   if (isPlaceholderUri) {
     console.log('ℹ️  Please replace <username> and <password> in MONGODB_URI with your MongoDB Atlas credentials.');
   } else {
-    console.log('ℹ️  No MONGODB_URI provided. Running in Demo Mode.');
+    console.log('ℹ️  No MONGODB_URI provided.');
   }
   console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent storage.');
 }
 
-app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
+if (require.main === module) {
+  app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));
+}
+
 module.exports = app;

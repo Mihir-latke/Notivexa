@@ -129,32 +129,31 @@ async function safeUserStatsUpdate(userId, updateObj) {
   }
 }
 
-// Get document text with fallback to sample demo docs
+// Get document text with strict multi-tenant ownership check
 async function getDocText(docId, userId, secIdx) {
   if (!docId) throw Object.assign(new Error('Document ID is required.'), { status: 400 });
   
   let doc = null;
   if (isDbConnected()) {
     try {
-      doc = await Document.findOne({ _id: docId, user: userId });
-      if (!doc) doc = await Document.findById(docId);
-    } catch {}
+      if (mongoose.Types.ObjectId.isValid(docId)) {
+        doc = await Document.findOne({ _id: docId, user: userId });
+      }
+    } catch (err) {
+      console.warn('[Generate getDocText DB Error]', err.message);
+    }
   }
   
-  if (!doc) {
-    doc = localStore.getDocById(docId);
+  if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+    doc = localStore.getDocById(docId, userId);
   }
   
+  // Only match sample demo doc if docId explicitly equals the sample demo doc ID
   if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
     doc = SAMPLE_DEMO_DOCS.find(d => (d._id && d._id.toString() === docId.toString()) || d.id === docId);
   }
   
-  // If still not found and in demo/preview mode, fallback to the first sample doc
-  if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
-    doc = SAMPLE_DEMO_DOCS[0];
-  }
-  
-  if (!doc) throw Object.assign(new Error('Document not found.'), { status: 404 });
+  if (!doc) throw Object.assign(new Error('Document not found or access denied.'), { status: 404 });
   
   let text = '';
   if (secIdx !== undefined && secIdx !== null && doc.sections?.length > 0) {

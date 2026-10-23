@@ -43,8 +43,8 @@ function buildSections(text) {
   const isHeading = line => {
     const t = line.trim();
     if (!t || t.length > 120) return false;
-    return /^(chapter|unit|section|module|topic|part)\s+[\d\w]/i.test(t) ||
-           /^\d+\.\s+[A-Z]/.test(t) ||
+    return /^(chapter|unit|section|module|topic|part|अध्याय|प्रकरण|घटक|पाठ)\s+[\d\w\u0966-\u096F]/i.test(t) ||
+           /^\d+\.\s+[A-Z\u0900-\u097F]/.test(t) ||
            /^[A-Z][A-Z\s\d\-–:]{5,60}$/.test(t) ||
            /^[IVX]+\.\s+[A-Z]/.test(t);
   };

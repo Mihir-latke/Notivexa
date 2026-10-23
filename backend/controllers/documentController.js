@@ -14,6 +14,7 @@ const SAMPLE_DEMO_DOCS = [
   {
     _id: '6acd1272c42773e489b74e48',
     id: '6acd1272c42773e489b74e48',
+    isDemo: true,
     title: 'Java Database Connectivity (JDBC) & Architecture',
     originalName: 'JDBC_Architecture_Guide.pdf',
     fileType: 'pdf',
@@ -55,16 +56,27 @@ exports.SAMPLE_DEMO_DOCS = SAMPLE_DEMO_DOCS;
 
 exports.upload = async (req, res, next) => {
   try {
-    if (!req.files?.length) return res.status(400).json({ error: 'No files uploaded.' });
-    
-    // 1. Fallback when MongoDB is not connected
+    if (!req.files?.length) {
+      return res.status(400).json({ error: 'No files uploaded. Please select at least one PDF or image.' });
+    }
+
+    const userId = req.user?.id || req.user?._id;
+
+    // 1. Production check: If in production and DB is not connected, fail explicitly
+    if (process.env.NODE_ENV === 'production' && !isDbConnected() && process.env.ALLOW_DEMO_MODE !== 'true') {
+      return res.status(503).json({
+        error: 'Database service is currently unavailable. File uploads require a persistent database in production.'
+      });
+    }
+
+    // 2. Development / Demo mode fallback when MongoDB is not connected
     if (!isDbConnected()) {
       const results = [];
       for (const file of req.files) {
         const isImage = file.mimetype.startsWith('image/');
         const docTitle = req.body.title || file.originalname.replace(/\.[^/.]+$/, '');
         const subject = req.body.subject || 'General';
-        
+
         try {
           let ext;
           if (isImage) {
@@ -72,9 +84,9 @@ exports.upload = async (req, res, next) => {
           } else {
             ext = await extractFromPDF(file.path);
           }
-          // Create doc first (to get an ID), then extract images
+
           const doc = localStore.createDoc({
-            user: req.user.id,
+            user: userId,
             title: docTitle,
             originalName: file.originalname,
             fileType: isImage ? 'image' : 'pdf',
@@ -89,29 +101,22 @@ exports.upload = async (req, res, next) => {
             status: 'ready',
             imagePaths: []
           });
-          // Extract embedded images from PDF (async, non-blocking)
+
           if (!isImage) {
             const docId = (doc._id || doc.id).toString();
             extractImagesFromPDF(file.path, docId).then(imgs => {
               if (imgs.length > 0) {
                 const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
-                const diagrams = imgs.slice(0, 8).map(img => ({
-                  page: img.page,
-                  fileName: img.fileName,
-                  base64: img.base64 || (fs.existsSync(img.filePath) ? fs.readFileSync(img.filePath).toString('base64') : null)
-                })).filter(d => d.base64);
-                localStore.updateDoc(docId, { imagePaths: relPaths, diagrams });
-                console.log(`[ImgExtract] Stored ${relPaths.length} image path(s) and ${diagrams.length} diagrams for doc ${docId}`);
+                localStore.updateDoc(docId, { imagePaths: relPaths }, userId);
               }
             }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
           }
-          console.log(`[Upload Local OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
-          results.push({ doc, ok: true });
 
-        } catch(e) {
+          results.push({ doc, ok: true });
+        } catch (e) {
           console.error(`[Upload Local FAIL] ${file.originalname}:`, e.message);
           const doc = localStore.createDoc({
-            user: req.user.id,
+            user: userId,
             title: docTitle,
             originalName: file.originalname,
             fileType: isImage ? 'image' : 'pdf',
@@ -125,12 +130,12 @@ exports.upload = async (req, res, next) => {
           results.push({ doc, ok: false, error: e.message });
         }
       }
-      
-      const user = localStore.findUserById(req.user.id);
+
+      const user = localStore.findUserById(userId);
       if (user) {
         user.studyStats = user.studyStats || {};
         user.studyStats.documentsUploaded = (user.studyStats.documentsUploaded || 0) + req.files.length;
-        localStore.updateUser(req.user.id, { studyStats: user.studyStats });
+        localStore.updateUser(userId, { studyStats: user.studyStats });
       }
 
       const ok = results.filter(r => r.ok).length;
@@ -143,20 +148,22 @@ exports.upload = async (req, res, next) => {
       });
     }
 
-    // 2. Connected MongoDB
+    // 3. Connected MongoDB
     const results = [];
     for (const file of req.files) {
       const isImage = file.mimetype.startsWith('image/');
       const doc = await Document.create({
-        user: req.user.id,
+        user: userId,
         title: req.body.title || file.originalname.replace(/\.[^/.]+$/, ''),
         originalName: file.originalname,
-        fileType: isImage ? 'image' : 'pdf', 
+        fileType: isImage ? 'image' : 'pdf',
         mimeType: file.mimetype,
-        size: file.size, filePath: file.path,
+        size: file.size,
+        filePath: file.path,
         status: 'processing',
         subject: req.body.subject || 'General'
       });
+
       try {
         let ext;
         if (isImage) {
@@ -164,50 +171,49 @@ exports.upload = async (req, res, next) => {
         } else {
           ext = await extractFromPDF(file.path);
         }
-        doc.extractedText = ext.text;   // FULL text saved
+        doc.extractedText = ext.text;
         doc.sections      = ext.sections;
         doc.pageCount     = ext.pages;
         doc.wordCount     = ext.words;
         doc.status        = 'ready';
         await doc.save();
-        // Extract embedded images from PDF asynchronously
+
         if (!isImage) {
           const docId = doc._id.toString();
           extractImagesFromPDF(file.path, docId).then(async imgs => {
             if (imgs.length > 0) {
               const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
-              const diagrams = imgs.slice(0, 8).map(img => ({
-                page: img.page,
-                fileName: img.fileName,
-                base64: img.base64 || (fs.existsSync(img.filePath) ? fs.readFileSync(img.filePath).toString('base64') : null)
-              })).filter(d => d.base64);
-
               try {
-                await Document.findByIdAndUpdate(doc._id, { imagePaths: relPaths, diagrams });
-                console.log(`[ImgExtract] Stored ${relPaths.length} image(s) and ${diagrams.length} diagrams for doc ${doc._id}`);
-              } catch (e) { console.warn('[ImgExtract] DB update failed:', e.message); }
+                await Document.findByIdAndUpdate(doc._id, { imagePaths: relPaths });
+              } catch (e) {
+                console.warn('[ImgExtract] DB update failed:', e.message);
+              }
             }
           }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
         }
-        console.log(`[Upload OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
+
         results.push({ doc, ok: true });
-      } catch(e) {
+      } catch (e) {
         console.error(`[Upload FAIL] ${file.originalname}:`, e.message);
-        doc.status = 'error'; doc.errorMessage = e.message;
+        doc.status = 'error';
+        doc.errorMessage = e.message;
         await doc.save();
         results.push({ doc, ok: false, error: e.message });
       }
     }
-    await User.findByIdAndUpdate(req.user.id, { $inc: { 'studyStats.documentsUploaded': req.files.length } });
+
+    await User.findByIdAndUpdate(userId, { $inc: { 'studyStats.documentsUploaded': req.files.length } });
     const ok = results.filter(r => r.ok).length;
     const err = results.filter(r => !r.ok);
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: `${ok}/${results.length} PDF(s) processed successfully`,
       documents: results.map(r => r.doc),
       errors: err.map(e => ({ file: e.doc.originalName, error: e.error }))
     });
-  } catch(e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.importUrl = async (req, res, next) => {
@@ -217,15 +223,20 @@ exports.importUrl = async (req, res, next) => {
       return res.status(400).json({ error: 'Please provide a valid URL.' });
     }
 
+    const userId = req.user?.id || req.user?._id;
     const trimmedUrl = url.trim();
-    console.log(`[Import URL] User ${req.user.id} requested: ${trimmedUrl}`);
 
-    // 1. Fallback when MongoDB is not connected
+    if (process.env.NODE_ENV === 'production' && !isDbConnected() && process.env.ALLOW_DEMO_MODE !== 'true') {
+      return res.status(503).json({
+        error: 'Database service is currently unavailable. Web imports require a persistent database in production.'
+      });
+    }
+
     if (!isDbConnected()) {
       try {
         const ext = await extractFromUrl(trimmedUrl, subject?.trim() || 'General');
         const doc = localStore.createDoc({
-          user: req.user.id,
+          user: userId,
           title: title?.trim() || ext.title || 'Web Link',
           originalName: ext.originalName || trimmedUrl,
           fileType: ext.fileType || 'url',
@@ -238,29 +249,26 @@ exports.importUrl = async (req, res, next) => {
           pageCount: ext.pages,
           wordCount: ext.words
         });
-        
-        const user = localStore.findUserById(req.user.id);
+
+        const user = localStore.findUserById(userId);
         if (user) {
           user.studyStats = user.studyStats || {};
           user.studyStats.documentsUploaded = (user.studyStats.documentsUploaded || 0) + 1;
-          localStore.updateUser(req.user.id, { studyStats: user.studyStats });
+          localStore.updateUser(userId, { studyStats: user.studyStats });
         }
 
-        console.log(`[Import URL Local OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
         return res.status(201).json({
           success: true,
           message: 'Content successfully extracted from link!',
           document: doc
         });
       } catch (e) {
-        console.error(`[Import URL Local FAIL] ${trimmedUrl}:`, e.message);
         return res.status(422).json({ error: e.message });
       }
     }
 
-    // 2. Connected MongoDB
     const doc = await Document.create({
-      user: req.user.id,
+      user: userId,
       title: title?.trim() || 'Fetching link content...',
       originalName: trimmedUrl,
       fileType: 'url',
@@ -272,7 +280,6 @@ exports.importUrl = async (req, res, next) => {
 
     try {
       const ext = await extractFromUrl(trimmedUrl, doc.subject);
-
       doc.title         = title?.trim() || ext.title || doc.title;
       doc.originalName  = ext.originalName || trimmedUrl;
       doc.fileType      = ext.fileType || 'url';
@@ -285,25 +292,21 @@ exports.importUrl = async (req, res, next) => {
       doc.status        = 'ready';
       await doc.save();
 
-      await User.findByIdAndUpdate(req.user.id, { $inc: { 'studyStats.documentsUploaded': 1 } });
-      console.log(`[Import URL OK] "${doc.title}": ${ext.words} words, ${ext.pages} pages, ${ext.sections.length} sections`);
-
+      await User.findByIdAndUpdate(userId, { $inc: { 'studyStats.documentsUploaded': 1 } });
       res.status(201).json({
         success: true,
         message: 'Content successfully extracted from link!',
         document: doc
       });
-    } catch(e) {
-      console.error(`[Import URL FAIL] ${trimmedUrl}:`, e.message);
+    } catch (e) {
       doc.status = 'error';
       doc.errorMessage = e.message;
       await doc.save();
-      return res.status(422).json({
-        error: e.message,
-        document: doc
-      });
+      return res.status(422).json({ error: e.message, document: doc });
     }
-  } catch(e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.list = async (req, res, next) => {
@@ -323,27 +326,31 @@ exports.list = async (req, res, next) => {
       }
     }
 
-    // Always merge localStore docs so documents uploaded locally are accessible
-    let localDocs = localStore.getDocsByUser(userId);
-    if (search) localDocs = localDocs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
-    if (status) localDocs = localDocs.filter(d => d.status === status);
+    // In dev / demo mode, load user's localStore documents (strictly scoped to userId)
+    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
+      let localDocs = localStore.getDocsByUser(userId);
+      if (search) localDocs = localDocs.filter(d => (d.title || '').toLowerCase().includes(search.toLowerCase()));
+      if (status) localDocs = localDocs.filter(d => d.status === status);
 
-    const existingIds = new Set(docs.map(d => (d._id || d.id).toString()));
-    for (const ld of localDocs) {
-      const idStr = (ld._id || ld.id).toString();
-      if (!existingIds.has(idStr)) {
-        docs.push(ld);
-        existingIds.add(idStr);
+      const existingIds = new Set(docs.map(d => (d._id || d.id).toString()));
+      for (const ld of localDocs) {
+        const idStr = (ld._id || ld.id).toString();
+        if (!existingIds.has(idStr)) {
+          docs.push(ld);
+          existingIds.add(idStr);
+        }
       }
     }
 
-    // If still empty, provide demo doc so user is not greeted by an empty screen
+    // Only present demo doc preview if the user has no documents of their own
     if (docs.length === 0 && SAMPLE_DEMO_DOCS?.length > 0) {
       return res.json({ success: true, documents: SAMPLE_DEMO_DOCS });
     }
 
     res.json({ success: true, documents: docs });
-  } catch(e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.get = async (req, res, next) => {
@@ -352,28 +359,36 @@ exports.get = async (req, res, next) => {
     const userId = req.user?.id || req.user?._id;
     let doc = null;
 
+    // 1. Check MongoDB with strict multi-tenant ownership check
     if (isDbConnected()) {
       try {
         if (mongoose.Types.ObjectId.isValid(docId)) {
           doc = await Document.findOne({ _id: docId, user: userId });
-          if (!doc) doc = await Document.findById(docId);
+          // SECURITY FIX: Removed unscoped fallback Document.findById(docId) to prevent IDOR
         }
       } catch (err) {
         console.warn('[DocGet DB Error]', err.message);
       }
     }
 
-    if (!doc) {
-      doc = localStore.getDocById(docId);
+    // 2. Check local store with strict user ownership check
+    if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+      doc = localStore.getDocById(docId, userId);
     }
 
+    // 3. Check sample demo docs only if ID matches demo doc ID
     if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
       doc = SAMPLE_DEMO_DOCS.find(x => (x._id && x._id.toString() === docId.toString()) || x.id === docId);
     }
 
-    if (!doc) return res.status(404).json({ error: 'Document not found.' });
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found or access denied.' });
+    }
+
     return res.json({ success: true, document: doc });
-  } catch(e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.remove = async (req, res, next) => {
@@ -392,13 +407,19 @@ exports.remove = async (req, res, next) => {
       }
     }
 
-    if (!doc) {
-      const localDoc = localStore.getDocById(docId);
-      if (localDoc && localDoc.filePath && fs.existsSync(localDoc.filePath)) {
-        try { fs.unlinkSync(localDoc.filePath); } catch {}
+    if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+      const localDoc = localStore.getDocById(docId, userId);
+      if (localDoc && localDoc.user && localDoc.user.toString() === userId.toString()) {
+        if (localDoc.filePath && fs.existsSync(localDoc.filePath)) {
+          try { fs.unlinkSync(localDoc.filePath); } catch {}
+        }
+        localStore.deleteDoc(docId, userId);
+        return res.json({ success: true });
       }
-      localStore.deleteDoc(docId);
-      return res.json({ success: true });
+    }
+
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found or access denied.' });
     }
 
     if (doc.filePath && fs.existsSync(doc.filePath)) {
@@ -406,18 +427,28 @@ exports.remove = async (req, res, next) => {
     }
     await doc.deleteOne();
     return res.json({ success: true });
-  } catch(e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };
 
 exports.stats = async (req, res, next) => {
   try {
     const userId = req.user?.id || req.user?._id;
-    const localDocs = localStore.getDocsByUser(userId);
-    let total = localDocs.length;
-    let ready = localDocs.filter(d => d.status === 'ready').length;
-    let processing = localDocs.filter(d => d.status === 'processing').length;
-    let error = localDocs.filter(d => d.status === 'error').length;
-    let totalSize = localDocs.reduce((acc, d) => acc + (d.size || 0), 0);
+    let total = 0;
+    let ready = 0;
+    let processing = 0;
+    let error = 0;
+    let totalSize = 0;
+
+    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
+      const localDocs = localStore.getDocsByUser(userId);
+      total += localDocs.length;
+      ready += localDocs.filter(d => d.status === 'ready').length;
+      processing += localDocs.filter(d => d.status === 'processing').length;
+      error += localDocs.filter(d => d.status === 'error').length;
+      totalSize += localDocs.reduce((acc, d) => acc + (d.size || 0), 0);
+    }
 
     if (isDbConnected()) {
       try {
@@ -444,5 +475,7 @@ exports.stats = async (req, res, next) => {
     }
 
     res.json({ success: true, stats: { total, ready, processing, error, totalSize } });
-  } catch(e) { next(e); }
+  } catch (e) {
+    next(e);
+  }
 };

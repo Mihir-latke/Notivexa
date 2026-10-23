@@ -1,13 +1,18 @@
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const mongoose = require('mongoose');
+
+function generateValidId() {
+  return new mongoose.Types.ObjectId().toString();
+}
 
 const DATA_DIR = path.join(__dirname, '../data');
 if (!fs.existsSync(DATA_DIR)) {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   } catch (err) {
-    console.warn('Could not create data dir:', err.message);
+    console.warn('[LocalStore] Could not create data dir:', err.message);
   }
 }
 
@@ -52,6 +57,7 @@ const DEFAULT_DOCS = [
     _id: '6acd1272c42773e489b74e48',
     id: '6acd1272c42773e489b74e48',
     user: '507f191e810c19729de860ea',
+    isDemo: true,
     title: 'Java Database Connectivity (JDBC) & Architecture',
     originalName: 'JDBC_Architecture_Guide.pdf',
     fileType: 'pdf',
@@ -103,7 +109,9 @@ function readJson(file, fallback) {
 
 function writeJson(file, data) {
   try {
-    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8');
+    const tmpFile = `${file}.tmp.${Date.now()}`;
+    fs.writeFileSync(tmpFile, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tmpFile, file);
   } catch (e) {
     console.warn(`[LocalStore] Write error for ${path.basename(file)}:`, e.message);
   }
@@ -130,18 +138,19 @@ exports.findUserById = (id) => {
   return memoryUsers.find(u => (u._id && u._id.toString() === strId) || (u.id && u.id.toString() === strId)) || null;
 };
 
-exports.createUser = async ({ name, email, password, role = 'student', institution = '' }) => {
+exports.createUser = async ({ name, email, password, role = 'student', institution = '', preferredLanguage = 'English' }) => {
   const normEmail = email.toLowerCase().trim();
   const passwordHash = await bcrypt.hash(password, 12);
+  const uid = generateValidId();
   const newUser = {
-    _id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
-    id: 'usr_' + Date.now(),
+    _id: uid,
+    id: uid,
     name: name.trim(),
     email: normEmail,
     passwordHash,
-    role,
+    role: 'student', // Enforce student role
     institution: institution.trim(),
-    preferredLanguage: 'English',
+    preferredLanguage: preferredLanguage || 'English',
     isActive: true,
     studyStats: { documentsUploaded: 0, notesGenerated: 0, flashcardsCreated: 0 },
     createdAt: new Date().toISOString()
@@ -156,7 +165,7 @@ exports.createUser = async ({ name, email, password, role = 'student', instituti
 
 exports.comparePassword = async (user, password) => {
   if (!user || !password) return false;
-  // Demo accounts bypass
+  // Demo accounts bypass for Aryan Sharma and Prof. Meera Joshi in dev/demo
   if ((user.email === 'student@demo.com' || user.email === 'teacher@demo.com') &&
       (password === 'demo1234' || password === 'student123' || password === 'teacher123')) {
     return true;
@@ -173,36 +182,49 @@ exports.comparePassword = async (user, password) => {
 exports.updateUser = (id, updates) => {
   const user = exports.findUserById(id);
   if (!user) return null;
-  Object.assign(user, updates);
+  // Disallow modifying critical security fields
+  const safe = { ...updates };
+  delete safe._id;
+  delete safe.id;
+  delete safe.email;
+  delete safe.role;
+
+  Object.assign(user, safe);
   writeJson(USERS_FILE, memoryUsers);
-  const safe = { ...user };
-  delete safe.passwordHash;
-  return safe;
+  const sanitized = { ...user };
+  delete sanitized.passwordHash;
+  return sanitized;
 };
 
 // Documents store operations
 exports.getDocs = () => memoryDocs;
 
+// SECURITY FIX: Strictly filter by userId. Never return other users' docs.
 exports.getDocsByUser = (userId) => {
-  if (!userId) return memoryDocs;
+  if (!userId) return [];
   const strId = userId.toString();
-  const userDocs = memoryDocs.filter(d => d.user && d.user.toString() === strId);
-  if (userDocs.length === 0) {
-    return memoryDocs; // return sample docs so user is never empty
-  }
-  return userDocs;
+  return memoryDocs.filter(d => d.user && d.user.toString() === strId);
 };
 
-exports.getDocById = (id) => {
+exports.getDocById = (id, userId = null) => {
   if (!id) return null;
   const strId = id.toString();
-  return memoryDocs.find(d => (d._id && d._id.toString() === strId) || (d.id && d.id.toString() === strId)) || null;
+  const doc = memoryDocs.find(d => (d._id && d._id.toString() === strId) || (d.id && d.id.toString() === strId));
+  if (!doc) return null;
+  if (userId) {
+    const uStr = userId.toString();
+    if (doc.user && doc.user.toString() !== uStr && !doc.isDemo) {
+      return null; // IDOR prevention
+    }
+  }
+  return doc;
 };
 
 exports.createDoc = (docData) => {
+  const did = generateValidId();
   const newDoc = {
-    _id: 'doc_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
-    id: 'doc_' + Date.now(),
+    _id: did,
+    id: did,
     status: 'ready',
     createdAt: new Date().toISOString(),
     outputs: [],
@@ -213,35 +235,89 @@ exports.createDoc = (docData) => {
   return newDoc;
 };
 
-exports.updateDoc = (id, updates) => {
-  const doc = exports.getDocById(id);
+exports.updateDoc = (id, updates, userId = null) => {
+  const doc = exports.getDocById(id, userId);
   if (!doc) return null;
   Object.assign(doc, updates);
   writeJson(DOCS_FILE, memoryDocs);
   return doc;
 };
 
-exports.deleteDoc = (id) => {
-  const initialLen = memoryDocs.length;
+exports.deleteDoc = (id, userId = null) => {
   const strId = id ? id.toString() : '';
-  memoryDocs = memoryDocs.filter(d => (d._id && d._id.toString() !== strId) && (d.id && d.id.toString() !== strId));
+  const initialLen = memoryDocs.length;
+  memoryDocs = memoryDocs.filter(d => {
+    const isTarget = (d._id && d._id.toString() === strId) || (d.id && d.id.toString() === strId);
+    if (!isTarget) return true;
+    if (userId && d.user && d.user.toString() !== userId.toString()) {
+      return true; // Not owned by requesting user -> keep it
+    }
+    return false; // Matched and authorized -> delete it
+  });
+
   if (memoryDocs.length !== initialLen) {
     writeJson(DOCS_FILE, memoryDocs);
+    return true;
   }
-  return true;
+  return false;
 };
 
 // Flashcards store operations
 exports.getFlashcards = () => memoryFlashcards;
+
+exports.getFlashcardsByUser = (userId) => {
+  if (!userId) return [];
+  const strId = userId.toString();
+  return memoryFlashcards.filter(f => f.user && f.user.toString() === strId);
+};
+
 exports.saveFlashcards = (sets) => {
   memoryFlashcards = sets;
   writeJson(FLASHCARDS_FILE, memoryFlashcards);
 };
 
+exports.deleteFlashcard = (id, userId) => {
+  const strId = id ? id.toString() : '';
+  const uStr = userId ? userId.toString() : '';
+  const initialLen = memoryFlashcards.length;
+  memoryFlashcards = memoryFlashcards.filter(f => {
+    const isTarget = (f._id && f._id.toString() === strId) || (f.id && f.id.toString() === strId);
+    if (!isTarget) return true;
+    if (uStr && f.user && f.user.toString() !== uStr) {
+      return true; // Do not delete another user's flashcard set
+    }
+    return false;
+  });
+  if (memoryFlashcards.length !== initialLen) {
+    writeJson(FLASHCARDS_FILE, memoryFlashcards);
+    return true;
+  }
+  return false;
+};
+
 // Plans store operations
 exports.getPlans = () => memoryPlans;
+
+exports.getPlansByUser = (userId) => {
+  if (!userId) return [];
+  const strId = userId.toString();
+  return memoryPlans.filter(p => p.user && p.user.toString() === strId);
+};
+
 exports.savePlans = (plans) => {
   memoryPlans = plans;
   writeJson(PLANS_FILE, memoryPlans);
 };
 
+exports.deletePlan = (id, userId) => {
+  const strId = id ? id.toString() : '';
+  const uStr = userId ? userId.toString() : '';
+  const plan = memoryPlans.find(p => (p._id && p._id.toString() === strId) || (p.id && p.id.toString() === strId));
+  if (!plan) return false;
+  if (uStr && plan.user && plan.user.toString() !== uStr) {
+    return false; // Unauthorized
+  }
+  plan.isActive = false;
+  writeJson(PLANS_FILE, memoryPlans);
+  return true;
+};
