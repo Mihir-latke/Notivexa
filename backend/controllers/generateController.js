@@ -165,9 +165,9 @@ async function getDocText(docId, userId, secIdx) {
   }
   if (!text) {
     text = doc.extractedText || '';
-    if (text.length > 35000) {
-      console.log(`[Content] Full doc is ${text.length}c. Truncating to 35,000c for memory safety and fast generation.`);
-      text = text.slice(0, 35000);
+    if (text.length > 120000) {
+      console.log(`[Content] Full doc is ${text.length}c. Truncating to 120,000c for memory safety and fast generation.`);
+      text = text.slice(0, 120000);
     } else {
       console.log(`[Content] Full doc: ${text.length}c`);
     }

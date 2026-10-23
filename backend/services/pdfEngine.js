@@ -102,13 +102,19 @@ function getDefinitions(text, max = 15) {
 }
 
 function getTopics(text) {
-  const lines = text.split('\n').map(l => l.trim());
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const topics = [];
   for (const l of lines) {
-    if (l.length > 5 && l.length < 100 && /^[A-Z]/.test(l) &&
-        (/^[A-Z][A-Z\s\d]{5,}$/.test(l) || /^(chapter|unit|section|\d+\.)/i.test(l))) {
-      topics.push(l);
-      if (topics.length >= 12) break;
+    const clean = l.replace(/^#+\s*/, '').replace(/^\*\*(.*?)\*\*$/, '$1').trim();
+    if (clean.length > 4 && clean.length < 100 && /^[A-Za-z\u0900-\u097F]/.test(clean)) {
+      if (/^[A-Z][A-Za-z0-9\s\-–:()]{4,}$/.test(clean) ||
+          /^(chapter|unit|section|module|topic|part|\d+[\.\)])/i.test(clean) ||
+          l.startsWith('#') || (l.startsWith('**') && l.endsWith('**'))) {
+        if (!topics.includes(clean)) {
+          topics.push(clean);
+          if (topics.length >= 25) break;
+        }
+      }
     }
   }
   return topics;
@@ -192,41 +198,56 @@ function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1) {
 
 function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
   const topics = getTopics(text);
-  const defs = getDefinitions(text, 10);
-  const facts = getKeyFacts(text, 20);
-  const sentences = getSentences(text);
+  const allDefs = getDefinitions(text, 30);
+  const allFacts = getKeyFacts(text, 50);
+  const allSentences = getSentences(text);
 
-  const heading = topics[0] || `Module ${idx}: Theoretical & Applied Concepts`;
-  const mainDef = defs[0] ? `${defs[0].term} is defined as ${defs[0].definition}` : `Core architecture and operation of ${heading}.`;
-  const summary = sentences.slice(0, 3).join(' ') || firstN(text, 2);
+  // Divide into multiple comprehensive concept modules
+  const numModules = Math.min(8, Math.max(3, topics.length));
+  const textChunks = getChunks(text, numModules);
+  
+  let out = '';
 
-  let out = `## ${heading}\n\n`;
-  out += `DEFINITION: ${mainDef}\n\n`;
-  out += `SUMMARY: ${summary}\n\n`;
+  for (let m = 0; m < numModules; m++) {
+    const chunkText = textChunks[m] || text;
+    const chunkSentences = getSentences(chunkText);
+    const chunkDefs = getDefinitions(chunkText, 6);
+    const chunkFacts = getKeyFacts(chunkText, 12);
 
-  out += `EXPLANATION:\n`;
-  const bulletPoints = facts.length >= 6 ? facts.slice(0, 8) : sentences.slice(3, 10);
-  bulletPoints.forEach((bp, i) => {
-    out += `- Key Concept ${i + 1}: ${bp.replace(/^[-•*\d.]+\s*/, '')}\n`;
-  });
-  if (defs.length > 1) {
-    defs.slice(1, 5).forEach(d => {
-      out += `- Core Term: ${d.term} — ${d.definition}\n`;
+    const heading = topics[m] || `Module ${idx}.${m + 1}: ${subject} Core Principles`;
+    const def = chunkDefs[0] ? `${chunkDefs[0].term} is defined as ${chunkDefs[0].definition}` : 
+                (allDefs[m] ? `${allDefs[m].term} is defined as ${allDefs[m].definition}` : `Fundamental theoretical architecture and practical operation of ${heading}.`);
+    const summary = chunkSentences.slice(0, 4).join(' ') || allSentences.slice(m * 2, m * 2 + 3).join(' ') || firstN(chunkText, 3);
+
+    out += `## ${heading}\n\n`;
+    out += `DEFINITION: ${def}\n\n`;
+    out += `SUMMARY: ${summary}\n\n`;
+
+    out += `EXPLANATION:\n`;
+    const bulletPoints = chunkFacts.length >= 5 ? chunkFacts.slice(0, 8) : chunkSentences.slice(2, 9);
+    bulletPoints.forEach((bp, i) => {
+      out += `- Technical Detail ${i + 1}: ${bp.replace(/^[-•*\d.]+\s*/, '')}\n`;
     });
-  }
-  out += '\n';
+    if (chunkDefs.length > 1) {
+      chunkDefs.slice(1, 4).forEach(d => {
+        out += `- Key Terminology: ${d.term} — ${d.definition}\n`;
+      });
+    }
+    out += '\n';
 
-  out += `EXAMPLE:\n`;
-  const ex = sentences.filter(s => /for example|such as|e\.g\.|practice|algorithm|system/i.test(s)).slice(0, 2);
-  if (ex.length > 0) {
-    ex.forEach((e, i) => {
-      out += `- Real-World Example ${i + 1}: ${e}\n`;
-    });
-  } else {
-    out += `- Real-world Example 1: System-level kernel execution and thread scheduling in multi-core environments\n`;
-    out += `- Real-world Example 2: Distributed resource allocation and fault-tolerant hardware virtualization\n`;
+    out += `EXAMPLE:\n`;
+    const ex = chunkSentences.filter(s => /for example|such as|e\.g\.|practice|algorithm|system|use case|implementation/i.test(s)).slice(0, 2);
+    if (ex.length > 0) {
+      ex.forEach((e, i) => {
+        out += `- Practical Case Study ${i + 1}: ${e}\n`;
+      });
+    } else {
+      out += `- Real-world Application 1: Core enterprise deployment and system workflow in scalable production environments\n`;
+      out += `- Real-world Application 2: Architectural resource optimization, fault tolerance, and algorithmic efficiency\n`;
+    }
+    out += `- University Exam Tip: Thoroughly memorize the formal definition, process diagram flow, and key trade-offs between performance and overhead.\n\n`;
+    out += `---\n\n`;
   }
-  out += `- Exam Tip: Master the core definitions, algorithmic sequence, and trade-offs between speed and memory efficiency.\n\n`;
 
   return out;
 }

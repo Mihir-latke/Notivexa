@@ -13,7 +13,7 @@ const TOOLS = [
   { id:'summary',     icon:'📋', label:'Summary',            desc:'Concise 300-word overview' },
   { id:'questions',   icon:'❓', label:'Practice Q&A',       desc:'MCQ + short + long answer' },
   { id:'paper',       icon:'📄', label:'Question Papers',    desc:'20M or 60M exam format' },
-  { id:'handwritten', icon:'✍️', label:'Handwritten Notes',  desc:'Notebook-style PDF (3–4 pages)' },
+  { id:'handwritten', icon:'✍️', label:'Handwritten Notes',  desc:'Complete multi-page notebook (8–20+ pages)' },
   { id:'ppt',         icon:'📊', label:'Slide Deck',         desc:'10-15 presentation slides' },
   { id:'video',       icon:'🎬', label:'Video Lecture',      desc:'1-2 min script + slides + video' },
   { id:'mindmap',     icon:'🗺️', label:'Mind Map',           desc:'Visual topic structure' },
@@ -818,7 +818,7 @@ export default function Notebook() {
     } else if (data.pages?.length) {
       data.pages.forEach(p => pages.push(p))
     }
-    const safePages = pages.slice(0, 6)
+    const safePages = pages
     const total = safePages.length || 1
 
     return (
@@ -3166,7 +3166,7 @@ export default function Notebook() {
               <div className="dots" style={{ marginTop:12 }}>
                 <div className="dot"/><div className="dot"/><div className="dot"/>
                 <span style={{ fontSize:12.5, color:'var(--ink3)' }}>
-                  {tool==='paper' ? 'Generating question paper with CO & BL mapping...' : tool==='handwritten' ? 'Creating handwritten notes (3–4 pages)...' : tool==='video' ? 'Creating video lecture...' : 'Analysing your PDF...'}
+                  {tool==='paper' ? 'Generating question paper with CO & BL mapping...' : tool==='handwritten' ? 'Creating comprehensive handwritten notes...' : tool==='video' ? 'Creating video lecture...' : 'Analysing your PDF...'}
                 </span>
               </div>
             )}

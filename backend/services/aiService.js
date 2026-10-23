@@ -92,7 +92,7 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
 
 async function callGemini(system, user, maxTokens) {
   const key = process.env.GEMINI_API_KEY;
-  const models = ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.5-flash-lite'];
+  const models = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-flash-8b'];
   let lastErr;
   for (const model of models) {
     try {
@@ -681,47 +681,45 @@ ${docSlice}`;
 }
 
 async function generateHandwrittenNotes(text, title, subject, lang = 'English') {
-  // Dynamic chunking:
-  // - Short/medium text (< 16,000 chars): 1 single chunk -> finishes in 3-5s, never times out
-  // - Large text: 1 chunk per 16,000 chars, capped at 6 chunks to guarantee quick responses within gateway timeouts (<30s)
-  const targetChunks = Math.max(1, Math.min(6, Math.ceil(text.length / 16000)));
+  // Target comprehensive multi-page notes (8–20+ pages):
+  // Dynamically divide text into 3 to 10 substantial chapters/modules
+  const targetChunks = Math.max(3, Math.min(10, Math.ceil(text.length / 10000)));
   const chunkSize = Math.ceil(text.length / targetChunks);
   const chunks = [];
   for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
-  const sysPrompt = `You are an expert academic note-taker who writes beautiful, comprehensive handwritten-style study notes.
-You MUST format EVERY topic using this EXACT section structure:
+  const sysPrompt = `You are an expert academic professor and note-taker who writes exhaustive, comprehensive handwritten-style study notes for university students.
+You MUST format EVERY topic/concept found in the text using this EXACT section structure:
 
 ## Topic Name
 
-DEFINITION: One clear, complete sentence defining the term or concept.
+DEFINITION: One clear, complete, formal sentence defining the term or concept.
 
-SUMMARY: 3-4 sentences giving a high-level overview, including importance and context.
+SUMMARY: 4-5 sentences giving a high-level overview, context, theoretical background, and importance.
 
 EXPLANATION:
-- Detailed point 1: Full explanation with sub-details and reasoning
-- Detailed point 2: Full explanation with examples woven in
-- Detailed point 3: Full explanation
-- Detailed point 4: Another angle or perspective
-- Detailed point 5: Advanced or application aspect
-- Add 5-10 bullet points — be exhaustive. A student must be able to learn from this alone.
+- Detailed point 1: Full technical explanation with mechanisms and reasoning
+- Detailed point 2: Deep dive into the process or structure with clear sub-points
+- Detailed point 3: Dependencies, operational rules, and interactions
+- Detailed point 4: Important formulas, laws, theorems, algorithms, or quantitative principles
+- Detailed point 5: Architectural workflow, step-by-step pipeline, or lifecycle
+- Detailed point 6: Key design trade-offs, constraints, and optimizations
+- Provide 6-10 bullet points per topic. Never abbreviate.
 
 EXAMPLE:
-- Real-world Example 1: Specific, concrete, something a student can visualise
-- Real-world Example 2: Different context or industry application
-- Exam tip: What examiners commonly ask about this topic
+- Real-world Application 1: Concrete industry or real-life implementation
+- Real-world Application 2: Practical engineering, scientific, or business case study
+- Exam Tip: High-scoring advice, common errors, or questions asked by university examiners
 
 ---
 
 RULES:
 - Always use the EXACT labels: DEFINITION:, SUMMARY:, EXPLANATION:, EXAMPLE:
 - Do NOT generate DIAGRAM lines, flowcharts, or ASCII art
-- Do NOT use Mermaid, ASCII art, or code blocks for diagrams
-- Do NOT use $ or LaTeX math — write formulas in plain English (e.g. "Force equals Mass multiplied by Acceleration")
-- Do NOT skip any concept — every topic found in the text must have ALL sections
-- Use ## for topic headings, ### for sub-topics
-- Write at least 700 words per chunk — EXPAND everything thoroughly, never summarise briefly
-- Include ALL formulas, theorems, dates, laws, algorithms found in the text`;
+- Do NOT use LaTeX or $ signs — write equations in readable plain text
+- Cover EVERY concept, law, theorem, date, and algorithm in this document part — do NOT skip anything
+- Be VERBOSE and EXHAUSTIVE — notes must be detailed enough for a student to score an A+ on university finals
+- Write at least 1,000 words per chunk across 3 to 5 distinct concepts`;
 
   const CONCURRENCY = 2;
   const parts = [];
@@ -729,12 +727,12 @@ RULES:
     const batch = chunks.slice(i, i + CONCURRENCY);
     const batchPromises = batch.map(async (chunk, bIdx) => {
       const idx = i + bIdx;
-      const promptChunk = chunk.slice(0, 8000);
-      const prompt = `Generate fully structured handwritten notes for PART ${idx + 1} of ${chunks.length}.
+      const promptChunk = chunk.slice(0, 10000);
+      const prompt = `Generate comprehensive, multi-page handwritten study notes for PART ${idx + 1} of ${chunks.length}.
 Title: "${title}" | Subject: "${subject}" | Language: ${lang}
 
-For EVERY concept found in the text below, write the COMPLETE structure:
-## Concept Name
+For EVERY concept, theory, formula, and process found in the text below, write the COMPLETE structured note:
+## [Concept Name]
 DEFINITION: ...
 SUMMARY: ...
 EXPLANATION:
@@ -743,15 +741,15 @@ EXAMPLE:
 - ...
 ---
 
-Never abbreviate. Cover every formula, law, theorem, algorithm, and concept.
-Write at minimum 700 words for this part.
+Cover at least 3 to 5 distinct concepts found in this document part. Do NOT summarise briefly.
+Write at minimum 1,000 words for this part.
 
 Document Part ${idx + 1}/${chunks.length}:
 ${promptChunk}`;
 
       try {
-        const result = await callAI(sysPrompt, prompt, 3500);
-        if (result && result.length > 200) {
+        const result = await callAI(sysPrompt, prompt, 4000);
+        if (result && result.length > 250) {
           console.log(`[HW Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
           return result;
         } else {
