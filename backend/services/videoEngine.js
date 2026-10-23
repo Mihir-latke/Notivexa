@@ -136,8 +136,8 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 45
   const fileName = `video_${uuidv4()}.mp4`;
   const videoPath = path.join(OUT_DIR, fileName);
 
-  // 1. Target duration capped to 20s - 45s (ideal educational Shorts format, fast render)
-  const targetDuration = Math.min(Math.max(Number(durationSeconds) || 35, 15), 45);
+  // 1. Target duration capped to 15s - 30s (ideal educational Shorts format, lightning-fast cloud render)
+  const targetDuration = Math.min(Math.max(Number(durationSeconds) || 25, 15), 30);
 
   // 2. Validate audio path; generate silent fallback if missing
   let finalAudioPath = audioPath;

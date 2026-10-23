@@ -809,7 +809,7 @@ Professor: Exactly! It establishes [Key explanation from document]. Furthermore,
 Student: Understood! How does this directly affect [Third rule/impact from document]?
 Professor: Brilliant question! That ensures [Final technical takeaway from document]. Remember these three core principles on the board for your exam!
 3. TONE: Clear, academic, engaging, easy for university/high-school students to understand.
-4. Total dialogue length: 110-140 words (ideal for 45-60s short).`;
+4. Total dialogue length: 60-80 words (ideal for 25-30s educational short).`;
 
   const parts = [];
   for (let idx = 0; idx < toProcess.length; idx++) {
@@ -998,13 +998,13 @@ async function generateAudio(script, opts = {}) {
   }
   if (!speakText) speakText = (script || '').slice(0, 500);
 
-  // Cap narration for 1-minute video / shorts (150-180 words)
+  // Cap narration for 25-30s educational shorts (60-80 words max for lightning-fast synthesis)
   const words = speakText.split(/\s+/);
-  if (words.length > 180) {
-    speakText = words.slice(0, 180).join(' ') + '.';
+  if (words.length > 75) {
+    speakText = words.slice(0, 75).join(' ') + '.';
   }
 
-  const durationSeconds = Math.max(15, Math.round((speakText.split(/\s+/).length / 130) * 60));
+  const durationSeconds = Math.min(30, Math.max(15, Math.round((speakText.split(/\s+/).length / 130) * 60)));
 
   // Google TTS (free tier: 1 million chars/month)
   const gKey = process.env.GOOGLE_TTS_API_KEY;
