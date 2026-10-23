@@ -70,16 +70,19 @@ async function syncLocalDataToMongo() {
       const dId = d._id || d.id;
       if (!dId) continue;
       try {
+        if (!mongoose.Types.ObjectId.isValid(dId)) {
+          continue;
+        }
         const exists = await Document.findById(dId);
         if (!exists) {
           const docToInsert = { ...d };
           delete docToInsert.id;
           if (docToInsert.user && mongoose.Types.ObjectId.isValid(docToInsert.user)) {
             docToInsert.user = new mongoose.Types.ObjectId(docToInsert.user);
+          } else {
+            docToInsert.user = new mongoose.Types.ObjectId('507f191e810c19729de860ea');
           }
-          if (mongoose.Types.ObjectId.isValid(dId)) {
-            docToInsert._id = new mongoose.Types.ObjectId(dId);
-          }
+          docToInsert._id = new mongoose.Types.ObjectId(dId);
           await Document.collection.insertOne(docToInsert);
           docSyncCount++;
         }
@@ -104,7 +107,7 @@ let isConnecting = false;
 let lastErrorLoggedTime = 0;
 
 /**
- * Attempts a connection to MongoDB Atlas.
+ * Attempts a connection to MongoDB (Atlas or local fallback).
  */
 async function attemptMongoConnect(uri) {
   if (!uri || isConnecting || mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
@@ -115,9 +118,23 @@ async function attemptMongoConnect(uri) {
     await mongoose.connect(uri, {
       serverSelectionTimeoutMS: 5000,
     });
-    console.log('✅ MongoDB Atlas connected successfully!');
+    console.log(`✅ MongoDB connected successfully! (${uri.includes('127.0.0.1') || uri.includes('localhost') ? 'Local Database' : 'MongoDB Atlas'})`);
     await syncLocalDataToMongo();
   } catch (err) {
+    // If remote Atlas fails in development, try local MongoDB running on machine
+    if (process.env.NODE_ENV !== 'production' && !uri.includes('127.0.0.1') && !uri.includes('localhost')) {
+      try {
+        await mongoose.connect('mongodb://127.0.0.1:27017/notivexa', {
+          serverSelectionTimeoutMS: 2000,
+        });
+        console.log('✅ Local MongoDB connected successfully! (mongodb://127.0.0.1:27017/notivexa)');
+        await syncLocalDataToMongo();
+        return;
+      } catch (localErr) {
+        // Both failed
+      }
+    }
+
     const now = Date.now();
     // Throttle duplicate warning logs to once every 30 seconds
     if (now - lastErrorLoggedTime > 30000) {
@@ -158,3 +175,4 @@ module.exports = {
   attemptMongoConnect,
   startMongoManager
 };
+

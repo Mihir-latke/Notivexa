@@ -332,7 +332,18 @@ exports.list = async (req, res, next) => {
       return res.json({ success: true, documents: SAMPLE_DEMO_DOCS });
     }
 
-    res.json({ success: true, documents: docs });
+    // Sanitize document list response: omit heavy extracted text and base64 diagram blobs
+    const cleanDocs = docs.map(d => {
+      const obj = typeof d.toObject === 'function' ? d.toObject() : { ...d };
+      delete obj.extractedText;
+      delete obj.sections;
+      if (Array.isArray(obj.diagrams)) {
+        obj.diagrams = obj.diagrams.map(diag => ({ page: diag.page, fileName: diag.fileName }));
+      }
+      return obj;
+    });
+
+    res.json({ success: true, documents: cleanDocs });
   } catch (e) {
     next(e);
   }
