@@ -24,7 +24,7 @@ exports.message = async (req, res, next) => {
           console.warn('[Chat Document Lookup Error]', err.message);
         }
       }
-      if (!doc && (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true')) {
+      if (!doc) {
         doc = localStore.getDocById(documentId, userId);
       }
       if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {

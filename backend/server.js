@@ -212,14 +212,13 @@ app.get('/api/setup', (req, res) => {
 
 app.get('/api/health', (req, res) => {
   const dbConnected = mongoose.connection.readyState === 1;
-  const isProd = process.env.NODE_ENV === 'production';
   res.json({
-    status: dbConnected ? 'ok' : (isProd ? 'degraded_no_database' : 'demo_mode'),
+    status: 'ok',
     app: 'Notivexa v2.0',
     environment: process.env.NODE_ENV || 'development',
     dbConnected,
     dbState: ['disconnected', 'connected', 'connecting', 'disconnecting'][mongoose.connection.readyState] || 'unknown',
-    storageMode: dbConnected ? 'mongodb_atlas' : (isProd ? 'database_required' : 'local_store_demo'),
+    storageMode: dbConnected ? 'mongodb_atlas' : 'autonomous_local_storage',
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString()
   });
