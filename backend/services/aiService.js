@@ -1101,15 +1101,28 @@ async function generateAudio(script, opts = {}) {
     await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
 
     await new Promise((res, rej) => {
-      const streamObj = tts.toStream(speakText);
-      const audioStream = streamObj.audioStream || streamObj;
-      const chunks = [];
-      audioStream.on('data', d => chunks.push(d));
-      audioStream.on('end', () => {
-        fs.writeFileSync(filePath, Buffer.concat(chunks));
-        res();
-      });
-      audioStream.on('error', rej);
+      const timer = setTimeout(() => {
+        rej(new Error('Edge TTS WebSocket timeout (6s limit reached, falling back)'));
+      }, 6000);
+
+      try {
+        const streamObj = tts.toStream(speakText);
+        const audioStream = streamObj.audioStream || streamObj;
+        const chunks = [];
+        audioStream.on('data', d => chunks.push(d));
+        audioStream.on('end', () => {
+          clearTimeout(timer);
+          fs.writeFileSync(filePath, Buffer.concat(chunks));
+          res();
+        });
+        audioStream.on('error', (err) => {
+          clearTimeout(timer);
+          rej(err);
+        });
+      } catch (err) {
+        clearTimeout(timer);
+        rej(err);
+      }
     });
 
     const fileSize = fs.statSync(filePath).size;
@@ -1157,7 +1170,7 @@ async function generateAudio(script, opts = {}) {
       const txt = finalChunks[i];
       if (!txt) continue;
       const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(txt)}&tl=${langCode}&client=tw-ob`;
-      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const r = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 5000 });
       if (r.ok) {
         if (typeof r.buffer === 'function') bufs.push(await r.buffer());
         else bufs.push(Buffer.from(await r.arrayBuffer()));

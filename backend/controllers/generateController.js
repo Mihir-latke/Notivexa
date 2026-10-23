@@ -443,7 +443,7 @@ const { createVideoFromAudio } = require('../services/videoEngine');
 
 exports.video = async (req, res, next) => {
   try {
-    if (req.setTimeout) req.setTimeout(300000); // 5 minutes timeout for video rendering
+    if (req.setTimeout) req.setTimeout(60000); // 60s timeout max for video rendering
     const documentId = req.body.documentId || req.body.docId || req.body.id;
     const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
