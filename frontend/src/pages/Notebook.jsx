@@ -1680,7 +1680,6 @@ export default function Notebook() {
             {data.slidesUrl && <a href={data.slidesUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none' }}>⬇️ Slides PDF</a>}
             {data.audioUrl && <a href={data.audioUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none', background:'transparent', color:'var(--ink2)', border:'1px solid var(--bdr)' }}>⬇️ Audio Only</a>}
           </div>
-          {data.audioNote && <div className="ib a" style={{ marginBottom:12, fontSize:12 }}>🎙️ {data.audioNote}</div>}
           <div style={{ fontFamily:'Sora,sans-serif', fontSize:13, fontWeight:700, marginBottom:8 }}>📜 1-2 Minute Lecture Script:</div>
           <div className="ob">
             <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>

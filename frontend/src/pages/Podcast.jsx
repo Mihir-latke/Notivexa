@@ -96,13 +96,6 @@ export default function Podcast() {
               <div style={{display:'flex',justifyContent:'center',gap:10,marginTop:14}}>
                 <a href={result.audioUrl} download className="btn" style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',fontSize:12,borderRadius:20,padding:'6px 16px',textDecoration:'none'}}>⬇️ Download Audio</a>
               </div>
-
-              {/* TTS setup note */}
-              {result.note && (
-                <div style={{marginTop:12,background:'rgba(255,255,255,0.08)',borderRadius:8,padding:'10px 13px',fontSize:11.5,lineHeight:1.6,color:'rgba(255,255,255,0.8)',whiteSpace:'pre-line'}}>
-                  {result.note}
-                </div>
-              )}
             </div>
 
             {/* Hidden audio element */}

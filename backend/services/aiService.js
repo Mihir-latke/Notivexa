@@ -1132,7 +1132,7 @@ async function generateAudio(script, opts = {}) {
       duration: durationSeconds,
       provider: 'Microsoft Edge TTS',
       voice: voiceName,
-      note: `Free Indian ${voiceStyle} voice — no API key needed!`
+      note: null
     };
   } catch (e) {
     console.warn('[Edge TTS Error]', e.message);
