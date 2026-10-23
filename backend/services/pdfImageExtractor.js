@@ -107,7 +107,24 @@ async function extractImagesFromPDF(pdfPath, docId) {
                 const png = new PNG({ width: w, height: h });
                 const src = img.data;
 
-                if (img.kind === 2) {
+                if (img.kind === 1 || (src && src.length === Math.ceil(w / 8) * h)) {
+                  // 1-bit monochrome binary scan (CCITT Fax / 1bpp)
+                  const bytesPerRow = Math.ceil(w / 8);
+                  for (let y = 0; y < h; y++) {
+                    const rowOffset = y * bytesPerRow;
+                    for (let x = 0; x < w; x++) {
+                      const byteIdx = rowOffset + (x >> 3);
+                      const bitIdx = 7 - (x & 7);
+                      const bit = (src[byteIdx] >> bitIdx) & 1;
+                      const val = bit ? 255 : 0;
+                      const pIdx = (y * w + x) * 4;
+                      png.data[pIdx]     = val;
+                      png.data[pIdx + 1] = val;
+                      png.data[pIdx + 2] = val;
+                      png.data[pIdx + 3] = 255;
+                    }
+                  }
+                } else if (img.kind === 2) {
                   // RGB (24-bit)
                   for (let p = 0; p < w * h; p++) {
                     png.data[p * 4]     = src[p * 3];
@@ -322,7 +339,24 @@ function downscaleRGBA(srcData, srcW, srcH, maxDim = 1600) {
         const src = largestImg.data;
         const fullRgba = Buffer.alloc(w * h * 4);
 
-        if (largestImg.kind === 2) {
+        if (largestImg.kind === 1 || (src && src.length === Math.ceil(w / 8) * h)) {
+          // 1-bit monochrome binary scan (CCITT Fax / 1bpp)
+          const bytesPerRow = Math.ceil(w / 8);
+          for (let y = 0; y < h; y++) {
+            const rowOffset = y * bytesPerRow;
+            for (let x = 0; x < w; x++) {
+              const byteIdx = rowOffset + (x >> 3);
+              const bitIdx = 7 - (x & 7);
+              const bit = (src[byteIdx] >> bitIdx) & 1;
+              const val = bit ? 255 : 0;
+              const pIdx = (y * w + x) * 4;
+              fullRgba[pIdx]     = val;
+              fullRgba[pIdx + 1] = val;
+              fullRgba[pIdx + 2] = val;
+              fullRgba[pIdx + 3] = 255;
+            }
+          }
+        } else if (largestImg.kind === 2) {
           // RGB (24-bit)
           for (let p = 0; p < w * h; p++) {
             fullRgba[p * 4]     = src[p * 3];

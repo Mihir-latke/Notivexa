@@ -47,10 +47,10 @@ export default function Upload() {
           setFiles(prev => prev.map(f => ({ ...f, progress: pct })))
         }
       })
-      setFiles(prev => prev.map(f => ({ ...f, progress: 100, done: true })))
+      setFiles(prev => prev.map(f => ({ ...f, progress: 100, done: true, error: null })))
       setResult(res.data)
-      const ok = res.data.documents?.filter(d => d.status === 'ready').length || 0
-      const fail = res.data.documents?.filter(d => d.status === 'error').length || 0
+      const ok = res.data.documents?.filter(d => d.status === 'ready' || d.status === 'partial' || d.wordCount > 0).length || 0
+      const fail = res.data.documents?.filter(d => d.status === 'error' && !d.wordCount).length || 0
       if (ok > 0) toast.success(`✅ ${ok} File(s) successfully extracted!`)
       if (fail > 0) toast.error(`❌ ${fail} file(s) failed — see details`)
     } catch (err) {
@@ -437,7 +437,7 @@ export default function Upload() {
                     </span>
                     <div style={{ fontWeight:700, fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
                   </div>
-                  {doc.status === 'ready' ? (
+                  {doc.status === 'ready' || doc.status === 'partial' || doc.wordCount > 0 ? (
                     <>
                       <div className="ib g" style={{ marginBottom:9, fontSize:12 }}>
                         ✅ <strong>{doc.wordCount?.toLocaleString()}</strong> words · <strong>{doc.pageCount}</strong> pages · <strong>{doc.sections?.length || 1}</strong> sections detected

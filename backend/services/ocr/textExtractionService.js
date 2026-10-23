@@ -189,7 +189,8 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
       confidence: p.confidence,
       wordCount: p.wordCount
     })),
-    status: validPages.length === pageResults.length ? 'ready' : 'partial'
+    status: chunked.words > 0 ? 'ready' : 'error',
+    isPartial: validPages.length < pageResults.length
   };
 
   // 5. Save to disk cache
@@ -207,3 +208,4 @@ module.exports = {
   saveCachedResult,
   extractDocumentText
 };
+
