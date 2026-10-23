@@ -282,21 +282,8 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
     hasAss = false;
   }
 
-  // 6. ATTEMPT GOOGLE VEO REALISTIC AI VIDEO GENERATION FIRST
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey && !geminiKey.startsWith('your_')) {
-    try {
-      console.log('[Video] Checking Gemini Veo video generation availability...');
-      const veoPrompt = `Cinematic 3D animation of a friendly Indian professor in a modern classroom explaining ${topicName} at a green chalkboard with students. The professor is speaking and gesturing expressively with hand movements, while an attentive Indian student raises their hand and asks a question. High quality anime style, smooth natural character motion, warm educational lighting, vertical 9:16 format.`;
-      const videoBuffer = await generateVeoClip(veoPrompt, 6, geminiKey);
-      if (videoBuffer && videoBuffer.length > 50000) {
-        console.log('[Video] Veo generation succeeded! Muxing with audio...');
-        return await muxVeoWithAudio(videoBuffer, finalAudioPath, targetDuration, assPath, videoPath, fileName);
-      }
-    } catch (veoErr) {
-      console.log(`[Video] Veo not available (${veoErr.message}) -> Switching to Motion Video Engine`);
-    }
-  }
+  // 6. Direct High-Speed Motion Video Lecture (No Veo 404 delays)
+  // Google Veo 3.1 preview API has been retired by Google in favor of Gemini 3.8 / Omni multimodal.
 
   // 7. REAL MOTION VIDEO LECTURE ENGINE (NO STATIC IMAGES)
   const renderJob = (withSubtitles = true) => {
@@ -330,8 +317,8 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
       complexFilter.push(`[base_vid]drawbox=x=25:y=50:w=670:h=225:color=#061c14@0.90:t=fill[bg_board]`);
       complexFilter.push(`[bg_board]drawbox=x=25:y=50:w=670:h=225:color=#10b981@0.85:t=3[bg_board_framed]`);
 
-      // Add audio visualizer waveform across bottom
-      complexFilter.push(`[a_wave]showwaves=s=720x80:colors=#10b981:mode=cline:rate=24,colorkey=black:0.1:0.1[wave]`);
+      // Add audio visualizer waveform across bottom (lightweight for 512MB RAM cloud containers)
+      complexFilter.push(`[a_wave]showwaves=s=720x60:colors=#10b981:mode=line:rate=20,colorkey=black:0.1:0.1[wave]`);
       complexFilter.push(`[bg_board_framed][wave]overlay=0:H-h-110:shortest=1[scene_wave]`);
 
       if (withSubtitles && hasAss && relAssPath) {
@@ -347,12 +334,12 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
           '-map [a_out]',
           '-c:v libx264',
           '-preset ultrafast',
-          '-crf 26',
-          '-maxrate 2.5M',
-          '-bufsize 5M',
+          '-crf 28',
+          '-maxrate 1.5M',
+          '-bufsize 3M',
           '-tune fastdecode',
-          '-threads 0',
-          '-r 24',
+          '-threads 2',
+          '-r 20',
           '-pix_fmt yuv420p',
           '-movflags +faststart',
           '-c:a aac',
