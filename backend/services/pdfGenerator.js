@@ -1127,11 +1127,37 @@ async function questionPaperPDF(content, { title='Exam', subject='General', tota
 }
 
 const THEME_PDF_PALETTES = {
+  obsidian: {
+    bg: '#090D16',
+    cardBg: '#121A2D',
+    cardBorder: '#1E293B',
+    accent: '#6366F1',
+    category: '#818CF8',
+    title: '#FFFFFF',
+    cardTitle: '#F8FAFC',
+    text: '#94A3B8',
+    takeawayBg: '#1E1B4B',
+    takeawayBorder: '#6366F1',
+    takeawayLabel: '#A5B4FC',
+    takeawayText: '#E0E7FF',
+    analogyBg: '#0C2A45',
+    analogyBorder: '#0284C7',
+    analogyLabel: '#38BDF8',
+    analogyText: '#BAE6FD',
+    badgeBg: '#1E293B',
+    numColor: '#64748B',
+    notesBg: '#121A2D',
+    notesText: '#94A3B8'
+  },
   light: {
-    bg: '#FFFFFF',
+    bg: '#F8FAFC',
+    cardBg: '#FFFFFF',
+    cardBorder: '#CBD5E1',
+    accent: '#4F46E5',
     category: '#E11D48',
     title: '#0F172A',
-    text: '#334155',
+    cardTitle: '#0F172A',
+    text: '#475569',
     takeawayBg: '#FEF3C7',
     takeawayBorder: '#F59E0B',
     takeawayLabel: '#B45309',
@@ -1140,86 +1166,119 @@ const THEME_PDF_PALETTES = {
     analogyBorder: '#38BDF8',
     analogyLabel: '#0369A1',
     analogyText: '#0C4A6E',
+    badgeBg: '#F1F5F9',
     numColor: '#888888',
-    notesBg: '#F1F5F9',
+    notesBg: '#FFFFFF',
     notesText: '#64748B'
   },
-  indigo: {
-    bg: '#0F172A',
-    category: '#818CF8',
+  cyber: {
+    bg: '#0F0728',
+    cardBg: '#1A0C36',
+    cardBorder: '#3B1D6D',
+    accent: '#A855F7',
+    category: '#C084FC',
     title: '#FFFFFF',
-    text: '#E2E8F0',
-    takeawayBg: '#1E293B',
-    takeawayBorder: '#F59E0B',
-    takeawayLabel: '#FBBF24',
-    takeawayText: '#FDE68A',
-    analogyBg: '#0F243A',
-    analogyBorder: '#38BDF8',
-    analogyLabel: '#38BDF8',
-    analogyText: '#BAE6FD',
-    numColor: '#64748B',
-    notesBg: '#1E293B',
-    notesText: '#94A3B8'
+    cardTitle: '#FAF5FF',
+    text: '#D8B4FE',
+    takeawayBg: '#2E1065',
+    takeawayBorder: '#A855F7',
+    takeawayLabel: '#E9D5FF',
+    takeawayText: '#FAF5FF',
+    analogyBg: '#280D40',
+    analogyBorder: '#EC4899',
+    analogyLabel: '#F472B6',
+    analogyText: '#FDF2F8',
+    badgeBg: '#2E1065',
+    numColor: '#9333EA',
+    notesBg: '#1A0C36',
+    notesText: '#D8B4FE'
   },
   emerald: {
-    bg: '#064E3B',
+    bg: '#051B14',
+    cardBg: '#0B2D22',
+    cardBorder: '#14532D',
+    accent: '#10B981',
     category: '#34D399',
     title: '#FFFFFF',
-    text: '#D1FAE5',
-    takeawayBg: '#065F46',
+    cardTitle: '#ECFDF5',
+    text: '#A7F3D0',
+    takeawayBg: '#064E3B',
     takeawayBorder: '#F59E0B',
     takeawayLabel: '#FBBF24',
     takeawayText: '#FEF3C7',
     analogyBg: '#04382B',
     analogyBorder: '#38BDF8',
-    analogyLabel: '#67E8F9',
+    analogyLabel: '#38BDF8',
     analogyText: '#E0F2FE',
+    badgeBg: '#064E3B',
     numColor: '#059669',
-    notesBg: '#065F46',
+    notesBg: '#0B2D22',
     notesText: '#A7F3D0'
   },
   sunset: {
-    bg: '#4C0519',
+    bg: '#1A091E',
+    cardBg: '#281030',
+    cardBorder: '#4C1D4F',
+    accent: '#F43F5E',
     category: '#FB7185',
     title: '#FFFFFF',
-    text: '#FFE4E6',
-    takeawayBg: '#881337',
+    cardTitle: '#FFF1F2',
+    text: '#FECDD3',
+    takeawayBg: '#4C0519',
     takeawayBorder: '#F59E0B',
     takeawayLabel: '#FBBF24',
     takeawayText: '#FEF3C7',
-    analogyBg: '#701A75',
-    analogyBorder: '#38BDF8',
-    analogyLabel: '#38BDF8',
-    analogyText: '#E0F2FE',
-    numColor: '#9F1239',
-    notesBg: '#881337',
+    analogyBg: '#3B0D2E',
+    analogyBorder: '#FB923C',
+    analogyLabel: '#FDBA74',
+    analogyText: '#FFF7ED',
+    badgeBg: '#4C0519',
+    numColor: '#BE123C',
+    notesBg: '#281030',
     notesText: '#FECDD3'
-  },
-  cyber: {
-    bg: '#180828',
-    category: '#C084FC',
-    title: '#FFFFFF',
-    text: '#F3E8FF',
-    takeawayBg: '#2E1065',
-    takeawayBorder: '#F59E0B',
-    takeawayLabel: '#FBBF24',
-    takeawayText: '#FEF3C7',
-    analogyBg: '#1E1B4B',
-    analogyBorder: '#38BDF8',
-    analogyLabel: '#38BDF8',
-    analogyText: '#E0F2FE',
-    numColor: '#7E22CE',
-    notesBg: '#2E1065',
-    notesText: '#E9D5FF'
   }
 };
+THEME_PDF_PALETTES.indigo = THEME_PDF_PALETTES.obsidian;
+
+function parsePdfBulletToCard(bulletStr, idx) {
+  const str = String(bulletStr || '').trim();
+  const colonIdx = str.indexOf(': ');
+  if (colonIdx > 0 && colonIdx < 45) {
+    return {
+      num: String(idx + 1).padStart(2, '0'),
+      title: str.substring(0, colonIdx).trim(),
+      desc: str.substring(colonIdx + 2).trim()
+    };
+  }
+  const dashIdx = str.indexOf(' — ');
+  if (dashIdx > 0 && dashIdx < 45) {
+    return {
+      num: String(idx + 1).padStart(2, '0'),
+      title: str.substring(0, dashIdx).trim(),
+      desc: str.substring(dashIdx + 3).trim()
+    };
+  }
+  const words = str.split(' ');
+  if (words.length > 5) {
+    return {
+      num: String(idx + 1).padStart(2, '0'),
+      title: words.slice(0, 3).join(' '),
+      desc: str
+    };
+  }
+  return {
+    num: String(idx + 1).padStart(2, '0'),
+    title: `Key Aspect ${idx + 1}`,
+    desc: str
+  };
+}
 
 // ── Slide Deck PDF ────────────────────────────────────────
-async function slidePDF(data, { title = 'Presentation', theme = 'light' } = {}) {
+async function slidePDF(data, { title = 'Presentation', subject = 'Academic Lecture', theme = 'obsidian' } = {}) {
   ensureDir();
   const rawSlides = (typeof data === 'string' ? JSON.parse(data) : data)?.slides || (Array.isArray(data) ? data : []);
   if (rawSlides.length === 0) throw new Error('No slides to generate');
-  const palette = THEME_PDF_PALETTES[theme] || THEME_PDF_PALETTES.light || THEME_PDF_PALETTES.indigo;
+  const palette = THEME_PDF_PALETTES[theme] || THEME_PDF_PALETTES.obsidian || THEME_PDF_PALETTES.light;
   const fileName = `ppt_${uuidv4()}.pdf`;
   const filePath = path.join(OUT, fileName);
 
@@ -1231,7 +1290,6 @@ async function slidePDF(data, { title = 'Presentation', theme = 'light' } = {}) 
 
     rawSlides.forEach((slide, idx) => {
       if (idx > 0) doc.addPage();
-      // Background
       doc.rect(0, 0, W, H).fill(palette.bg);
 
       const category = (slide.category || (idx === 0 ? 'INTRODUCTION' : idx === rawSlides.length - 1 ? 'QUICK SUMMARY' : 'CORE PRINCIPLE')).toUpperCase();
@@ -1242,58 +1300,120 @@ async function slidePDF(data, { title = 'Presentation', theme = 'light' } = {}) 
       const cleanAnalogy = rawAnalogy.replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '').trim();
       const bullets = Array.isArray(slide.bullets) ? slide.bullets : [];
 
-      // 1. Category Badge
-      doc.fillColor(palette.category).font('Helvetica-Bold').fontSize(11).text(category, 50, 32);
+      // --- HERO COVER SLIDE (Slide 1) ---
+      if (idx === 0 && (category === 'INTRODUCTION' || !cleanAnalogy)) {
+        doc.rect(0, 0, W, 8).fill(palette.accent || palette.category);
+
+        // Brand pill
+        doc.roundedRect(50, 40, 160, 24, 4)
+          .lineWidth(0.8)
+          .fillAndStroke(palette.badgeBg || palette.cardBg, palette.accent || palette.category);
+        doc.fillColor(palette.accent || palette.category).font('Helvetica-Bold').fontSize(8.5).text('⚡ NOTIVEXA PRESENTATION', 50, 47, { width: 160, align: 'center' });
+
+        // Title
+        doc.fillColor(palette.title).font('Helvetica-Bold').fontSize(28).text(slideTitle, 50, 80, { width: W - 100 });
+        doc.fillColor(palette.text).font('Helvetica').fontSize(12).text(`Topic: ${subject || title} • Comprehensive Academic Syllabus`, 50, 125, { width: W - 100 });
+
+        // Hero Takeaway Card
+        if (cleanTakeaway) {
+          doc.roundedRect(50, 165, W - 100, 65, 8)
+            .lineWidth(1)
+            .fillAndStroke(palette.takeawayBg, palette.takeawayBorder);
+
+          doc.fillColor(palette.takeawayLabel).font('Helvetica-Bold').fontSize(11).text('⚡ KEY TAKEAWAY', 68, 178);
+          doc.fillColor(palette.takeawayText).font('Helvetica').fontSize(11.5).text(cleanTakeaway, 68, 196, { width: W - 136 });
+        }
+
+        // 3 Metadata chips
+        const chips = [
+          `📚 ${rawSlides.length} Comprehensive Slides`,
+          `🎯 ${subject || 'Academic Syllabus'}`,
+          '✨ Gamma AI Structured'
+        ];
+        const chipW = (W - 136) / 3;
+        chips.forEach((ch, cIdx) => {
+          const cX = 50 + cIdx * (chipW + 18);
+          doc.roundedRect(cX, 260, chipW, 36, 6)
+            .lineWidth(0.8)
+            .fillAndStroke(palette.cardBg, palette.cardBorder);
+          doc.fillColor(palette.cardTitle || palette.title).font('Helvetica-Bold').fontSize(10).text(ch, cX, 272, { width: chipW, align: 'center' });
+        });
+
+        // Slide number
+        doc.fillColor(palette.numColor || '#888888').font('Helvetica').fontSize(10).text(`01 / ${String(rawSlides.length).padStart(2, '0')}`, W - 90, H - 35, { align: 'right' });
+        return;
+      }
+
+      // --- CONTENT SLIDE: Gamma Multi-Card Layout ---
+      // 1. Category Badge & Counter
+      doc.roundedRect(50, 28, 140, 22, 4)
+        .lineWidth(0.8)
+        .fillAndStroke(palette.badgeBg || palette.cardBg, palette.accent || palette.category);
+      doc.fillColor(palette.accent || palette.category).font('Helvetica-Bold').fontSize(8.5).text(`✨ ${category}`, 50, 34, { width: 140, align: 'center' });
+
+      doc.fillColor(palette.numColor || '#888888').font('Helvetica-Bold').fontSize(10).text(`${String(slide.slideNumber || idx + 1).padStart(2, '0')} / ${String(rawSlides.length).padStart(2, '0')}`, W - 100, 32, { align: 'right' });
 
       // 2. Slide Title
-      doc.fillColor(palette.title).font('Helvetica-Bold').fontSize(22).text(slideTitle, 50, 52, { width: W - 100 });
+      doc.fillColor(palette.title).font('Helvetica-Bold').fontSize(22).text(slideTitle, 50, 58, { width: W - 100 });
 
       // 3. KEY TAKEAWAY Banner Card
-      const hasTakeaway = Boolean(cleanTakeaway);
-      if (hasTakeaway) {
-        doc.roundedRect(50, 92, W - 100, 42, 6)
+      let contentY = 96;
+      if (cleanTakeaway) {
+        doc.roundedRect(50, 92, W - 100, 38, 6)
           .lineWidth(1)
           .fillAndStroke(palette.takeawayBg, palette.takeawayBorder);
 
-        doc.fillColor(palette.takeawayLabel).font('Helvetica-Bold').fontSize(10.5).text('KEY TAKEAWAY:  ', 64, 105, { continued: true });
-        doc.fillColor(palette.takeawayText).font('Helvetica').fontSize(10.5).text(cleanTakeaway, { width: W - 130 });
+        doc.fillColor(palette.takeawayLabel).font('Helvetica-Bold').fontSize(10).text('⚡ KEY TAKEAWAY:  ', 64, 104, { continued: true });
+        doc.fillColor(palette.takeawayText).font('Helvetica').fontSize(10).text(cleanTakeaway, { width: W - 130 });
+        contentY = 142;
       }
 
-      // 4. Content Bullets
-      let y = hasTakeaway ? 152 : 105;
-      const maxY = cleanAnalogy ? H - 100 : H - 50;
+      // 4. Gamma Multi-Card Grid
+      const cardItems = bullets.map((b, bIdx) => parsePdfBulletToCard(b, bIdx));
+      const N = Math.min(cardItems.length, 4) || 1;
+      const hasAnalogy = Boolean(cleanAnalogy);
+      const cardH = hasAnalogy ? 250 : 330;
+      const totalWidth = W - 100;
+      const cardGap = 16;
+      const cardW = (totalWidth - (N - 1) * cardGap) / N;
 
-      bullets.forEach(b => {
-        if (y >= maxY) return;
-        const str = String(b).trim();
-        const colonIdx = str.indexOf(': ');
+      cardItems.slice(0, N).forEach((c, cIdx) => {
+        const cardX = 50 + cIdx * (cardW + cardGap);
 
-        doc.fillColor(palette.category).font('Helvetica-Bold').fontSize(14).text('•', 52, y);
+        // Card container
+        doc.roundedRect(cardX, contentY, cardW, cardH, 8)
+          .lineWidth(1)
+          .fillAndStroke(palette.cardBg, palette.cardBorder);
 
-        if (colonIdx > 0 && colonIdx < 45) {
-          const label = str.substring(0, colonIdx + 2);
-          const desc = str.substring(colonIdx + 2);
-          doc.fillColor(palette.title).font('Helvetica-Bold').fontSize(13.5).text(label, 70, y, { continued: true });
-          doc.fillColor(palette.text).font('Helvetica').fontSize(13.5).text(desc, { width: W - 130 });
-        } else {
-          doc.fillColor(palette.text).font('Helvetica').fontSize(13.5).text(str, 70, y, { width: W - 130 });
-        }
+        // Top accent strip
+        doc.roundedRect(cardX, contentY, cardW, 4, 2)
+          .fill(palette.accent || palette.category);
 
-        y += Math.max(26, doc.heightOfString(str, { width: W - 130 }) + 10);
+        // Step number pill badge
+        doc.roundedRect(cardX + 12, contentY + 12, 30, 18, 4)
+          .lineWidth(0.8)
+          .fillAndStroke(palette.badgeBg || palette.bg, palette.accent || palette.category);
+        doc.fillColor(palette.accent || palette.category).font('Helvetica-Bold').fontSize(8.5).text(c.num, cardX + 12, contentY + 16, { width: 30, align: 'center' });
+
+        // Card Title
+        doc.fillColor(palette.cardTitle || palette.title).font('Helvetica-Bold').fontSize(N === 4 ? 11 : 12.5).text(c.title, cardX + 12, contentY + 38, { width: cardW - 24 });
+
+        // Card Description
+        doc.fillColor(palette.text).font('Helvetica').fontSize(N === 4 ? 9.5 : 10.5).text(c.desc, cardX + 12, contentY + 68, { width: cardW - 24, lineGap: 3 });
       });
 
-      // 5. REAL-WORLD ANALOGY Banner Card
+      // 5. REAL-WORLD ANALOGY Bottom Banner Card
       if (cleanAnalogy) {
-        doc.roundedRect(50, H - 85, W - 100, 40, 6)
+        doc.roundedRect(50, H - 78, W - 100, 38, 6)
           .lineWidth(1)
           .fillAndStroke(palette.analogyBg, palette.analogyBorder);
 
-        doc.fillColor(palette.analogyLabel).font('Helvetica-Bold').fontSize(10).text('💡 REAL-WORLD ANALOGY:  ', 64, H - 72, { continued: true });
-        doc.fillColor(palette.analogyText).font('Helvetica').fontSize(10).text(cleanAnalogy, { width: W - 130 });
+        doc.fillColor(palette.analogyLabel).font('Helvetica-Bold').fontSize(9.5).text('💡 REAL-WORLD ANALOGY:  ', 64, H - 66, { continued: true });
+        doc.fillColor(palette.analogyText).font('Helvetica').fontSize(9.5).text(cleanAnalogy, { width: W - 130 });
       }
 
       // 6. Slide Number
-      doc.fillColor(palette.numColor || '#888888').font('Helvetica').fontSize(10).text(String(slide.slideNumber || idx + 1), W - 80, H - 34, { align: 'right' });
+      doc.fillColor(palette.numColor || '#888888').font('Helvetica').fontSize(9.5).text(`${String(slide.slideNumber || idx + 1).padStart(2, '0')}`, W - 80, H - 28, { align: 'right' });
     });
 
     doc.end();

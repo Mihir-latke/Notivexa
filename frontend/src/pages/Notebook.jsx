@@ -57,16 +57,48 @@ export const PAPER_STYLES = [
 
 export const PPT_THEMES_LIST = [
   {
+    id: 'obsidian',
+    name: '🌌 Gamma Obsidian (Dark)',
+    bg: '#090D16',
+    card: '#121A2D',
+    cardBg: '#121A2D',
+    cardBorder: '#1E293B',
+    accent: '#6366F1',
+    categoryColor: '#818CF8',
+    title: '#FFFFFF',
+    titleColor: '#FFFFFF',
+    cardTitle: '#F8FAFC',
+    text: '#94A3B8',
+    textColor: '#94A3B8',
+    takeawayBg: '#1E1B4B',
+    takeawayBorder: '#6366F1',
+    takeawayLabel: '#A5B4FC',
+    takeawayText: '#E0E7FF',
+    analogyBg: '#0C2A45',
+    analogyBorder: '#0284C7',
+    analogyLabel: '#38BDF8',
+    analogyText: '#BAE6FD',
+    badgeBg: '#1E293B',
+    badge: '#6366F1',
+    header: '#6366F1',
+    border: '#1E293B',
+    numColor: '#64748B',
+    isDark: true
+  },
+  {
     id: 'light',
-    name: '📄 Clean Academic (Standard)',
-    bg: '#FFFFFF',
+    name: '📄 Gamma Clean (Light)',
+    bg: '#F8FAFC',
     card: '#FFFFFF',
-    header: '#E11D48',
-    badge: '#E11D48',
-    text: '#334155',
+    cardBg: '#FFFFFF',
+    cardBorder: '#CBD5E1',
+    accent: '#4F46E5',
+    categoryColor: '#E11D48',
     title: '#0F172A',
-    accent: '#E11D48',
-    border: '#CBD5E1',
+    titleColor: '#0F172A',
+    cardTitle: '#0F172A',
+    text: '#475569',
+    textColor: '#475569',
     takeawayBg: '#FEF3C7',
     takeawayBorder: '#F59E0B',
     takeawayLabel: '#B45309',
@@ -75,93 +107,134 @@ export const PPT_THEMES_LIST = [
     analogyBorder: '#38BDF8',
     analogyLabel: '#0369A1',
     analogyText: '#0C4A6E',
-    numColor: '#888888'
+    badgeBg: '#F1F5F9',
+    badge: '#E11D48',
+    header: '#4F46E5',
+    border: '#CBD5E1',
+    numColor: '#888888',
+    isDark: false
   },
   {
-    id: 'indigo',
-    name: '🌌 Academic Indigo',
-    bg: '#0F172A',
-    card: '#1E293B',
-    header: '#4F46E5',
-    badge: '#818CF8',
-    text: '#E2E8F0',
+    id: 'cyber',
+    name: '⚡ Gamma Cyber (Purple)',
+    bg: '#0F0728',
+    card: '#1A0C36',
+    cardBg: '#1A0C36',
+    cardBorder: '#3B1D6D',
+    accent: '#A855F7',
+    categoryColor: '#C084FC',
     title: '#FFFFFF',
-    accent: '#818CF8',
-    border: '#312E81',
-    takeawayBg: '#1E293B',
-    takeawayBorder: '#F59E0B',
-    takeawayLabel: '#FBBF24',
-    takeawayText: '#FDE68A',
-    analogyBg: '#0F243A',
-    analogyBorder: '#38BDF8',
-    analogyLabel: '#38BDF8',
-    analogyText: '#BAE6FD',
-    numColor: '#64748B'
+    titleColor: '#FFFFFF',
+    cardTitle: '#FAF5FF',
+    text: '#D8B4FE',
+    textColor: '#D8B4FE',
+    takeawayBg: '#2E1065',
+    takeawayBorder: '#A855F7',
+    takeawayLabel: '#E9D5FF',
+    takeawayText: '#FAF5FF',
+    analogyBg: '#280D40',
+    analogyBorder: '#EC4899',
+    analogyLabel: '#F472B6',
+    analogyText: '#FDF2F8',
+    badgeBg: '#2E1065',
+    badge: '#A855F7',
+    header: '#9333EA',
+    border: '#3B1D6D',
+    numColor: '#9333EA',
+    isDark: true
   },
   {
     id: 'emerald',
-    name: '🌿 Emerald Forest',
-    bg: '#064E3B',
-    card: '#065F46',
-    header: '#059669',
-    badge: '#34D399',
-    text: '#D1FAE5',
+    name: '🌿 Gamma Emerald (Mint)',
+    bg: '#051B14',
+    card: '#0B2D22',
+    cardBg: '#0B2D22',
+    cardBorder: '#14532D',
+    accent: '#10B981',
+    categoryColor: '#34D399',
     title: '#FFFFFF',
-    accent: '#34D399',
-    border: '#047857',
-    takeawayBg: '#065F46',
+    titleColor: '#FFFFFF',
+    cardTitle: '#ECFDF5',
+    text: '#A7F3D0',
+    textColor: '#A7F3D0',
+    takeawayBg: '#064E3B',
     takeawayBorder: '#F59E0B',
     takeawayLabel: '#FBBF24',
     takeawayText: '#FEF3C7',
     analogyBg: '#04382B',
     analogyBorder: '#38BDF8',
-    analogyLabel: '#67E8F9',
+    analogyLabel: '#38BDF8',
     analogyText: '#E0F2FE',
-    numColor: '#059669'
+    badgeBg: '#064E3B',
+    badge: '#10B981',
+    header: '#059669',
+    border: '#14532D',
+    numColor: '#059669',
+    isDark: true
   },
   {
     id: 'sunset',
-    name: '🌅 Sunset Crimson',
-    bg: '#4C0519',
-    card: '#881337',
+    name: '🌅 Gamma Sunset (Rose)',
+    bg: '#1A091E',
+    card: '#281030',
+    cardBg: '#281030',
+    cardBorder: '#4C1D4F',
+    accent: '#F43F5E',
+    categoryColor: '#FB7185',
+    title: '#FFFFFF',
+    titleColor: '#FFFFFF',
+    cardTitle: '#FFF1F2',
+    text: '#FECDD3',
+    textColor: '#FECDD3',
+    takeawayBg: '#4C0519',
+    takeawayBorder: '#F59E0B',
+    takeawayLabel: '#FBBF24',
+    takeawayText: '#FEF3C7',
+    analogyBg: '#3B0D2E',
+    analogyBorder: '#FB923C',
+    analogyLabel: '#FDBA74',
+    analogyText: '#FFF7ED',
+    badgeBg: '#4C0519',
+    badge: '#F43F5E',
     header: '#E11D48',
-    badge: '#FB7185',
-    text: '#FFE4E6',
-    title: '#FFFFFF',
-    accent: '#FB7185',
-    border: '#BE123C',
-    takeawayBg: '#881337',
-    takeawayBorder: '#F59E0B',
-    takeawayLabel: '#FBBF24',
-    takeawayText: '#FEF3C7',
-    analogyBg: '#701A75',
-    analogyBorder: '#38BDF8',
-    analogyLabel: '#38BDF8',
-    analogyText: '#E0F2FE',
-    numColor: '#9F1239'
-  },
-  {
-    id: 'cyber',
-    name: '⚡ Cyber Purple',
-    bg: '#180828',
-    card: '#2E1065',
-    header: '#9333EA',
-    badge: '#C084FC',
-    text: '#F3E8FF',
-    title: '#FFFFFF',
-    accent: '#C084FC',
-    border: '#6B21A8',
-    takeawayBg: '#2E1065',
-    takeawayBorder: '#F59E0B',
-    takeawayLabel: '#FBBF24',
-    takeawayText: '#FEF3C7',
-    analogyBg: '#1E1B4B',
-    analogyBorder: '#38BDF8',
-    analogyLabel: '#38BDF8',
-    analogyText: '#E0F2FE',
-    numColor: '#7E22CE'
+    border: '#4C1D4F',
+    numColor: '#BE123C',
+    isDark: true
   }
 ];
+
+export function parseBulletToCard(bulletStr, idx) {
+  const str = String(bulletStr || '').trim();
+  const colonIdx = str.indexOf(': ');
+  if (colonIdx > 0 && colonIdx < 45) {
+    return {
+      num: String(idx + 1).padStart(2, '0'),
+      title: str.substring(0, colonIdx).trim(),
+      desc: str.substring(colonIdx + 2).trim()
+    };
+  }
+  const dashIdx = str.indexOf(' — ');
+  if (dashIdx > 0 && dashIdx < 45) {
+    return {
+      num: String(idx + 1).padStart(2, '0'),
+      title: str.substring(0, dashIdx).trim(),
+      desc: str.substring(dashIdx + 3).trim()
+    };
+  }
+  const words = str.split(' ');
+  if (words.length > 5) {
+    return {
+      num: String(idx + 1).padStart(2, '0'),
+      title: words.slice(0, 3).join(' '),
+      desc: words.slice(3).join(' ')
+    };
+  }
+  return {
+    num: String(idx + 1).padStart(2, '0'),
+    title: `Key Concept ${idx + 1}`,
+    desc: str
+  };
+}
 
 // Renders a handwritten-style page
 function HandwrittenPage({ content, pageNum, total, fontId = 'caveat', paperStyle = 'yellow', sizeMod = 0 }) {
@@ -529,10 +602,30 @@ export default function Notebook() {
   const [editSlides, setEditSlides] = useState([])
   const [editPaperData, setEditPaperData] = useState(null)
   const [paperEditMode, setPaperEditMode] = useState('visual') // 'visual' | 'json'
-  const [pptTheme, setPptTheme] = useState('light')
+  const [pptTheme, setPptTheme] = useState('obsidian')
+  const [slideshowOpen, setSlideshowOpen] = useState(false)
+  const [currentSlideIndex, setCurrentSlideIndex] = useState(0)
   const [exportingWord, setExportingWord] = useState(false)
   const [exportingPptx, setExportingPptx] = useState(false)
   const [exportingPdf, setExportingPdf] = useState(false)
+
+  useEffect(() => {
+    if (!slideshowOpen) return
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setSlideshowOpen(false)
+      } else if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault()
+        const slidesLen = editSlides.length > 0 ? editSlides.length : (result?.data?.pptData?.slides?.length || 1)
+        setCurrentSlideIndex(prev => Math.min(prev + 1, slidesLen - 1))
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault()
+        setCurrentSlideIndex(prev => Math.max(prev - 1, 0))
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [slideshowOpen, editSlides, result])
 
   useEffect(() => {
     api.get('/documents?status=ready').then(r => setDocs(r.data.documents || [])).catch(() => {})
@@ -1579,6 +1672,28 @@ export default function Notebook() {
               {exportingPdf ? '⏳ Generating PDF…' : '⬇️ Download Slides PDF'}
             </button>
 
+            {/* Interactive Presentation Mode */}
+            <button
+              className="btn btn-sm"
+              style={{
+                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+                color: '#fff',
+                border: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 700,
+                boxShadow: '0 2px 8px rgba(99,102,241,0.25)',
+                cursor: 'pointer'
+              }}
+              onClick={() => {
+                setCurrentSlideIndex(0)
+                setSlideshowOpen(true)
+              }}
+            >
+              📽️ Present Slideshow
+            </button>
+
             <span style={{ fontSize:11, color:'var(--ink3)' }}>
               Theme: <strong style={{ color:'var(--brand)' }}>{activeThemeObj.name}</strong>
             </span>
@@ -1760,132 +1875,254 @@ export default function Notebook() {
                   </div>
                 ) : (
                   <div>
-                    <div
-                      style={{
-                        fontFamily: 'Sora, sans-serif',
-                        fontSize: 19,
-                        fontWeight: 800,
-                        color: activeThemeObj.title,
-                        margin: '6px 0 12px'
-                      }}
-                    >
-                      {s.title}
-                    </div>
-
-                    {/* KEY TAKEAWAY Banner Card */}
-                    {(s.keyTakeaway || s.takeaway) && (
-                      <div
-                        style={{
-                          background: activeThemeObj.takeawayBg || '#FEF3C7',
-                          border: `1.5px solid ${activeThemeObj.takeawayBorder || '#F59E0B'}`,
-                          borderRadius: 8,
-                          padding: '10px 14px',
-                          marginBottom: 14,
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          gap: 8,
-                          boxShadow: '0 2px 6px rgba(245,158,11,0.08)'
-                        }}
-                      >
-                        <span
+                    {i === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '16px 12px 14px', position: 'relative' }}>
+                        <div
                           style={{
-                            color: activeThemeObj.takeawayLabel || '#B45309',
+                            height: 4,
+                            width: '100%',
+                            background: `linear-gradient(90deg, ${activeThemeObj.accent}, ${activeThemeObj.categoryColor || activeThemeObj.badge})`,
+                            borderRadius: 2,
+                            marginBottom: 14
+                          }}
+                        />
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: activeThemeObj.badgeBg || 'rgba(99,102,241,0.15)', padding: '4px 12px', borderRadius: 20, marginBottom: 12 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, color: activeThemeObj.accent, letterSpacing: '0.8px' }}>
+                            ⚡ NOTIVEXA • PRESENTATION
+                          </span>
+                        </div>
+                        <h2
+                          style={{
+                            fontFamily: 'Sora, sans-serif',
+                            fontSize: 23,
                             fontWeight: 800,
-                            fontSize: 11,
-                            letterSpacing: '0.5px',
-                            whiteSpace: 'nowrap'
+                            color: activeThemeObj.title,
+                            margin: '0 0 8px',
+                            lineHeight: 1.3
                           }}
                         >
-                          KEY TAKEAWAY:
-                        </span>
-                        <span
-                          style={{
-                            color: activeThemeObj.takeawayText || '#78350F',
-                            fontSize: 13,
-                            fontWeight: 500,
-                            lineHeight: 1.5
-                          }}
-                        >
-                          {(s.keyTakeaway || s.takeaway).replace(/^KEY TAKEAWAY:\s*/i, '')}
-                        </span>
-                      </div>
-                    )}
+                          {s.title}
+                        </h2>
+                        <p style={{ fontSize: 13.5, color: activeThemeObj.text, margin: '0 0 16px', opacity: 0.85 }}>
+                          {doc?.subject || doc?.title || 'Academic Lecture Presentation'}
+                        </p>
 
-                    {/* Content Bullets with bold label prefixes */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, margin: '12px 0' }}>
-                      {(s.bullets || []).map((b, j) => {
-                        const str = String(b).trim();
-                        const colonIdx = str.indexOf(': ');
-                        let label = '';
-                        let desc = str;
-                        if (colonIdx > 0 && colonIdx < 45) {
-                          label = str.substring(0, colonIdx);
-                          desc = str.substring(colonIdx + 2);
-                        }
-                        return (
-                          <div key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                            <span style={{ color: activeThemeObj.badge || activeThemeObj.accent, fontSize: 13, lineHeight: 1.6 }}>•</span>
-                            <div style={{ fontSize: 13.5, lineHeight: 1.6, color: activeThemeObj.text }}>
-                              {label ? <strong style={{ color: activeThemeObj.title, fontWeight: 700 }}>{label}: </strong> : null}
-                              <span>{desc}</span>
+                        {(s.keyTakeaway || s.takeaway) && (
+                          <div
+                            style={{
+                              background: activeThemeObj.takeawayBg,
+                              border: `1.5px solid ${activeThemeObj.takeawayBorder}`,
+                              borderRadius: 10,
+                              padding: '12px 16px',
+                              maxWidth: 640,
+                              margin: '0 auto 16px',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div style={{ color: activeThemeObj.takeawayLabel, fontWeight: 800, fontSize: 10.5, letterSpacing: '0.6px', marginBottom: 4 }}>
+                              ⚡ PRESENTATION HIGHLIGHT
+                            </div>
+                            <div style={{ color: activeThemeObj.takeawayText, fontSize: 13, lineHeight: 1.5, fontWeight: 500 }}>
+                              {(s.keyTakeaway || s.takeaway).replace(/^KEY TAKEAWAY:\s*/i, '')}
                             </div>
                           </div>
-                        );
-                      })}
-                    </div>
+                        )}
 
-                    {/* REAL-WORLD ANALOGY Banner Card */}
-                    {(s.analogy || s.realWorldAnalogy) && (
-                      <div
-                        style={{
-                          background: activeThemeObj.analogyBg || '#E0F2FE',
-                          border: `1.5px solid ${activeThemeObj.analogyBorder || '#38BDF8'}`,
-                          borderRadius: 8,
-                          padding: '10px 14px',
-                          marginTop: 14,
-                          display: 'flex',
-                          alignItems: 'baseline',
-                          gap: 8,
-                          boxShadow: '0 2px 6px rgba(56,189,248,0.08)'
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: activeThemeObj.analogyLabel || '#0369A1',
-                            fontWeight: 800,
-                            fontSize: 10.5,
-                            letterSpacing: '0.5px',
-                            whiteSpace: 'nowrap'
-                          }}
-                        >
-                          💡 REAL-WORLD ANALOGY:
-                        </span>
-                        <span
-                          style={{
-                            color: activeThemeObj.analogyText || '#0C4A6E',
-                            fontSize: 12.5,
-                            fontWeight: 500,
-                            lineHeight: 1.5
-                          }}
-                        >
-                          {(s.analogy || s.realWorldAnalogy).replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '')}
-                        </span>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: activeThemeObj.bg || 'var(--bg2)', border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`, color: activeThemeObj.text }}>
+                            📚 {slides.length} Slides
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: activeThemeObj.bg || 'var(--bg2)', border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`, color: activeThemeObj.text }}>
+                            🎯 Academic Syllabus
+                          </span>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: activeThemeObj.bg || 'var(--bg2)', border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`, color: activeThemeObj.accent }}>
+                            ✨ Gamma AI Grid
+                          </span>
+                        </div>
                       </div>
-                    )}
+                    ) : (
+                      <div>
+                        <div
+                          style={{
+                            fontFamily: 'Sora, sans-serif',
+                            fontSize: 19,
+                            fontWeight: 800,
+                            color: activeThemeObj.title,
+                            margin: '6px 0 12px'
+                          }}
+                        >
+                          {s.title}
+                        </div>
 
-                    {s.speakerNotes && (
-                      <div
-                        style={{
-                          fontSize: 12,
-                          color: activeThemeObj.text,
-                          opacity: 0.75,
-                          marginTop: 12,
-                          fontStyle: 'italic',
-                          borderTop: `1px dashed ${activeThemeObj.border}`,
-                          paddingTop: 8
-                        }}
-                      >
-                        🎙️ Speaker Notes: {s.speakerNotes}
+                        {/* KEY TAKEAWAY Banner Card */}
+                        {(s.keyTakeaway || s.takeaway) && (
+                          <div
+                            style={{
+                              background: activeThemeObj.takeawayBg || '#FEF3C7',
+                              border: `1.5px solid ${activeThemeObj.takeawayBorder || '#F59E0B'}`,
+                              borderRadius: 8,
+                              padding: '10px 14px',
+                              marginBottom: 14,
+                              display: 'flex',
+                              alignItems: 'baseline',
+                              gap: 8,
+                              boxShadow: '0 2px 6px rgba(245,158,11,0.08)'
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: activeThemeObj.takeawayLabel || '#B45309',
+                                fontWeight: 800,
+                                fontSize: 11,
+                                letterSpacing: '0.5px',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              ⚡ KEY TAKEAWAY:
+                            </span>
+                            <span
+                              style={{
+                                color: activeThemeObj.takeawayText || '#78350F',
+                                fontSize: 13,
+                                fontWeight: 500,
+                                lineHeight: 1.5
+                              }}
+                            >
+                              {(s.keyTakeaway || s.takeaway).replace(/^KEY TAKEAWAY:\s*/i, '')}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Gamma AI Multi-Card Grid */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                            gap: 12,
+                            margin: '14px 0'
+                          }}
+                        >
+                          {(s.bullets || []).map((b, bi) => {
+                            const card = parseBulletToCard(b, bi);
+                            return (
+                              <div
+                                key={bi}
+                                style={{
+                                  background: activeThemeObj.bg || 'rgba(0,0,0,0.2)',
+                                  border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`,
+                                  borderRadius: 10,
+                                  padding: '14px 14px 16px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  position: 'relative',
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: 3.5,
+                                    background: activeThemeObj.accent || '#6366F1'
+                                  }}
+                                />
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, marginTop: 4 }}>
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 800,
+                                      padding: '2px 7px',
+                                      borderRadius: 4,
+                                      background: activeThemeObj.badgeBg || 'rgba(99,102,241,0.15)',
+                                      color: activeThemeObj.accent || '#6366F1',
+                                      fontFamily: 'monospace',
+                                      letterSpacing: '0.5px'
+                                    }}
+                                  >
+                                    {card.num}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: 13,
+                                      fontWeight: 800,
+                                      color: activeThemeObj.cardTitle || activeThemeObj.title,
+                                      lineHeight: 1.3
+                                    }}
+                                  >
+                                    {card.title}
+                                  </span>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12.5,
+                                    lineHeight: 1.55,
+                                    color: activeThemeObj.textColor || activeThemeObj.text,
+                                    marginTop: 2
+                                  }}
+                                >
+                                  {card.desc}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* REAL-WORLD ANALOGY Banner Card */}
+                        {(s.analogy || s.realWorldAnalogy) && (
+                          <div
+                            style={{
+                              background: activeThemeObj.analogyBg || '#E0F2FE',
+                              border: `1.5px solid ${activeThemeObj.analogyBorder || '#38BDF8'}`,
+                              borderRadius: 8,
+                              padding: '10px 14px',
+                              marginTop: 14,
+                              display: 'flex',
+                              alignItems: 'baseline',
+                              gap: 8,
+                              boxShadow: '0 2px 6px rgba(56,189,248,0.08)'
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: activeThemeObj.analogyLabel || '#0369A1',
+                                fontWeight: 800,
+                                fontSize: 10.5,
+                                letterSpacing: '0.5px',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              💡 REAL-WORLD ANALOGY:
+                            </span>
+                            <span
+                              style={{
+                                color: activeThemeObj.analogyText || '#0C4A6E',
+                                fontSize: 12.5,
+                                fontWeight: 500,
+                                lineHeight: 1.5
+                              }}
+                            >
+                              {(s.analogy || s.realWorldAnalogy).replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '')}
+                            </span>
+                          </div>
+                        )}
+
+                        {s.speakerNotes && (
+                          <div
+                            style={{
+                              fontSize: 12,
+                              color: activeThemeObj.text,
+                              opacity: 0.75,
+                              marginTop: 12,
+                              fontStyle: 'italic',
+                              borderTop: `1px dashed ${activeThemeObj.border}`,
+                              paddingTop: 8
+                            }}
+                          >
+                            🎙️ Speaker Notes: {s.speakerNotes}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1893,6 +2130,441 @@ export default function Notebook() {
               </div>
             ))}
           </div>
+
+          {/* Fullscreen Interactive Presentation Mode Modal */}
+          {slideshowOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 99999,
+                background: activeThemeObj.bg,
+                color: activeThemeObj.text,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                padding: '20px 28px',
+                boxSizing: 'border-box'
+              }}
+            >
+              {/* Slideshow Top Navigation Bar */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderBottom: `1px solid ${activeThemeObj.border || 'rgba(255,255,255,0.1)'}`,
+                  paddingBottom: 12,
+                  marginBottom: 16
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span
+                    style={{
+                      background: activeThemeObj.badgeBg || 'rgba(99,102,241,0.2)',
+                      color: activeThemeObj.accent || '#6366F1',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 11.5,
+                      fontWeight: 800,
+                      letterSpacing: '0.8px'
+                    }}
+                  >
+                    ⚡ NOTIVEXA PRESENT
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: activeThemeObj.title }}>
+                    {doc?.title || 'Presentation Deck'}
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {/* Theme Switcher inside presentation */}
+                  <select
+                    className="fi"
+                    style={{
+                      background: activeThemeObj.cardBg || activeThemeObj.card,
+                      color: activeThemeObj.title,
+                      border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`,
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      fontSize: 12,
+                      fontWeight: 600
+                    }}
+                    value={pptTheme}
+                    onChange={e => setPptTheme(e.target.value)}
+                  >
+                    {PPT_THEMES_LIST.map(th => (
+                      <option key={th.id} value={th.id}>{th.name}</option>
+                    ))}
+                  </select>
+
+                  <span style={{ fontSize: 12, fontWeight: 700, color: activeThemeObj.numColor }}>
+                    Slide {currentSlideIndex + 1} of {slides.length}
+                  </span>
+
+                  <button
+                    className="btn btn-g btn-sm"
+                    style={{
+                      background: 'rgba(255,255,255,0.12)',
+                      color: '#fff',
+                      border: 'none',
+                      padding: '5px 12px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => setSlideshowOpen(false)}
+                  >
+                    ✕ Exit (Esc)
+                  </button>
+                </div>
+              </div>
+
+              {/* Slide Body Stage */}
+              <div
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px 0',
+                  overflowY: 'auto'
+                }}
+              >
+                {(() => {
+                  const currSlide = slides[currentSlideIndex] || slides[0]
+                  if (!currSlide) return null
+
+                  if (currentSlideIndex === 0) {
+                    return (
+                      <div
+                        style={{
+                          width: '100%',
+                          maxWidth: 960,
+                          background: activeThemeObj.cardBg || activeThemeObj.card,
+                          border: `2px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`,
+                          borderRadius: 16,
+                          padding: '44px 36px',
+                          textAlign: 'center',
+                          boxShadow: '0 20px 50px rgba(0,0,0,0.3)',
+                          position: 'relative',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        <div
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 6,
+                            background: `linear-gradient(90deg, ${activeThemeObj.accent}, ${activeThemeObj.categoryColor || activeThemeObj.badge})`
+                          }}
+                        />
+                        <div
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            background: activeThemeObj.badgeBg || 'rgba(99,102,241,0.15)',
+                            padding: '6px 16px',
+                            borderRadius: 20,
+                            marginBottom: 18
+                          }}
+                        >
+                          <span style={{ fontSize: 12, fontWeight: 800, color: activeThemeObj.accent, letterSpacing: '1px' }}>
+                            ⚡ NOTIVEXA • PRESENTATION
+                          </span>
+                        </div>
+                        <h1
+                          style={{
+                            fontFamily: 'Sora, sans-serif',
+                            fontSize: 32,
+                            fontWeight: 800,
+                            color: activeThemeObj.title,
+                            margin: '0 0 12px',
+                            lineHeight: 1.25
+                          }}
+                        >
+                          {currSlide.title}
+                        </h1>
+                        <p style={{ fontSize: 15, color: activeThemeObj.text, margin: '0 0 24px', opacity: 0.9 }}>
+                          {doc?.subject || doc?.title || 'Academic Lecture Deck'}
+                        </p>
+
+                        {(currSlide.keyTakeaway || currSlide.takeaway) && (
+                          <div
+                            style={{
+                              background: activeThemeObj.takeawayBg,
+                              border: `1.5px solid ${activeThemeObj.takeawayBorder}`,
+                              borderRadius: 12,
+                              padding: '16px 20px',
+                              maxWidth: 720,
+                              margin: '0 auto 26px',
+                              textAlign: 'left'
+                            }}
+                          >
+                            <div style={{ color: activeThemeObj.takeawayLabel, fontWeight: 800, fontSize: 11, letterSpacing: '0.6px', marginBottom: 4 }}>
+                              ⚡ PRESENTATION HIGHLIGHT
+                            </div>
+                            <div style={{ color: activeThemeObj.takeawayText, fontSize: 14, lineHeight: 1.6, fontWeight: 500 }}>
+                              {(currSlide.keyTakeaway || currSlide.takeaway).replace(/^KEY TAKEAWAY:\s*/i, '')}
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: 10, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 20, background: activeThemeObj.bg, border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`, color: activeThemeObj.text }}>
+                            📚 {slides.length} Slides
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 20, background: activeThemeObj.bg, border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`, color: activeThemeObj.text }}>
+                            🎯 Academic Syllabus
+                          </span>
+                          <span style={{ fontSize: 12, fontWeight: 700, padding: '5px 14px', borderRadius: 20, background: activeThemeObj.bg, border: `1px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`, color: activeThemeObj.accent }}>
+                            ✨ Gamma AI Grid
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  }
+
+                  return (
+                    <div
+                      style={{
+                        width: '100%',
+                        maxWidth: 1040,
+                        background: activeThemeObj.cardBg || activeThemeObj.card,
+                        border: `2px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`,
+                        borderRadius: 16,
+                        padding: '28px 32px',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.35)',
+                        position: 'relative',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column'
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: 5,
+                          background: activeThemeObj.accent || '#6366F1'
+                        }}
+                      />
+
+                      {/* Slide Header */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                        <span
+                          style={{
+                            background: activeThemeObj.badge || activeThemeObj.header || '#6366F1',
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 800,
+                            padding: '3px 10px',
+                            borderRadius: 6,
+                            letterSpacing: '0.8px',
+                            textTransform: 'uppercase'
+                          }}
+                        >
+                          {currSlide.category || 'CORE PRINCIPLE'}
+                        </span>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: activeThemeObj.numColor }}>
+                          SLIDE {currentSlideIndex + 1} / {slides.length}
+                        </span>
+                      </div>
+
+                      {/* Slide Title */}
+                      <h2
+                        style={{
+                          fontFamily: 'Sora, sans-serif',
+                          fontSize: 22,
+                          fontWeight: 800,
+                          color: activeThemeObj.title,
+                          margin: '0 0 14px',
+                          lineHeight: 1.3
+                        }}
+                      >
+                        {currSlide.title}
+                      </h2>
+
+                      {/* Hero Key Takeaway Banner */}
+                      {(currSlide.keyTakeaway || currSlide.takeaway) && (
+                        <div
+                          style={{
+                            background: activeThemeObj.takeawayBg,
+                            border: `1.5px solid ${activeThemeObj.takeawayBorder}`,
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            marginBottom: 16,
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: 8
+                          }}
+                        >
+                          <span style={{ color: activeThemeObj.takeawayLabel, fontWeight: 800, fontSize: 11, letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>
+                            ⚡ KEY TAKEAWAY:
+                          </span>
+                          <span style={{ color: activeThemeObj.takeawayText, fontSize: 13, fontWeight: 500, lineHeight: 1.5 }}>
+                            {(currSlide.keyTakeaway || currSlide.takeaway).replace(/^KEY TAKEAWAY:\s*/i, '')}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Gamma AI Multi-Card Grid */}
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                          gap: 12,
+                          marginBottom: 16
+                        }}
+                      >
+                        {(currSlide.bullets || []).map((b, bi) => {
+                          const card = parseBulletToCard(b, bi)
+                          return (
+                            <div
+                              key={bi}
+                              style={{
+                                background: activeThemeObj.bg,
+                                border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}`,
+                                borderRadius: 12,
+                                padding: '14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                position: 'relative',
+                                overflow: 'hidden'
+                              }}
+                            >
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0,
+                                  right: 0,
+                                  height: 4,
+                                  background: activeThemeObj.accent
+                                }}
+                              />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, marginTop: 4 }}>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    fontWeight: 800,
+                                    padding: '2px 7px',
+                                    borderRadius: 4,
+                                    background: activeThemeObj.badgeBg,
+                                    color: activeThemeObj.accent,
+                                    fontFamily: 'monospace'
+                                  }}
+                                >
+                                  {card.num}
+                                </span>
+                                <strong style={{ fontSize: 13, color: activeThemeObj.cardTitle || activeThemeObj.title }}>
+                                  {card.title}
+                                </strong>
+                              </div>
+                              <p style={{ fontSize: 12.5, lineHeight: 1.55, color: activeThemeObj.textColor || activeThemeObj.text, margin: 0 }}>
+                                {card.desc}
+                              </p>
+                            </div>
+                          )
+                        })}
+                      </div>
+
+                      {/* Real-World Analogy Banner */}
+                      {(currSlide.analogy || currSlide.realWorldAnalogy) && (
+                        <div
+                          style={{
+                            background: activeThemeObj.analogyBg,
+                            border: `1.5px solid ${activeThemeObj.analogyBorder}`,
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            display: 'flex',
+                            alignItems: 'baseline',
+                            gap: 8
+                          }}
+                        >
+                          <span style={{ color: activeThemeObj.analogyLabel, fontWeight: 800, fontSize: 10.5, letterSpacing: '0.6px', whiteSpace: 'nowrap' }}>
+                            💡 REAL-WORLD ANALOGY:
+                          </span>
+                          <span style={{ color: activeThemeObj.analogyText, fontSize: 12.5, fontWeight: 500, lineHeight: 1.5 }}>
+                            {(currSlide.analogy || currSlide.realWorldAnalogy).replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '')}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Bottom Presentation Controls */}
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderTop: `1px solid ${activeThemeObj.border || 'rgba(255,255,255,0.1)'}`,
+                  paddingTop: 14,
+                  marginTop: 8
+                }}
+              >
+                <button
+                  className="btn btn-s btn-sm"
+                  style={{
+                    padding: '8px 16px',
+                    fontWeight: 700,
+                    opacity: currentSlideIndex === 0 ? 0.4 : 1,
+                    cursor: currentSlideIndex === 0 ? 'not-allowed' : 'pointer'
+                  }}
+                  disabled={currentSlideIndex === 0}
+                  onClick={() => setCurrentSlideIndex(prev => Math.max(prev - 1, 0))}
+                >
+                  ◀ Previous (Left Arrow)
+                </button>
+
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  {slides.map((_, dotIdx) => (
+                    <button
+                      key={dotIdx}
+                      onClick={() => setCurrentSlideIndex(dotIdx)}
+                      style={{
+                        width: dotIdx === currentSlideIndex ? 22 : 8,
+                        height: 8,
+                        borderRadius: 4,
+                        background: dotIdx === currentSlideIndex ? activeThemeObj.accent : (activeThemeObj.numColor || '#64748B'),
+                        border: 'none',
+                        padding: 0,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                      }}
+                      title={`Slide ${dotIdx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                <button
+                  className="btn btn-p btn-sm"
+                  style={{
+                    background: activeThemeObj.accent || 'var(--brand)',
+                    padding: '8px 18px',
+                    fontWeight: 700,
+                    opacity: currentSlideIndex === slides.length - 1 ? 0.4 : 1,
+                    cursor: currentSlideIndex === slides.length - 1 ? 'not-allowed' : 'pointer'
+                  }}
+                  disabled={currentSlideIndex === slides.length - 1}
+                  onClick={() => setCurrentSlideIndex(prev => Math.min(prev + 1, slides.length - 1))}
+                >
+                  Next (Right Arrow / Space) ▶
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )
     }
