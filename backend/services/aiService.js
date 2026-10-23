@@ -1347,22 +1347,33 @@ ${text.slice(0, 9000)}`;
 
 
 
-async function extractFromImage(imagePath, mimeType) {
+async function ocrImageBuffer(imageInput, mimeType = 'image/png') {
   const key = process.env.GEMINI_API_KEY;
   if (!key || key.startsWith('your_')) {
     throw new Error('Gemini API key is required to extract text from images. Add GEMINI_API_KEY to .env file.');
   }
 
-  const imageBase64 = fs.readFileSync(imagePath).toString('base64');
-  
-  const systemPrompt = `You are an expert OCR and document analysis AI.
-Please transcribe all the text from this image accurately. 
-If there are diagrams, describe them briefly.
-If it is handwritten, transcribe it carefully.
-Format the output clearly.`;
+  let imageBase64;
+  if (Buffer.isBuffer(imageInput)) {
+    imageBase64 = imageInput.toString('base64');
+  } else if (typeof imageInput === 'string') {
+    if (fs.existsSync(imageInput)) {
+      imageBase64 = fs.readFileSync(imageInput).toString('base64');
+    } else {
+      imageBase64 = imageInput; // assumed base64 string
+    }
+  } else {
+    throw new Error('Invalid image input for OCR');
+  }
 
-  const models = ['gemini-3-flash-preview', 'gemini-3.1-flash-lite-preview', 'gemini-2.5-flash-image'];
+  const systemPrompt = `You are an expert OCR and academic document transcription AI.
+Transcribe all text from this scanned book page or image accurately and completely.
+Preserve headings, paragraphs, bullet points, numbering, formulas, and multilingual terms (English, Hindi, Marathi, Sanskrit, etc.).
+Do not add conversational filler. Output only the transcribed content clearly formatted in clean Markdown.`;
+
+  const models = ['gemini-3-flash-preview', 'gemini-2.5-flash', 'gemini-1.5-flash'];
   let lastErr;
+
   for (const model of models) {
     try {
       const res = await fetch(
@@ -1371,40 +1382,51 @@ Format the output clearly.`;
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contents: [{ 
+            contents: [{
               parts: [
                 { text: systemPrompt },
-                { inlineData: { mimeType: mimeType, data: imageBase64 } }
-              ] 
+                { inlineData: { mimeType: mimeType || 'image/png', data: imageBase64 } }
+              ]
             }],
-            generationConfig: { maxOutputTokens: 2000, temperature: 0.1 }
+            generationConfig: { maxOutputTokens: 2500, temperature: 0.1 }
           }),
           timeout: 25000
         }
       );
+
       if (!res.ok) {
-        lastErr = new Error(`Gemini Vision (${model}) ${res.status}: ${await res.text()}`);
+        lastErr = new Error(`Vision OCR (${model}) ${res.status}: ${await res.text()}`);
         continue;
       }
+
       const d = await res.json();
       const text = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-      if (text && text.length >= 10) {
-        const words = text.split(/\s+/).filter(Boolean).length;
-        console.log(`[Image OCR] Extracted ${words} words using ${model}`);
-        const sections = [{ title: 'Image Content', content: text, wordCount: words }];
-        return { text, sections, pages: 1, words };
+      if (text && text.trim().length >= 10) {
+        const words = text.trim().split(/\s+/).filter(Boolean).length;
+        return { text: text.trim(), words };
       }
     } catch (e) {
       lastErr = e;
     }
   }
+
   if (lastErr) throw lastErr;
   throw new Error('Could not extract meaningful text from this image.');
+}
+
+async function extractFromImage(imagePath, mimeType) {
+  const ocrRes = await ocrImageBuffer(imagePath, mimeType);
+  const text = ocrRes.text;
+  const words = ocrRes.words;
+  console.log(`[Image OCR] Extracted ${words} words`);
+  const sections = [{ title: 'Image Content', content: text, wordCount: words }];
+  return { text, sections, pages: 1, words };
 }
 
 module.exports = {
   callAI,
   extractFromImage,
+  ocrImageBuffer,
   generateNotes, generateSummary, generateFlashcards, generateQuestions,
   generateQuestionPaper, generateHandwrittenNotes, generateVideoScript,
   generatePPT, generateMindmap, generateVocabulary,
