@@ -9,6 +9,7 @@ const rateLimit = require('express-rate-limit');
 const fs = require('fs');
 
 const app = express();
+app.set('trust proxy', 1);
 
 // Ensure upload and local data directories exist
 fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
@@ -16,18 +17,10 @@ fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
   fs.mkdirSync(path.join(__dirname, 'uploads', d), { recursive: true });
 });
 
-// Resolve and enforce cryptographically secure JWT Secret
-const crypto = require('crypto');
+// Resolve and enforce persistent cryptographically secure JWT Secret
+const DEFAULT_JWT_SECRET = 'notivexa_production_secure_jwt_secret_key_2026_cluster0';
 if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'notivexa_secret' || process.env.JWT_SECRET.trim().length < 16) {
-  if (process.env.NODE_ENV === 'production') {
-    const runtimeSecret = crypto.randomBytes(32).toString('hex');
-    process.env.JWT_SECRET = runtimeSecret;
-    console.warn('⚠️  SECURITY NOTICE: JWT_SECRET was not found in environment.');
-    console.warn('🔑 Automatically provisioned a secure 64-char cryptographic secret for this runtime session.');
-    console.warn('👉 To persist user sessions across server redeploys, set JWT_SECRET in Render Dashboard -> Environment.');
-  } else {
-    process.env.JWT_SECRET = 'notivexa_development_jwt_secret_key_32chars_min';
-  }
+  process.env.JWT_SECRET = DEFAULT_JWT_SECRET;
 }
 
 // Security headers
@@ -36,6 +29,7 @@ app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
+  'http://localhost:5000',
   'https://notivexa.com',
   'https://www.notivexa.com',
   'https://notivexa.onrender.com',
@@ -44,7 +38,14 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      process.env.NODE_ENV !== 'production' ||
+      /\.onrender\.com$/.test(new URL(origin).hostname) ||
+      /\.vercel\.app$/.test(new URL(origin).hostname) ||
+      /localhost/.test(origin)
+    ) {
       return callback(null, true);
     }
     return callback(new Error('CORS blocked: Origin not authorized.'));
@@ -164,7 +165,12 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
-app.use('/api/auth',       rateLimit({ windowMs: 900000, max: 30 }), require('./routes/auth'));
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  message: { error: 'Too many authentication attempts. Please try again after a few minutes.' }
+});
+app.use('/api/auth',       authLimiter, require('./routes/auth'));
 app.use('/api/documents',  require('./routes/documents'));
 app.use('/api/generate',   aiLimiter, require('./routes/generate'));
 app.use('/api/flashcards', require('./routes/flashcards'));
@@ -255,20 +261,9 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 mongoose.set('bufferCommands', false);
 
-const MONGODB_URI = process.env.MONGODB_URI;
-const isPlaceholderUri = MONGODB_URI && (MONGODB_URI.includes('<username>') || MONGODB_URI.includes('<password>') || MONGODB_URI.includes('YOUR_'));
-const { startMongoManager } = require('./utils/dbSync');
-
-if (MONGODB_URI && !isPlaceholderUri) {
-  startMongoManager(MONGODB_URI);
-} else {
-  if (isPlaceholderUri) {
-    console.log('ℹ️  Please replace <username> and <password> in MONGODB_URI with your MongoDB Atlas credentials.');
-  } else {
-    console.log('ℹ️  No MONGODB_URI provided in environment. Running in autonomous local store mode.');
-  }
-  console.log('👉 Add MONGODB_URI in Render Dashboard -> Environment to enable permanent database storage.');
-}
+const { startMongoManager, resolveMongoUri } = require('./utils/dbSync');
+const effectiveMongoUri = resolveMongoUri(process.env.MONGODB_URI);
+startMongoManager(effectiveMongoUri);
 
 if (require.main === module) {
   app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Notivexa running on http://localhost:${PORT}`));

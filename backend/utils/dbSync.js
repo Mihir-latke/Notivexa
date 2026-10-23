@@ -3,6 +3,19 @@ const { User, Document, Flashcard, Plan } = require('../models');
 const localStore = require('./localStore');
 const { seedUsers } = require('./seed');
 
+const DEFAULT_MONGODB_URI = 'mongodb+srv://Notivexa:Notivexa@cluster0.t09sptg.mongodb.net/notivexa?retryWrites=true&w=majority&appName=Cluster0';
+
+function resolveMongoUri(inputUri) {
+  let uri = inputUri || process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
+  if (uri.includes('<db_password>')) {
+    uri = uri.replace('<db_password>', 'Notivexa');
+  }
+  if (!uri || uri.includes('<username>') || uri.includes('<password>') || uri.includes('YOUR_')) {
+    uri = DEFAULT_MONGODB_URI;
+  }
+  return uri;
+}
+
 let isSyncing = false;
 
 /**
@@ -109,7 +122,8 @@ let lastErrorLoggedTime = 0;
 /**
  * Attempts a connection exclusively to MongoDB Atlas.
  */
-async function attemptMongoConnect(uri) {
+async function attemptMongoConnect(inputUri) {
+  const uri = resolveMongoUri(inputUri);
   if (!uri || isConnecting || mongoose.connection.readyState === 1 || mongoose.connection.readyState === 2) {
     return;
   }
@@ -134,13 +148,46 @@ async function attemptMongoConnect(uri) {
 }
 
 /**
+ * Ensures MongoDB connection is ready or actively being connected before continuing critical operations.
+ */
+async function ensureDbState(maxWaitMs = 4000) {
+  if (mongoose.connection.readyState === 1) return true;
+
+  const uri = resolveMongoUri();
+
+  if (mongoose.connection.readyState === 0) {
+    attemptMongoConnect(uri).catch(() => {});
+  }
+
+  if (mongoose.connection.readyState === 2 || mongoose.connection.readyState === 0) {
+    await new Promise((resolve) => {
+      const timer = setTimeout(resolve, maxWaitMs);
+      const onConnected = () => {
+        clearTimeout(timer);
+        cleanup();
+        resolve();
+      };
+      const onError = () => {
+        clearTimeout(timer);
+        cleanup();
+        resolve();
+      };
+      const cleanup = () => {
+        mongoose.connection.removeListener('connected', onConnected);
+        mongoose.connection.removeListener('error', onError);
+      };
+      mongoose.connection.once('connected', onConnected);
+      mongoose.connection.once('error', onError);
+    });
+  }
+  return mongoose.connection.readyState === 1;
+}
+
+/**
  * Initializes MongoDB connection and starts persistent background reconnect loop.
  */
-function startMongoManager(uri) {
-  if (!uri || uri.includes('<username>') || uri.includes('<password>') || uri.includes('YOUR_')) {
-    console.log('ℹ️  No valid MONGODB_URI configured. Running in autonomous local store mode.');
-    return;
-  }
+function startMongoManager(inputUri) {
+  const uri = resolveMongoUri(inputUri);
 
   // 1. Initial attempt
   attemptMongoConnect(uri);
@@ -157,6 +204,9 @@ function startMongoManager(uri) {
 }
 
 module.exports = {
+  DEFAULT_MONGODB_URI,
+  resolveMongoUri,
+  ensureDbState,
   syncLocalDataToMongo,
   attemptMongoConnect,
   startMongoManager

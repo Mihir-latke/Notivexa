@@ -8,8 +8,13 @@ api.interceptors.request.use(cfg => {
 })
 api.interceptors.response.use(r => r, err => {
   if (err.response?.status === 401) {
-    localStorage.removeItem('ntv_token'); localStorage.removeItem('ntv_user')
-    window.location.href = '/login'; return Promise.reject(err)
+    const p = typeof window !== 'undefined' ? window.location.pathname : ''
+    if (p !== '/login' && p !== '/register') {
+      localStorage.removeItem('ntv_token')
+      localStorage.removeItem('ntv_user')
+      window.location.href = '/login'
+    }
+    return Promise.reject(err)
   }
   if (err.response?.status >= 500) toast.error(err.response?.data?.error || 'Server error')
   return Promise.reject(err)

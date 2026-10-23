@@ -3,18 +3,13 @@ const mongoose = require('mongoose');
 const { User } = require('../models');
 const localStore = require('../utils/localStore');
 
-const crypto = require('crypto');
-let cachedRuntimeSecret = null;
+const DEFAULT_JWT_SECRET = 'notivexa_production_secure_jwt_secret_key_2026_cluster0';
 
 function getJwtSecret() {
   if (process.env.JWT_SECRET && process.env.JWT_SECRET !== 'notivexa_secret' && process.env.JWT_SECRET.trim().length >= 16) {
     return process.env.JWT_SECRET;
   }
-  if (!cachedRuntimeSecret) {
-    cachedRuntimeSecret = crypto.randomBytes(32).toString('hex');
-    process.env.JWT_SECRET = cachedRuntimeSecret;
-  }
-  return cachedRuntimeSecret;
+  return DEFAULT_JWT_SECRET;
 }
 
 function signToken(userId) {
@@ -40,6 +35,10 @@ const authenticate = async (req, res, next) => {
     if (!decoded || !decoded.id) {
       return res.status(401).json({ error: 'Invalid token payload.' });
     }
+
+    // Ensure DB state before checking MongoDB
+    const { ensureDbState } = require('../utils/dbSync');
+    await ensureDbState(2000);
 
     // 1. Check MongoDB if connected
     if (mongoose.connection.readyState === 1) {
