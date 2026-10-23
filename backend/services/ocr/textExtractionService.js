@@ -44,8 +44,13 @@ function getCachedResult(contentHash) {
     try {
       const data = fs.readFileSync(cacheFile, 'utf-8');
       const parsed = JSON.parse(data);
-      console.log(`[OCR Cache ⚡] Cache HIT for content hash: ${contentHash.substring(0, 12)}...`);
-      return parsed;
+      if (parsed && (parsed.status === 'ready' || parsed.words > 0)) {
+        console.log(`[OCR Cache ⚡] Cache HIT for content hash: ${contentHash.substring(0, 12)}... (${parsed.words} words)`);
+        return parsed;
+      }
+      // Invalidate empty or partial cache entry
+      console.log(`[OCR Cache 🔄] Invalidating stale or empty cache entry: ${contentHash.substring(0, 12)}...`);
+      try { fs.unlinkSync(cacheFile); } catch {}
     } catch (e) {
       console.warn('[OCR Cache] Error reading cache file:', e.message);
     }
@@ -57,6 +62,7 @@ function getCachedResult(contentHash) {
  * Persist extraction result to disk cache.
  */
 function saveCachedResult(contentHash, result) {
+  if (!result || !result.words || result.words === 0) return;
   ensureCacheDir();
   const cacheFile = path.join(CACHE_DIR, `${contentHash}.json`);
   try {
