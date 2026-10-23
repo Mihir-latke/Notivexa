@@ -307,7 +307,10 @@ exports.list = async (req, res, next) => {
         const filter = { user: userId };
         if (search) filter.title = { $regex: search, $options: 'i' };
         if (status) filter.status = status;
-        docs = await Document.find(filter).select('-extractedText').sort({ createdAt: -1 });
+        docs = await Document.find(filter)
+          .select('title originalName fileType size status subject createdAt outputs wordCount pageCount imagePaths')
+          .sort({ createdAt: -1 })
+          .lean();
       } catch (err) {
         console.warn('[DocList DB Error]', err.message);
       }

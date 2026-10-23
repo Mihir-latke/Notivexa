@@ -572,6 +572,7 @@ export default function Notebook() {
   const [sp] = useSearchParams()
   const navigate = useNavigate()
   const [docs, setDocs] = useState([])
+  const [docsLoading, setDocsLoading] = useState(true)
   const [docId, setDocId] = useState(sp.get('docId') || '')
   const [doc, setDoc] = useState(null)
   const [section, setSection] = useState('')
@@ -628,13 +629,51 @@ export default function Notebook() {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [slideshowOpen, editSlides, result])
 
+  // Sync docId from URL parameters if present
   useEffect(() => {
-    api.get('/documents?status=ready').then(r => setDocs(r.data.documents || [])).catch(() => {})
+    const qDocId = sp.get('docId')
+    if (qDocId) {
+      setDocId(qDocId)
+    }
+  }, [sp])
+
+  // Fetch ready documents with loading state and auto-selection
+  useEffect(() => {
+    setDocsLoading(true)
+    api.get('/documents?status=ready')
+      .then(r => {
+        const loaded = r.data.documents || []
+        setDocs(loaded)
+        if (!docId && loaded.length > 0) {
+          setDocId(loaded[0]._id || loaded[0].id)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setDocsLoading(false))
   }, [])
 
+  // Fetch active document details
   useEffect(() => {
-    if (docId) api.get('/documents/'+docId).then(r => setDoc(r.data.document)).catch(() => setDoc(null))
-    else setDoc(null)
+    if (docId) {
+      api.get('/documents/' + docId)
+        .then(r => {
+          if (r.data.document) {
+            const fetched = r.data.document
+            setDoc(fetched)
+            // Ensure fetched doc is present in docs list so dropdown shows it selected
+            setDocs(prev => {
+              const dId = (fetched._id || fetched.id).toString()
+              if (!prev.some(x => ((x._id || x.id) || '').toString() === dId)) {
+                return [fetched, ...prev]
+              }
+              return prev
+            })
+          }
+        })
+        .catch(() => setDoc(null))
+    } else {
+      setDoc(null)
+    }
   }, [docId])
 
   const generate = async () => {
@@ -2868,7 +2907,12 @@ export default function Notebook() {
         <div className="card" style={{ marginBottom:16 }}>
           <div className="ch"><div className="ct">📄 1. Select Document or Video</div></div>
           <div className="cb">
-            {docs.length === 0 ? (
+            {docsLoading ? (
+              <div style={{ textAlign:'center', padding:'20px 0', color:'var(--ink3)' }}>
+                <div style={{ fontSize:22, marginBottom:6 }}>⏳</div>
+                <div style={{ fontSize:13 }}>Loading documents from your library...</div>
+              </div>
+            ) : docs.length === 0 ? (
               <div style={{ textAlign:'center', padding:'20px 0' }}>
                 <div style={{ fontSize:30, marginBottom:10 }}>📂</div>
                 <div style={{ fontSize:13, color:'var(--ink3)', marginBottom:12 }}>No processed documents yet</div>
@@ -2877,7 +2921,15 @@ export default function Notebook() {
             ) : (
               <select className="fi" value={docId} onChange={e=>setDocId(e.target.value)}>
                 <option value="">— Select a document / video —</option>
-                {docs.map(d => <option key={d._id} value={d._id}>{d.fileType === 'gdrive' ? '🔷 ' : d.fileType === 'youtube' ? '🎥 ' : d.fileType === 'url' ? '🌐 ' : d.fileType === 'image' ? '🖼️ ' : '📄 '}{d.title} ({d.wordCount?.toLocaleString()} words)</option>)}
+                {docs.map(d => {
+                  const idVal = (d._id || d.id || '').toString();
+                  return (
+                    <option key={idVal} value={idVal}>
+                      {d.fileType === 'gdrive' ? '🔷 ' : d.fileType === 'youtube' ? '🎥 ' : d.fileType === 'url' ? '🌐 ' : d.fileType === 'image' ? '🖼️ ' : '📄 '}
+                      {d.title} ({d.wordCount?.toLocaleString() || 0} words{d.pageCount ? ` · ${d.pageCount} pages` : ''})
+                    </option>
+                  );
+                })}
               </select>
             )}
             {doc && (
