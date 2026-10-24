@@ -150,18 +150,19 @@ function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1) {
   const overview = sentences.slice(0, 3).join(' ') || firstN(text, 2);
   const mainDef = defs[0] ? `${defs[0].term}: ${defs[0].definition}` : `Fundamental principles and operating mechanisms of ${heading}.`;
 
-  let out = `## ${heading}\n\n`;
+  let out = `# Chapter ${idx}: ${subject || title} — Academic Syllabus\n\n`;
+  out += `## Topic ${idx}.1: ${heading}\n\n`;
   out += `**Definition:** ${mainDef}\n\n`;
   out += `**Overview:** ${overview}\n\n`;
 
-  out += `### Key Points\n`;
+  out += `### Subtopic: Key Foundational Points\n`;
   const keyPoints = facts.length >= 6 ? facts.slice(0, 8) : sentences.slice(2, 9);
   keyPoints.forEach(f => {
     out += `- ${f.replace(/^[-•*\d.]+\s*/, '')}\n`;
   });
   out += '\n';
 
-  out += `### In-Depth Explanation\n`;
+  out += `### Subtopic: In-Depth Conceptual Explanation\n`;
   const p1 = sentences.slice(3, 7).join(' ');
   const p2 = sentences.slice(7, 11).join(' ');
   const p3 = sentences.slice(11, 15).join(' ');
@@ -170,14 +171,16 @@ function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1) {
   if (p3) out += `${p3}\n\n`;
 
   if (defs.length > 1) {
-    out += `### Key Definitions & Principles\n`;
-    defs.slice(1, 8).forEach(d => {
-      out += `- **${d.term}:** ${d.definition}\n`;
+    out += `### Subtopic: Comparative Specifications & Definitions\n\n`;
+    out += `| Term / Concept | Category | Specification / Rule |\n`;
+    out += `|---|---|---|\n`;
+    defs.slice(0, 4).forEach(d => {
+      out += `| ${d.term.slice(0, 25)} | Foundational Principle | ${d.definition.slice(0, 45)} |\n`;
     });
     out += '\n';
   }
 
-  out += `### Examples & Applications\n`;
+  out += `### Subtopic: Practical Applications & Case Studies\n`;
   const exSentences = sentences.filter(s => /for example|such as|in practice|e\.g\.|application|system|process|algorithm/i.test(s)).slice(0, 3);
   if (exSentences.length > 0) {
     exSentences.forEach((ex, i) => {
@@ -189,9 +192,10 @@ function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1) {
   }
   out += '\n';
 
-  out += `### Summary\n`;
+  out += `### Subtopic: Summary & Exam Takeaways\n`;
   const summarySentences = sentences.slice(Math.max(0, sentences.length - 3)).join(' ') || overview;
   out += `${summarySentences}\n\n`;
+  out += `> KEY TAKEAWAY: Memorize the foundational mechanisms, comparative table metrics, and process flow for high scores on examinations.\n\n`;
 
   return out;
 }
@@ -206,7 +210,7 @@ function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
   const numModules = Math.min(8, Math.max(3, topics.length));
   const textChunks = getChunks(text, numModules);
   
-  let out = '';
+  let out = `# Chapter ${idx}: ${subject || title} — Core Curriculum & Architecture\n\n`;
 
   for (let m = 0; m < numModules; m++) {
     const chunkText = textChunks[m] || text;
@@ -219,10 +223,11 @@ function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
                 (allDefs[m] ? `${allDefs[m].term} is defined as ${allDefs[m].definition}` : `Fundamental theoretical architecture and practical operation of ${heading}.`);
     const summary = chunkSentences.slice(0, 4).join(' ') || allSentences.slice(m * 2, m * 2 + 3).join(' ') || firstN(chunkText, 3);
 
-    out += `## ${heading}\n\n`;
+    out += `## Topic ${idx}.${m + 1}: ${heading}\n\n`;
     out += `DEFINITION: ${def}\n\n`;
     out += `SUMMARY: ${summary}\n\n`;
 
+    out += `### Subtopic: Theoretical Foundation & Mechanics\n\n`;
     out += `EXPLANATION:\n`;
     const bulletPoints = chunkFacts.length >= 5 ? chunkFacts.slice(0, 8) : chunkSentences.slice(2, 9);
     bulletPoints.forEach((bp, i) => {
@@ -235,6 +240,20 @@ function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
     }
     out += '\n';
 
+    // Structured Educational Comparison Table
+    out += `### Subtopic: Comparative Specifications & Parameters\n\n`;
+    out += `| Parameter / Aspect | Key Characteristic | Operational Role |\n`;
+    out += `|---|---|---|\n`;
+    if (chunkDefs.length >= 2) {
+      out += `| ${chunkDefs[0].term.slice(0, 25)} | Foundational Paradigm | ${chunkDefs[0].definition.slice(0, 40)} |\n`;
+      out += `| ${chunkDefs[1].term.slice(0, 25)} | Operating Mechanism | ${chunkDefs[1].definition.slice(0, 40)} |\n`;
+    } else {
+      out += `| Architecture Model | Distributed & Deterministic | Governs core algorithmic execution bounds |\n`;
+      out += `| Operational Throughput | High-Efficiency Pipeline | Minimizes latency and optimizes resource utilization |\n`;
+    }
+    out += `| Performance Metric | Asymptotic Stability | Guarantees bounded convergence under high load |\n\n`;
+
+    out += `### Subtopic: Practical Applications & Case Studies\n\n`;
     out += `EXAMPLE:\n`;
     const ex = chunkSentences.filter(s => /for example|such as|e\.g\.|practice|algorithm|system|use case|implementation/i.test(s)).slice(0, 2);
     if (ex.length > 0) {
@@ -780,10 +799,12 @@ Professor: Excellent question! It directly governs execution stability. Keep the
 function makePPT(text, title, subject) {
   const chunks = getChunks(text, 8);
   const topics = getTopics(text);
-  const facts = getKeyFacts(text, 12);
+  const defs = getDefinitions(text, 10);
+  const facts = getKeyFacts(text, 16);
   const cleanTitle = (title || 'Academic Presentation').slice(0, 60);
 
-  const categories = ['CORE PRINCIPLE', 'STEP-BY-STEP', 'DEEP DIVE', 'CORE PRINCIPLE', 'STEP-BY-STEP', 'CASE STUDY'];
+  const layouts = ['cards', 'two-column', 'process', 'table', 'cards', 'two-column', 'process'];
+  const categories = ['CORE PRINCIPLE', 'DEEP DIVE', 'STEP-BY-STEP', 'COMPARATIVE ANALYSIS', 'ARCHITECTURAL MODEL', 'PRACTICAL APPLICATION', 'CASE STUDY'];
 
   const slides = [
     {
@@ -792,7 +813,7 @@ function makePPT(text, title, subject) {
       title: cleanTitle,
       keyTakeaway: `${cleanTitle} establishes the foundational paradigm for analytical and systematic problem-solving.`,
       bullets: [
-        `Subject Overview: Academic lecture covering ${subject || 'core engineering principles'} from foundational theory to practical application.`,
+        `Subject Overview: Academic lecture covering ${subject || 'core curriculum principles'} from foundational theory to practical application.`,
         topics.length > 0 ? `Key Coverage: Exploring ${topics.slice(0, 3).join(', ')} and their theoretical models.` : 'Key Coverage: Comprehensive curriculum review grounded directly in syllabus objectives.',
         'Learning Objectives: Understand core principles, analyze performance tradeoffs, and master systematic problem analysis.'
       ],
@@ -807,6 +828,7 @@ function makePPT(text, title, subject) {
     const rawHead = lines[0]?.slice(0, 55).replace(/^[-•#*\d.]+\s*/, '') || `Part ${i + 1}: Core Mechanics`;
     const head = rawHead.length > 5 ? rawHead : `Core Concepts & Methods (Part ${i + 1})`;
     const cat = categories[i % categories.length];
+    const layout = layouts[i % layouts.length];
 
     const rawBullets = lines.slice(1, 6)
       .map(l => l.replace(/^[-•*\d.]+\s*/, '').trim())
@@ -821,7 +843,7 @@ function makePPT(text, title, subject) {
 
     const takeawayFact = facts[i % facts.length] || `Mastering ${head} ensures optimal performance and deterministic execution.`;
 
-    slides.push({
+    const slideObj = {
       slideNumber: i + 2,
       category: cat,
       title: head,
@@ -829,8 +851,20 @@ function makePPT(text, title, subject) {
       bullets: formattedBullets,
       analogy: `Similar to an automated assembly line, each step operates with strict deterministic bounds to guarantee consistent output.`,
       speakerNotes: `Explain ${head}. Focus on the operational criteria, constraints, and why this concept is essential for exam questions. Duration: ~3 min.`,
-      layout: 'content'
-    });
+      layout: layout
+    };
+
+    // If table layout, include sample structured table data for editable PPTX rendering
+    if (layout === 'table') {
+      slideObj.table = [
+        ['Parameter / Metric', 'Theoretical Model', 'Implementation Role'],
+        ['Core Paradigm', 'Deterministic Pipeline', 'Establishes runtime boundaries'],
+        ['Resource Efficiency', 'Optimized Throughput', 'Minimizes memory overhead'],
+        ['Stability Bound', 'Asymptotic Invariance', 'Guarantees reliable execution']
+      ];
+    }
+
+    slides.push(slideObj);
   });
 
   slides.push({
@@ -849,7 +883,7 @@ function makePPT(text, title, subject) {
     ],
     analogy: 'Reviewing core milestones consolidates knowledge just like saving checkpoints in critical data systems.',
     speakerNotes: 'Recap the primary definitions, highlight potential exam questions, and open the floor for student discussion.',
-    layout: 'content'
+    layout: 'summary'
   });
 
   return { title: cleanTitle, subtitle: 'Comprehensive Academic Lecture Deck', slides };

@@ -688,15 +688,18 @@ async function generateHandwrittenNotes(text, title, subject, lang = 'English') 
   const chunks = [];
   for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
-  const sysPrompt = `You are an expert academic professor and note-taker who writes exhaustive, comprehensive handwritten-style study notes for university students.
-You MUST format EVERY topic/concept found in the text using this EXACT section structure:
+  const sysPrompt = `You are an expert academic professor and master note-taker who creates comprehensive, textbook-grade study notes for university students.
+You MUST format EVERY chapter and topic found in the text using this EXACT educational hierarchy:
 
-## Topic Name
+# Chapter [Number]: [Chapter Title]
+
+## Topic: [Topic / Concept Name]
 
 DEFINITION: One clear, complete, formal sentence defining the term or concept.
 
-SUMMARY: 4-5 sentences giving a high-level overview, context, theoretical background, and importance.
+SUMMARY: 4-5 sentences giving a high-level overview, theoretical context, core mechanisms, and importance.
 
+### Subtopic: Theoretical Foundation & Mechanics
 EXPLANATION:
 - Detailed point 1: Full technical explanation with mechanisms and reasoning
 - Detailed point 2: Deep dive into the process or structure with clear sub-points
@@ -706,6 +709,14 @@ EXPLANATION:
 - Detailed point 6: Key design trade-offs, constraints, and optimizations
 - Provide 6-10 bullet points per topic. Never abbreviate.
 
+### Subtopic: Comparative Analysis & Specifications
+| Parameter / Concept | Key Characteristic | Practical Implementation |
+|---|---|---|
+| Aspect 1 | Primary theoretical rule | Operational role in system |
+| Aspect 2 | Quantitative threshold | Real-world optimization |
+| Aspect 3 | Performance behavior | Trade-off or constraint |
+
+### Subtopic: Practical Applications & Case Studies
 EXAMPLE:
 - Real-world Application 1: Concrete industry or real-life implementation
 - Real-world Application 2: Practical engineering, scientific, or business case study
@@ -714,8 +725,9 @@ EXAMPLE:
 ---
 
 RULES:
-- Always use the EXACT labels: DEFINITION:, SUMMARY:, EXPLANATION:, EXAMPLE:
-- Do NOT generate DIAGRAM lines, flowcharts, or ASCII art
+- Always use the EXACT section structure: # Chapter, ## Topic, DEFINITION:, SUMMARY:, ### Subtopic, EXPLANATION:, Markdown Tables, EXAMPLE:, and ---
+- Markdown Tables MUST use standard syntax with | pipes and |---|---| separator
+- Do NOT generate ASCII flowcharts or artificial code art
 - Do NOT use LaTeX or $ signs — write equations in readable plain text
 - Cover EVERY concept, law, theorem, date, and algorithm in this document part — do NOT skip anything
 - Be VERBOSE and EXHAUSTIVE — notes must be detailed enough for a student to score an A+ on university finals
@@ -732,11 +744,18 @@ RULES:
 Title: "${title}" | Subject: "${subject}" | Language: ${lang}
 
 For EVERY concept, theory, formula, and process found in the text below, write the COMPLETE structured note:
-## [Concept Name]
+# Chapter ${idx + 1}: [Chapter / Module Name]
+## Topic: [Concept Name]
 DEFINITION: ...
 SUMMARY: ...
+### Subtopic: Theoretical Foundation & Mechanics
 EXPLANATION:
 - ...
+### Subtopic: Comparative Specifications
+| Parameter / Concept | Key Characteristic | Practical Implementation |
+|---|---|---|
+| ... | ... | ... |
+### Subtopic: Practical Applications & Case Studies
 EXAMPLE:
 - ...
 ---
@@ -842,8 +861,8 @@ ${chunk}`;
 }
 
 async function generatePPT(text, title, subject, lang = 'English') {
-  const prompt = `Create a high-impact, professional academic slide deck from this document.
-Title: "${title}" | Subject: ${subject}
+  const prompt = `Create a high-impact, professional academic PowerPoint presentation from this document.
+Title: "${title}" | Subject: ${subject} | Language: ${lang}
 
 Return ONLY valid JSON matching this EXACT structure:
 {
@@ -852,6 +871,7 @@ Return ONLY valid JSON matching this EXACT structure:
   "slides": [
     {
       "slideNumber": 1,
+      "layout": "title",
       "category": "INTRODUCTION",
       "title": "Comprehensive Topic Overview",
       "keyTakeaway": "An intuitive, high-value 1-sentence summary of the core thesis.",
@@ -865,25 +885,64 @@ Return ONLY valid JSON matching this EXACT structure:
     },
     {
       "slideNumber": 2,
+      "layout": "two-column",
       "category": "CORE PRINCIPLE",
-      "title": "Concept or Theorem Name",
+      "title": "Theoretical Foundations & Architecture",
       "keyTakeaway": "Clear takeaway explaining the foundational rule or definition.",
       "bullets": [
-        "Definition: Clear formal definition and standard terminology.",
-        "Input/Output: Resource requirements, domain bounds, and expected yields.",
-        "Operational Criteria: Finiteness, correctness, and procedural rules."
+        "Foundational Theory: Core principles, axioms, and deterministic rules governing the domain.",
+        "Resource Requirements: Domain bounds, input prerequisites, and expected yields.",
+        "Operational Constraints: Performance trade-offs, stability thresholds, and error margins.",
+        "Practical Implication: How this mechanism enforces consistency across real systems."
       ],
       "analogy": "A recipe describes a step-by-step procedure with finite ingredients and a guaranteed termination point.",
       "speakerNotes": "Walk students through the operational criteria and historical rationale."
+    },
+    {
+      "slideNumber": 3,
+      "layout": "process",
+      "category": "STEP-BY-STEP",
+      "title": "Execution Pipeline & Workflow",
+      "keyTakeaway": "Sequential phases required to transform raw input into verified output.",
+      "bullets": [
+        "Phase 1: Input ingestion, verification, and boundary validation.",
+        "Phase 2: Algorithmic transformation, optimization, and state transitions.",
+        "Phase 3: Error checking, convergence assertion, and exception recovery.",
+        "Phase 4: Output generation, resource release, and system notification."
+      ],
+      "analogy": "An automated assembly line where each station performs a distinct deterministic check.",
+      "speakerNotes": "Trace the step-by-step execution flow on the chalkboard for students."
+    },
+    {
+      "slideNumber": 4,
+      "layout": "table",
+      "category": "COMPARATIVE ANALYSIS",
+      "title": "Methodology Specifications & Trade-offs",
+      "keyTakeaway": "Comparison of primary approaches against complexity, latency, and scalability.",
+      "bullets": [
+        "Model Comparison: Contrasting primary architectural paradigms.",
+        "Efficiency Metrics: Analysis of best, average, and worst-case performance.",
+        "Selection Criteria: Guidelines for choosing the optimal strategy in production."
+      ],
+      "table": [
+        ["Parameter / Model", "Approach A", "Approach B"],
+        ["Time Complexity", "O(log n) bounded", "O(n) linear search"],
+        ["Memory Footprint", "O(1) in-place", "O(n) auxiliary buffer"],
+        ["Implementation Effort", "Moderate (tree-based)", "Minimal (iterative)"]
+      ],
+      "analogy": "Comparing a highway vs a city road: one offers higher throughput with stricter entry rules.",
+      "speakerNotes": "Highlight the trade-off table. Examiners frequently test these specific metrics."
     }
   ]
 }
 
 Structure Rules:
-- 10 to 15 comprehensive slides covering the entire document systematically.
-- "category" MUST be one of: "INTRODUCTION", "CORE PRINCIPLE", "STEP-BY-STEP", "DEEP DIVE", "VISUAL SUMMARY", "QUICK SUMMARY", "CASE STUDY".
+- Generate 10 to 15 comprehensive, topic-wise slides covering the entire syllabus systematically.
+- "layout" MUST vary among: "title", "cards", "two-column", "process", "diagram", "table", "summary".
+- "category" MUST be one of: "INTRODUCTION", "CORE PRINCIPLE", "STEP-BY-STEP", "DEEP DIVE", "COMPARATIVE ANALYSIS", "QUICK SUMMARY", "CASE STUDY".
 - "keyTakeaway" MUST be a single, punchy 1-sentence synthesis (do NOT prepend "KEY TAKEAWAY:").
 - "bullets" MUST be 3 to 4 detailed points, EACH starting with a bold label prefix like "Label: Explanation..."
+- When layout is "table", provide a concise 3-4 row comparison table in "table".
 - "analogy" MUST be an intuitive real-world analogy or practical mental model (do NOT prepend "REAL-WORLD ANALOGY:").
 - "speakerNotes" MUST provide 2-3 sentences of lecture talking points.
 - Ground all content strictly in the document text.
@@ -896,10 +955,12 @@ ${text.slice(0, 10000)}`;
   if (data?.slides?.length > 0) {
     data.slides = data.slides.map((s, idx) => ({
       slideNumber: s.slideNumber || idx + 1,
+      layout: s.layout || (idx === 0 ? 'title' : idx === data.slides.length - 1 ? 'summary' : (idx % 3 === 0 ? 'two-column' : (idx % 4 === 0 ? 'process' : 'cards'))),
       category: (s.category || (idx === 0 ? 'INTRODUCTION' : idx === data.slides.length - 1 ? 'QUICK SUMMARY' : 'CORE PRINCIPLE')).toUpperCase(),
       title: s.title || `Slide ${idx + 1}`,
       keyTakeaway: (s.keyTakeaway || s.takeaway || '').replace(/^KEY TAKEAWAY:\s*/i, '').trim(),
       bullets: Array.isArray(s.bullets) ? s.bullets.map(b => typeof b === 'string' ? b.trim() : String(b)) : [],
+      table: Array.isArray(s.table) ? s.table : null,
       analogy: (s.analogy || s.realWorldAnalogy || '').replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '').trim(),
       speakerNotes: s.speakerNotes || ''
     }));

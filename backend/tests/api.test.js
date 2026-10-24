@@ -1,5 +1,6 @@
 const request = require('supertest');
 const path = require('path');
+const fs = require('fs');
 const jwt = require('jsonwebtoken');
 
 // Ensure development mode for test suite
@@ -331,6 +332,167 @@ describe('Notivexa API Audit & Security Test Suite', () => {
       const testFilePath = path.join(__dirname, '../server.js');
       const hash = computeFileHash(testFilePath);
       expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+  });
+
+  describe('7. Structured Notes & PowerPoint Presentation Generation', () => {
+    const { handwrittenPDF } = require('../services/pdfGenerator');
+    const { generatePPTX } = require('../services/officeGenerator');
+
+    it('handwrittenPDF generates structured notebook PDF with chapters, topics, subtopics, tables, and exam tips', async () => {
+      const structuredContent = `# Chapter 1: Introduction to Operating Systems
+
+## Topic 1.1: Process Management & Scheduling
+
+DEFINITION: A process is a program in execution requiring CPU time, memory, and I/O resources.
+
+SUMMARY: The operating system manages concurrent processes to ensure optimal CPU utilization and throughput.
+
+### Subtopic: Key Mechanisms & Architecture
+EXPLANATION:
+- State Machine: Processes transition through New, Ready, Running, Waiting, and Terminated states.
+- Context Switching: The OS saves state to the Process Control Block (PCB) and restores the next scheduled thread.
+- Preemption: High-priority processes preempt lower-priority tasks to preserve latency constraints.
+
+### Subtopic: Comparative Specifications
+| Metric / Aspect | Round Robin | Priority Scheduling | Multi-Level Feedback Queue |
+|---|---|---|---|
+| Preemptive | Yes (Time Quantum) | Configurable | Yes (Adaptive) |
+| Starvation Risk | None | Possible | Mitigated via Aging |
+| Overhead | Low | Minimal | Moderate |
+
+### Subtopic: Practical Applications & Exam Pointers
+EXAMPLE:
+- Real-world Application 1: Linux Completely Fair Scheduler (CFS) managing multi-core server workloads.
+- Real-world Application 2: Embedded automotive real-time microkernels.
+- Exam Tip: University finals frequently ask you to trace a Gantt chart comparing SJF and Round Robin.
+
+EXAM TIP: Thoroughly memorize the 5-state process lifecycle diagram and PCB field structure.
+FORMULA: Turnaround Time = Completion Time - Arrival Time; Waiting Time = Turnaround Time - Burst Time.
+---`;
+
+      const result = await handwrittenPDF(structuredContent, {
+        title: 'Operating Systems Coursework',
+        subject: 'Computer Science',
+        style: 'yellow',
+        fontName: 'caveat'
+      });
+
+      expect(result).toHaveProperty('filePath');
+      expect(result).toHaveProperty('fileName');
+      expect(fs.existsSync(result.filePath)).toBe(true);
+      expect(result.fileSize).toBeGreaterThan(5000);
+    });
+
+    it('generatePPTX generates educational presentations with diverse layouts and editable elements', async () => {
+      const testSlides = [
+        {
+          slideNumber: 1,
+          layout: 'title',
+          category: 'INTRODUCTION',
+          title: 'Algorithms & Data Structures',
+          keyTakeaway: 'Mastering algorithmic paradigms is essential for optimal computation.',
+          bullets: [
+            'Foundations: Big-O asymptotic analysis and space complexity.',
+            'Core Structures: Trees, graphs, heaps, and hash tables.',
+            'Practical Scope: Production caching and database query optimization.'
+          ],
+          analogy: 'A blueprint guides skyscraper construction before physical foundation pouring.',
+          speakerNotes: 'Welcome students to today’s lecture on algorithms.'
+        },
+        {
+          slideNumber: 2,
+          layout: 'two-column',
+          category: 'CORE PRINCIPLE',
+          title: 'Asymptotic Analysis & Growth Bounds',
+          keyTakeaway: 'Asymptotic notation classifies algorithm scaling independent of hardware clock speeds.',
+          bullets: [
+            'Worst-Case Big-O: Upper bound guaranteeing runtime cannot exceed f(n).',
+            'Best-Case Big-Omega: Lower bound defining the minimum requisite work.',
+            'Average-Case Big-Theta: Tight bound describing typical execution behavior.',
+            'Practical Impact: Selecting O(n log n) sorts over O(n^2) transforms scale.'
+          ],
+          analogy: 'Comparing highway travel vs city driving under peak traffic conditions.',
+          speakerNotes: 'Focus on explaining the tight bound Big-Theta on the chalkboard.'
+        },
+        {
+          slideNumber: 3,
+          layout: 'process',
+          category: 'STEP-BY-STEP',
+          title: 'Divide and Conquer Pipeline',
+          keyTakeaway: 'Decomposing problems into sub-problems yields logarithmic recursion depth.',
+          bullets: [
+            'Divide: Split dataset into halves or equal partitions.',
+            'Conquer: Recursively solve sub-problems until base cases.',
+            'Combine: Merge partial solutions into final unified result.'
+          ],
+          analogy: 'Organizing a large library by delegating individual genres to team members.',
+          speakerNotes: 'Walk through Merge Sort partitioning as a concrete implementation.'
+        },
+        {
+          slideNumber: 4,
+          layout: 'table',
+          category: 'COMPARATIVE ANALYSIS',
+          title: 'Sorting Algorithm Benchmark',
+          keyTakeaway: 'Merge Sort guarantees deterministic O(n log n) at the cost of O(n) memory.',
+          bullets: [
+            'Quick Sort: In-place with O(n log n) average but O(n^2) worst case.',
+            'Heap Sort: In-place with guaranteed O(n log n) runtime.',
+            'Radix Sort: Non-comparative linear sort for bounded integers.'
+          ],
+          table: [
+            ['Algorithm', 'Best Case', 'Worst Case', 'Space Complexity'],
+            ['Quick Sort', 'O(n log n)', 'O(n^2)', 'O(log n)'],
+            ['Merge Sort', 'O(n log n)', 'O(n log n)', 'O(n)'],
+            ['Heap Sort', 'O(n log n)', 'O(n log n)', 'O(1)']
+          ],
+          analogy: 'Choosing between a high-speed sports car and an all-terrain cargo truck.',
+          speakerNotes: 'Examine the table closely; students frequently mix up Heap Sort space complexity.'
+        }
+      ];
+
+      const pptxResult = await generatePPTX(testSlides, {
+        title: 'Algorithms & Data Structures',
+        subject: 'Computer Science',
+        theme: 'obsidian'
+      });
+
+      expect(pptxResult).toHaveProperty('filePath');
+      expect(pptxResult).toHaveProperty('fileName');
+      expect(pptxResult.fileName).toMatch(/\.pptx$/);
+      expect(fs.existsSync(pptxResult.filePath)).toBe(true);
+      expect(pptxResult.fileSize).toBeGreaterThan(10000);
+    });
+
+    it('POST /api/generate/export-pptx exports presentation cleanly via authenticated API', async () => {
+      const res = await request(app)
+        .post('/api/generate/export-pptx')
+        .set('Authorization', `Bearer ${user1Token}`)
+        .send({
+          title: 'Distributed Systems',
+          subject: 'Cloud Computing',
+          theme: 'obsidian',
+          slides: [
+            {
+              slideNumber: 1,
+              layout: 'title',
+              category: 'INTRODUCTION',
+              title: 'CAP Theorem & Consistency Models',
+              keyTakeaway: 'Trade-offs between consistency, availability, and partition tolerance.',
+              bullets: [
+                'Consistency: Every read receives the most recent write or an error.',
+                'Availability: Every request receives a non-error response without guarantee.',
+                'Partition Tolerance: The system continues to operate despite dropped network messages.'
+              ],
+              analogy: 'A telephone network during a severe storm.',
+              speakerNotes: 'Introduce Eric Brewer’s formulation.'
+            }
+          ]
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.downloadUrl).toMatch(/\.pptx$/);
     });
   });
 });

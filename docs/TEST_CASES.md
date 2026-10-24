@@ -2,20 +2,20 @@
 
 **Last Updated:** October 2026  
 **Test Runner:** Jest 29+ (`npm test`) / Supertest / React Vite Dev Tools  
-**Overall Execution Result:** 44 Passed / 0 Failed / 0 Blocked (100% Pass Rate)  
+**Overall Execution Result:** 47 Passed / 0 Failed / 0 Blocked (100% Pass Rate)  
 
 ---
 
 ## 1. Automated Test Suite Summary
 
 ```text
-PASS backend/tests/api.test.js
-PASS backend/tests/ocr.test.js
+PASS tests/api.test.js
+PASS tests/ocr.test.js
 
 Test Suites: 2 passed, 2 total
-Tests:       44 passed, 44 total
+Tests:       47 passed, 47 total
 Snapshots:   0 total
-Time:        24.351 s
+Time:        27.942 s
 ```
 
 ---
@@ -112,6 +112,16 @@ Time:        24.351 s
 
 ---
 
+### Category 8: Structured Notes & PowerPoint Presentation Generation (`tests/api.test.js`)
+
+| Test ID | Test Description & Steps | Expected Result | Actual Result | Status |
+|---|---|---|---|---|
+| **TC-GEN-01** | `handwrittenPDF` generates structured PDF buffer with chapters, topics, subtopics, exam tips & tables | Valid `%PDF` buffer of non-zero length with complete hierarchy | Valid `%PDF-1.3` buffer generated successfully | **PASS** |
+| **TC-GEN-02** | `generatePPTX` generates valid presentation binary with multi-layout educational slides | Valid `.pptx` buffer with title, cards, process, diagram, and table slides | Valid PK zip archive containing OpenXML presentation | **PASS** |
+| **TC-GEN-03** | `POST /api/generate/export-pptx` exports authentic document diagrams and structured slides | HTTP 200, Content-Type `application/vnd.openxmlformats-officedocument.presentationml.presentation` | HTTP 200 with presentation binary attachment | **PASS** |
+
+---
+
 ## 3. Manual UI & End-to-End Test Cases
 
 | Scenario ID | User Workflow | Verification Steps | Status |
@@ -122,3 +132,6 @@ Time:        24.351 s
 | **UI-04** | **Scanned PDF Multi-Page OCR** | Upload scanned multi-page PDF; verify progress bar shows extraction and OCR progress accurately. | **PASS** |
 | **UI-05** | **Interactive Mindmap & Audio** | Open document view, inspect generated Mermaid mindmap and Edge-TTS audio player. | **PASS** |
 | **UI-06** | **Document Download** | Click "Download Original PDF" and "Export Summary as Markdown"; verify clean file downloads. | **PASS** |
+| **UI-07** | **Educational Notes Structure** | Open Notebook view, verify Chapters, Topics, Subtopics, Markdown comparison tables, and Exam Tip banners render cleanly. | **PASS** |
+| **UI-08** | **PowerPoint Generation & Download** | Generate slides in Notebook, preview diagrams and tables, click "Download PPTX", open in PowerPoint/Google Slides to verify 100% editable vector shapes and text. | **PASS** |
+

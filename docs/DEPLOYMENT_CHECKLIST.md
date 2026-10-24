@@ -163,3 +163,4 @@ curl -X POST https://<your-render-subdomain>.onrender.com/api/auth/login \
 | CORS error in browser console when calling API | Origin not listed in `ALLOWED_ORIGINS`. | Set `ALLOWED_ORIGINS` to include your production domain (e.g. `https://notivexa.onrender.com`). |
 | Uploaded images or documents disappear after restart | Ephemeral filesystem restarted without persistent disk. | Mount a Render Persistent Disk at `/var/data` and configure `UPLOADS_DIR=/var/data/uploads`. |
 | Out of Memory (OOM) during OCR | Too many concurrent OCR workers for 512MB instance. | The server defaults to 2 workers; set `TESSERACT_WORKERS=1` to limit memory usage on Starter tier. |
+

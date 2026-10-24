@@ -164,7 +164,20 @@ function parseBulletToCard(bulletStr, idx) {
   };
 }
 
-async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Academic Lecture', theme = 'obsidian' } = {}) {
+function resolveLocalImagePath(imgRef) {
+  if (!imgRef || typeof imgRef !== 'string') return null;
+  if (fs.existsSync(imgRef)) return imgRef;
+  const clean = imgRef.replace(/^[/\\]+/, '');
+  const c1 = path.join(__dirname, '..', clean);
+  if (fs.existsSync(c1)) return c1;
+  const c2 = path.join(__dirname, '..', 'uploads', clean);
+  if (fs.existsSync(c2)) return c2;
+  const c3 = path.join(__dirname, '..', 'uploads', 'images', 'extracted', clean);
+  if (fs.existsSync(c3)) return c3;
+  return null;
+}
+
+async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Academic Lecture', theme = 'obsidian', imagePaths = [] } = {}) {
   ensureDir();
   const themeObj = PPT_THEMES[theme] || PPT_THEMES.obsidian || PPT_THEMES.light;
   const rawSlides = Array.isArray(slidesInput) ? slidesInput : (slidesInput?.slides || []);
@@ -184,9 +197,18 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
     const rawAnalogy = s.analogy || s.realWorldAnalogy || '';
     const cleanAnalogy = rawAnalogy.replace(/^(REAL-WORLD ANALOGY|KEY INSIGHT):\s*/i, '').trim();
     const bullets = Array.isArray(s.bullets) ? s.bullets : [];
+    const layout = (s.layout || (idx === 0 ? 'title' : idx === rawSlides.length - 1 ? 'summary' : 'cards')).toLowerCase();
+
+    // Check for associated image/diagram
+    let slideImg = resolveLocalImagePath(s.image || s.diagramUrl);
+    if (!slideImg && imagePaths && imagePaths.length > 0) {
+      if (layout === 'image' || layout === 'diagram' || category.includes('VISUAL') || category.includes('ARCHITECT')) {
+        slideImg = resolveLocalImagePath(imagePaths[idx % imagePaths.length]);
+      }
+    }
 
     // --- SLIDE 1: Hero Gamma Title & Cover Slide ---
-    if (idx === 0 && (category === 'INTRODUCTION' || !cleanAnalogy)) {
+    if (idx === 0 || layout === 'title' || (category === 'INTRODUCTION' && !cleanAnalogy && idx === 0)) {
       slide.addShape(pres.ShapeType.rect, {
         x: 0, y: 0, w: '100%', h: 0.14,
         fill: { color: themeObj.accent }
@@ -257,16 +279,15 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
       return;
     }
 
-    // --- CONTENT SLIDES: Gamma Multi-Card Layout ---
-    // 1. Category Badge & Counter
+    // --- STANDARD TOP BAR: Category Badge & Slide Counter ---
     slide.addShape(pres.ShapeType.roundRect, {
-      x: 0.6, y: 0.35, w: 2.0, h: 0.28,
+      x: 0.6, y: 0.35, w: 2.2, h: 0.28,
       fill: { color: themeObj.badgeBg || themeObj.cardBg },
       line: { color: themeObj.accent, width: 0.8 },
       rectRadius: 0.05
     });
     slide.addText(`✨ ${category}`, {
-      x: 0.6, y: 0.35, w: 2.0, h: 0.28,
+      x: 0.6, y: 0.35, w: 2.2, h: 0.28,
       fontSize: 8.5, bold: true, color: themeObj.accent, align: 'center', fontFace: 'Segoe UI'
     });
 
@@ -275,14 +296,327 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
       fontSize: 10, bold: true, color: themeObj.numColor, align: 'right', fontFace: 'Segoe UI'
     });
 
-    // 2. Slide Title
+    // Slide Title
     slide.addText(slideTitle, {
       x: 0.6, y: 0.68, w: 8.8, h: 0.62,
       fontSize: 22, bold: true, color: themeObj.titleColor, fontFace: 'Segoe UI'
     });
 
-    // 3. KEY TAKEAWAY Banner Card
     let contentY = 1.35;
+
+    // --- LAYOUT A: Image & Diagram with Content Layout ---
+    if (slideImg || layout === 'image' || layout === 'diagram') {
+      if (cleanTakeaway) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 1.35, w: 4.5, h: 0.60,
+          fill: { color: themeObj.takeawayBg },
+          line: { color: themeObj.takeawayBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '⚡ KEY TAKEAWAY: ', options: { bold: true, color: themeObj.takeawayLabel, fontSize: 9.5, fontFace: 'Segoe UI' } },
+          { text: cleanTakeaway, options: { bold: false, color: themeObj.takeawayText, fontSize: 9.5, fontFace: 'Segoe UI' } }
+        ], { x: 0.72, y: 1.37, w: 4.25, h: 0.56, valign: 'middle' });
+        contentY = 2.05;
+      }
+
+      // Left column: Bullets card
+      const leftH = cleanTakeaway ? 2.90 : 3.60;
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 0.6, y: contentY, w: 4.5, h: leftH,
+        fill: { color: themeObj.cardBg },
+        line: { color: themeObj.cardBorder, width: 1.0 },
+        rectRadius: 0.08
+      });
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 0.6, y: contentY, w: 4.5, h: 0.06,
+        fill: { color: themeObj.accent },
+        rectRadius: 0.02
+      });
+
+      const cardItems = bullets.map((b, bIdx) => parseBulletToCard(b, bIdx));
+      let bulletY = contentY + 0.16;
+      cardItems.slice(0, 3).forEach((c) => {
+        slide.addText(`• ${c.title}: `, {
+          x: 0.78, y: bulletY, w: 4.14, h: 0.28,
+          fontSize: 11, bold: true, color: themeObj.cardTitle, fontFace: 'Segoe UI'
+        });
+        slide.addText(c.desc, {
+          x: 0.95, y: bulletY + 0.26, w: 3.95, h: 0.55,
+          fontSize: 9.5, color: themeObj.textColor, fontFace: 'Segoe UI', lineSpacingMultiple: 1.15
+        });
+        bulletY += 0.86;
+      });
+
+      // Right column: Diagram / Image card
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 5.3, y: 1.35, w: 4.1, h: 3.68,
+        fill: { color: themeObj.cardBg },
+        line: { color: themeObj.cardBorder, width: 1.0 },
+        rectRadius: 0.08
+      });
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 5.3, y: 1.35, w: 4.1, h: 0.06,
+        fill: { color: themeObj.categoryColor || themeObj.accent },
+        rectRadius: 0.02
+      });
+
+      if (slideImg && fs.existsSync(slideImg)) {
+        try {
+          slide.addImage({
+            path: slideImg,
+            x: 5.45, y: 1.50, w: 3.80, h: 3.10,
+            sizing: { type: 'contain', w: 3.80, h: 3.10 }
+          });
+        } catch (imgErr) {
+          console.warn('[PptxGenJS addImage]', imgErr.message);
+        }
+      }
+
+      slide.addText('Figure: Visual Architecture from Document', {
+        x: 5.3, y: 4.70, w: 4.1, h: 0.28,
+        fontSize: 8.5, color: themeObj.numColor, align: 'center', fontFace: 'Segoe UI'
+      });
+
+      if (s.speakerNotes) slide.addNotes(s.speakerNotes);
+      return;
+    }
+
+    // --- LAYOUT B: Comparative Analysis Table Layout ---
+    if (layout === 'table' || Array.isArray(s.table)) {
+      if (cleanTakeaway) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 1.35, w: 8.8, h: 0.44,
+          fill: { color: themeObj.takeawayBg },
+          line: { color: themeObj.takeawayBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '⚡ KEY TAKEAWAY:  ', options: { bold: true, color: themeObj.takeawayLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+          { text: cleanTakeaway, options: { bold: false, color: themeObj.takeawayText, fontSize: 10, fontFace: 'Segoe UI' } }
+        ], { x: 0.75, y: 1.37, w: 8.5, h: 0.40, valign: 'middle' });
+        contentY = 1.90;
+      }
+
+      const rawTableData = Array.isArray(s.table) && s.table.length > 0 ? s.table : [
+        ['Parameter / Model', 'Theoretical Model', 'Practical Implementation'],
+        ['Core Paradigm', 'Deterministic Pipeline', 'Establishes runtime execution boundaries'],
+        ['Resource Efficiency', 'Optimized Throughput', 'Minimizes memory overhead under high concurrency'],
+        ['Stability Bound', 'Asymptotic Invariance', 'Guarantees reliable bounded convergence']
+      ];
+
+      const formattedTableRows = rawTableData.map((row, rIdx) => {
+        const isHeader = rIdx === 0;
+        return row.map(cell => ({
+          text: String(cell).trim(),
+          options: {
+            fill: isHeader ? { color: themeObj.accent } : { color: rIdx % 2 === 0 ? themeObj.cardBg : (themeObj.badgeBg || themeObj.bg) },
+            color: isHeader ? 'FFFFFF' : themeObj.cardTitle,
+            bold: isHeader,
+            fontSize: isHeader ? 10.5 : 9.5,
+            align: isHeader ? 'center' : 'left',
+            fontFace: 'Segoe UI',
+            border: { pt: 0.5, color: themeObj.cardBorder }
+          }
+        }));
+      });
+
+      slide.addTable(formattedTableRows, {
+        x: 0.6, y: contentY, w: 8.8, rowH: 0.50
+      });
+
+      if (cleanAnalogy) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 4.55, w: 8.8, h: 0.48,
+          fill: { color: themeObj.analogyBg },
+          line: { color: themeObj.analogyBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '💡 REAL-WORLD ANALOGY:  ', options: { bold: true, color: themeObj.analogyLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+          { text: cleanAnalogy, options: { bold: false, color: themeObj.analogyText, fontSize: 10, fontFace: 'Segoe UI' } }
+        ], { x: 0.75, y: 4.57, w: 8.5, h: 0.44, valign: 'middle' });
+      }
+
+      if (s.speakerNotes) slide.addNotes(s.speakerNotes);
+      return;
+    }
+
+    // --- LAYOUT C: Two-Column Split Architecture Layout ---
+    if (layout === 'two-column' || layout === 'split') {
+      if (cleanTakeaway) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 1.35, w: 8.8, h: 0.44,
+          fill: { color: themeObj.takeawayBg },
+          line: { color: themeObj.takeawayBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '⚡ KEY TAKEAWAY:  ', options: { bold: true, color: themeObj.takeawayLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+          { text: cleanTakeaway, options: { bold: false, color: themeObj.takeawayText, fontSize: 10, fontFace: 'Segoe UI' } }
+        ], { x: 0.75, y: 1.37, w: 8.5, h: 0.40, valign: 'middle' });
+        contentY = 1.90;
+      }
+
+      const colW = 4.25;
+      const colH = cleanAnalogy ? 2.50 : 3.05;
+      const mid = Math.ceil(bullets.length / 2) || 1;
+      const leftBullets = bullets.slice(0, mid);
+      const rightBullets = bullets.slice(mid);
+
+      // Left Column
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 0.6, y: contentY, w: colW, h: colH,
+        fill: { color: themeObj.cardBg },
+        line: { color: themeObj.cardBorder, width: 1.0 },
+        rectRadius: 0.08
+      });
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 0.6, y: contentY, w: colW, h: 0.06,
+        fill: { color: themeObj.accent },
+        rectRadius: 0.02
+      });
+      slide.addText('🏛️ THEORETICAL FOUNDATION', {
+        x: 0.8, y: contentY + 0.16, w: colW - 0.4, h: 0.30,
+        fontSize: 11, bold: true, color: themeObj.accent, fontFace: 'Segoe UI'
+      });
+      leftBullets.forEach((b, bIdx) => {
+        const c = parseBulletToCard(b, bIdx);
+        slide.addText(`• ${c.title}: ${c.desc}`, {
+          x: 0.8, y: contentY + 0.55 + bIdx * 0.90, w: colW - 0.4, h: 0.82,
+          fontSize: 10, color: themeObj.textColor, fontFace: 'Segoe UI', lineSpacingMultiple: 1.15
+        });
+      });
+
+      // Right Column
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 5.15, y: contentY, w: colW, h: colH,
+        fill: { color: themeObj.cardBg },
+        line: { color: themeObj.cardBorder, width: 1.0 },
+        rectRadius: 0.08
+      });
+      slide.addShape(pres.ShapeType.roundRect, {
+        x: 5.15, y: contentY, w: colW, h: 0.06,
+        fill: { color: themeObj.categoryColor || themeObj.accent },
+        rectRadius: 0.02
+      });
+      slide.addText('⚙️ PRACTICAL IMPLEMENTATION', {
+        x: 5.35, y: contentY + 0.16, w: colW - 0.4, h: 0.30,
+        fontSize: 11, bold: true, color: themeObj.categoryColor || themeObj.accent, fontFace: 'Segoe UI'
+      });
+      (rightBullets.length > 0 ? rightBullets : leftBullets).forEach((b, bIdx) => {
+        const c = parseBulletToCard(b, bIdx + mid);
+        slide.addText(`• ${c.title}: ${c.desc}`, {
+          x: 5.35, y: contentY + 0.55 + bIdx * 0.90, w: colW - 0.4, h: 0.82,
+          fontSize: 10, color: themeObj.textColor, fontFace: 'Segoe UI', lineSpacingMultiple: 1.15
+        });
+      });
+
+      if (cleanAnalogy) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 4.55, w: 8.8, h: 0.48,
+          fill: { color: themeObj.analogyBg },
+          line: { color: themeObj.analogyBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '💡 REAL-WORLD ANALOGY:  ', options: { bold: true, color: themeObj.analogyLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+          { text: cleanAnalogy, options: { bold: false, color: themeObj.analogyText, fontSize: 10, fontFace: 'Segoe UI' } }
+        ], { x: 0.75, y: 4.57, w: 8.5, h: 0.44, valign: 'middle' });
+      }
+
+      if (s.speakerNotes) slide.addNotes(s.speakerNotes);
+      return;
+    }
+
+    // --- LAYOUT D: Process Flow / Sequential Pipeline Layout ---
+    if (layout === 'process' || layout === 'timeline') {
+      if (cleanTakeaway) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 1.35, w: 8.8, h: 0.44,
+          fill: { color: themeObj.takeawayBg },
+          line: { color: themeObj.takeawayBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '⚡ KEY TAKEAWAY:  ', options: { bold: true, color: themeObj.takeawayLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+          { text: cleanTakeaway, options: { bold: false, color: themeObj.takeawayText, fontSize: 10, fontFace: 'Segoe UI' } }
+        ], { x: 0.75, y: 1.37, w: 8.5, h: 0.40, valign: 'middle' });
+        contentY = 1.90;
+      }
+
+      const cardItems = bullets.map((b, bIdx) => parseBulletToCard(b, bIdx));
+      const N = Math.min(cardItems.length, 4) || 1;
+      const stepW = (8.8 - (N - 1) * 0.35) / N;
+      const stepH = cleanAnalogy ? 2.45 : 3.05;
+
+      cardItems.slice(0, N).forEach((c, cIdx) => {
+        const stepX = 0.6 + cIdx * (stepW + 0.35);
+
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: stepX, y: contentY, w: stepW, h: stepH,
+          fill: { color: themeObj.cardBg },
+          line: { color: themeObj.cardBorder, width: 1.0 },
+          rectRadius: 0.08
+        });
+
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: stepX, y: contentY, w: stepW, h: 0.06,
+          fill: { color: themeObj.accent },
+          rectRadius: 0.02
+        });
+
+        // Step number indicator
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: stepX + 0.14, y: contentY + 0.16, w: 0.82, h: 0.28,
+          fill: { color: themeObj.badgeBg || themeObj.bg },
+          line: { color: themeObj.accent, width: 0.8 },
+          rectRadius: 0.04
+        });
+        slide.addText(`STAGE ${c.num}`, {
+          x: stepX + 0.14, y: contentY + 0.16, w: 0.82, h: 0.28,
+          fontSize: 8, bold: true, color: themeObj.accent, align: 'center', fontFace: 'Segoe UI'
+        });
+
+        // Step Title
+        slide.addText(c.title, {
+          x: stepX + 0.14, y: contentY + 0.54, w: stepW - 0.28, h: 0.38,
+          fontSize: 12, bold: true, color: themeObj.cardTitle, fontFace: 'Segoe UI'
+        });
+
+        // Step Description
+        slide.addText(c.desc, {
+          x: stepX + 0.14, y: contentY + 0.94, w: stepW - 0.28, h: stepH - 1.06,
+          fontSize: 10, color: themeObj.textColor, fontFace: 'Segoe UI', lineSpacingMultiple: 1.2
+        });
+
+        // Right arrow between steps
+        if (cIdx < N - 1) {
+          slide.addShape(pres.ShapeType.rightArrow, {
+            x: stepX + stepW + 0.06, y: contentY + stepH / 2 - 0.12, w: 0.22, h: 0.24,
+            fill: { color: themeObj.accent }
+          });
+        }
+      });
+
+      if (cleanAnalogy) {
+        slide.addShape(pres.ShapeType.roundRect, {
+          x: 0.6, y: 4.55, w: 8.8, h: 0.48,
+          fill: { color: themeObj.analogyBg },
+          line: { color: themeObj.analogyBorder, width: 1.0 },
+          rectRadius: 0.06
+        });
+        slide.addText([
+          { text: '💡 REAL-WORLD ANALOGY:  ', options: { bold: true, color: themeObj.analogyLabel, fontSize: 10, fontFace: 'Segoe UI' } },
+          { text: cleanAnalogy, options: { bold: false, color: themeObj.analogyText, fontSize: 10, fontFace: 'Segoe UI' } }
+        ], { x: 0.75, y: 4.57, w: 8.5, h: 0.44, valign: 'middle' });
+      }
+
+      if (s.speakerNotes) slide.addNotes(s.speakerNotes);
+      return;
+    }
+
+    // --- LAYOUT E (Default): Responsive Multi-Card Grid ---
     if (cleanTakeaway) {
       slide.addShape(pres.ShapeType.roundRect, {
         x: 0.6, y: 1.35, w: 8.8, h: 0.44,
@@ -300,7 +634,6 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
       contentY = 1.95;
     }
 
-    // 4. Gamma Multi-Card Grid (Side-by-side Cards!)
     const cardItems = bullets.map((b, bIdx) => parseBulletToCard(b, bIdx));
     const N = Math.min(cardItems.length, 4) || 1;
     const hasAnalogy = Boolean(cleanAnalogy);
@@ -355,7 +688,7 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
       });
     });
 
-    // 5. REAL-WORLD ANALOGY Bottom Banner Card
+    // REAL-WORLD ANALOGY Bottom Banner Card
     if (hasAnalogy) {
       slide.addShape(pres.ShapeType.roundRect, {
         x: 0.6, y: 4.55, w: 8.8, h: 0.48,

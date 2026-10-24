@@ -94,9 +94,87 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
       y += th + (opts.gap || 4);
     };
 
+    let tableRows = null;
+
+    const drawAcademicTable = (rows) => {
+      if (!rows || rows.length === 0) return;
+      const cols = Math.max(...rows.map(r => r.length));
+      if (cols === 0) return;
+      const cellW = Math.floor(CW / cols);
+
+      const rowHeights = rows.map((row, ri) => {
+        const isHeader = ri === 0;
+        doc.font(isHeader ? boldFont : bodyFont).fontSize(isHeader ? 9.5 : 10);
+        let maxH = isHeader ? 22 : 24;
+        row.forEach(cell => {
+          const str = String(cell || '').trim();
+          if (str) {
+            const h = doc.heightOfString(str, { width: cellW - 12, lineGap: 2 });
+            if (h + 12 > maxH) maxH = Math.ceil(h + 12);
+          }
+        });
+        return Math.min(maxH, 120);
+      });
+
+      const totalH = rowHeights.reduce((a, b) => a + b, 0);
+      ensureSpace(Math.min(totalH + 20, 100));
+
+      rows.forEach((row, ri) => {
+        const rH = rowHeights[ri];
+        ensureSpace(rH + 6);
+        const isHeader = ri === 0;
+
+        for (let ci = 0; ci < cols; ci++) {
+          const cell = row[ci] || '';
+          const cx = L + ci * cellW, cy = y;
+
+          if (isHeader) {
+            doc.fillColor('#312E81').rect(cx, cy, cellW, rH).fill();
+            doc.strokeColor('#1E1B4B').lineWidth(0.6).rect(cx, cy, cellW, rH).stroke();
+            doc.fillColor('#FFFFFF').font(boldFont).fontSize(9.5);
+            doc.text(String(cell).trim(), cx + 6, cy + 6, { width: cellW - 12, align: 'center', lineGap: 2 });
+          } else {
+            const rowBg = ri % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
+            doc.fillColor(rowBg).rect(cx, cy, cellW, rH).fill();
+            doc.strokeColor('#CBD5E1').lineWidth(0.5).rect(cx, cy, cellW, rH).stroke();
+            doc.fillColor('#1E293B').font(bodyFont).fontSize(10);
+            doc.text(String(cell).trim(), cx + 6, cy + 6, { width: cellW - 12, align: 'left', lineGap: 2 });
+          }
+        }
+        y += rH;
+      });
+      y += 12;
+    };
+
     for (const rawLine of lines) {
       const line = rawLine.replace(/\*\*/g, '').trim();
-      if (!line) { y += 5; continue; }
+      if (!line) { 
+        if (tableRows) { drawAcademicTable(tableRows); tableRows = null; }
+        y += 5; 
+        continue; 
+      }
+
+      if (tableRows && !line.includes('|')) {
+        drawAcademicTable(tableRows);
+        tableRows = null;
+      }
+
+      if (line.toUpperCase().startsWith('TABLE:')) {
+        const header = line.slice(6).trim();
+        tableRows = [header.split('|').map(s => s.trim())];
+        continue;
+      }
+      if (tableRows && line.includes('|')) {
+        if (!line.replace(/[-|\s]/g, '')) continue;
+        tableRows.push(line.split('|').map(s => s.trim()).filter((_, i, a) => i > 0 && i < a.length - 1 || a.length <= 2));
+        continue;
+      }
+      if (!tableRows && line.startsWith('|') && line.endsWith('|')) {
+        tableRows = [];
+        if (!line.replace(/[-|\s]/g, '')) continue;
+        tableRows.push(line.split('|').map(s => s.trim()).filter(Boolean));
+        continue;
+      }
 
       // Markdown image tag: ![Figure 1: Diagram from Document](/uploads/images/extracted/...)
       const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)/);
@@ -223,6 +301,8 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
         writePara(line, { color: '#1E293B', fontSize: 11, lineGap: 3, gap: 6 });
       }
     }
+
+    if (tableRows) drawAcademicTable(tableRows);
 
     // Authentic diagrams section (any remaining figures not embedded inline)
     if (validImages.length > 0) {
@@ -568,29 +648,53 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
     // ── TABLE ──
     const drawTable = (rows) => {
       if (!rows || rows.length === 0) return;
-      const cols = rows[0].length;
+      const cols = Math.max(...rows.map(r => r.length));
       if (cols === 0) return;
       const cellW = Math.floor(CW / cols);
-      const cellH = 24;
-      const tableH = rows.length * cellH;
-      ensureSpace(tableH + 16);
+
+      // Pre-calculate height of each row based on cell text content
+      const rowHeights = rows.map((row, ri) => {
+        const isHeader = ri === 0;
+        doc.font(isHeader ? 'Helvetica-Bold' : FONT_REG).fontSize(isHeader ? 9 : 10 + FS_MOD / 3);
+        let maxH = isHeader ? 22 : 24;
+        row.forEach(cell => {
+          const str = String(cell || '').trim();
+          if (str) {
+            const h = doc.heightOfString(str, { width: cellW - 12, lineGap: 2 });
+            if (h + 12 > maxH) maxH = Math.ceil(h + 12);
+          }
+        });
+        return Math.min(maxH, 120);
+      });
+
+      const totalH = rowHeights.reduce((a, b) => a + b, 0);
+      ensureSpace(Math.min(totalH + 20, 100));
 
       rows.forEach((row, ri) => {
-        row.forEach((cell, ci) => {
-          const cx = L + ci * cellW, cy = y + ri * cellH;
-          const isHeader = ri === 0;
-          doc.rect(cx, cy, cellW, cellH).strokeColor('#CBD5E1').lineWidth(0.5).stroke();
+        const rH = rowHeights[ri];
+        ensureSpace(rH + 6);
+        const isHeader = ri === 0;
+
+        for (let ci = 0; ci < cols; ci++) {
+          const cell = row[ci] || '';
+          const cx = L + ci * cellW, cy = y;
+
           if (isHeader) {
-            doc.fillColor('#4F46E5').rect(cx, cy, cellW, cellH).fill();
+            doc.fillColor('#4F46E5').rect(cx, cy, cellW, rH).fill();
+            doc.strokeColor('#3730A3').lineWidth(0.6).rect(cx, cy, cellW, rH).stroke();
             doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9);
+            doc.text(String(cell).trim(), cx + 6, cy + 6, { width: cellW - 12, align: 'center', lineGap: 2 });
           } else {
-            doc.fillColor(ri % 2 === 0 ? '#F8FAFC' : '#FFFFFF').rect(cx, cy, cellW, cellH).fill();
+            const rowBg = ri % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
+            doc.fillColor(rowBg).rect(cx, cy, cellW, rH).fill();
+            doc.strokeColor('#CBD5E1').lineWidth(0.5).rect(cx, cy, cellW, rH).stroke();
             doc.fillColor('#1E293B').font(FONT_REG).fontSize(10 + FS_MOD / 3);
+            doc.text(String(cell).trim(), cx + 6, cy + 6, { width: cellW - 12, align: 'left', lineGap: 2 });
           }
-          doc.text(String(cell).slice(0, 35), cx + 5, cy + 6, { width: cellW - 10, align: isHeader ? 'center' : 'left', lineBreak: false });
-        });
+        }
+        y += rH;
       });
-      y += tableH + 12;
+      y += 12;
     };
 
     // ── HEADINGS ──
@@ -762,24 +866,78 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
         continue;
       }
 
+      if (upper.startsWith('EXAM TIP:') || upper.startsWith('### EXAM TIP') || upper.startsWith('## EXAM TIP')) {
+        flushMode();
+        const tipText = t.replace(/^#+\s*/, '').replace(/^(EXAM TIP)[:\s-]*/i, '').trim();
+        if (tipText) {
+          doc.font(FONT_REG).fontSize(11 + FS_MOD);
+          const tH = doc.heightOfString(tipText, { width: CW - 24, lineGap: 3 });
+          const cardH = tH + 20;
+          ensureSpace(cardH + 10);
+          drawBadge('🎯 HIGH-YIELD EXAM TIP', '#FEF2F2', '#991B1B', '#FCA5A5');
+          doc.fillColor('#FFF1F2').roundedRect(L, y, CW, cardH, 5).fill();
+          doc.strokeColor('#FECDD3').lineWidth(0.8).roundedRect(L, y, CW, cardH, 5).stroke();
+          doc.fillColor('#E11D48').roundedRect(L, y, 4, cardH, 2).fill();
+          doc.fillColor('#881337').font(FONT_REG).fontSize(11 + FS_MOD).text(tipText, L + 14, y + 8, { width: CW - 24, lineGap: 3 });
+          y += cardH + 12;
+        }
+        continue;
+      }
+
+      if (upper.startsWith('FORMULA:') || upper.startsWith('### FORMULA') || upper.startsWith('KEY FORMULA:')) {
+        flushMode();
+        const formText = t.replace(/^#+\s*/, '').replace(/^(KEY FORMULA|FORMULA)[:\s-]*/i, '').trim();
+        if (formText) {
+          doc.font('Courier').fontSize(10.5);
+          const fH = doc.heightOfString(formText, { width: CW - 24, lineGap: 3 });
+          const cardH = fH + 18;
+          ensureSpace(cardH + 10);
+          drawBadge('📐 FORMULA & THEOREM', '#F5F3FF', '#5B21B6', '#DDD6FE');
+          doc.fillColor('#FAF5FF').roundedRect(L, y, CW, cardH, 5).fill();
+          doc.strokeColor('#DDD6FE').lineWidth(0.8).roundedRect(L, y, CW, cardH, 5).stroke();
+          doc.fillColor('#7C3AED').roundedRect(L, y, 4, cardH, 2).fill();
+          doc.fillColor('#3B0764').font('Courier').fontSize(10.5).text(formText, L + 14, y + 8, { width: CW - 24, lineGap: 3 });
+          y += cardH + 12;
+        }
+        continue;
+      }
+
       if (t.startsWith('# ')) {
         const hText = t.slice(2).trim();
         const normTitle = (title || '').toLowerCase().replace(/notes|study|academic/g, '').trim();
         const normH = hText.toLowerCase().replace(/notes|study|academic/g, '').trim();
         if (normTitle && normH && (normTitle === normH || normTitle.includes(normH) || normH.includes(normTitle))) continue;
-        ensureSpace(34);
-        doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(16 + FS_MOD).text(hText, L, y, { width: CW });
-        y += 26;
+        
+        ensureSpace(46);
+        const isChap = /^(chapter|module|unit|part)\s+\d+/i.test(hText);
+        const bannerH = isChap ? 38 : 32;
+        doc.fillColor('#EDE9FE').roundedRect(L, y, CW, bannerH, 6).fill();
+        doc.strokeColor('#C4B5FD').lineWidth(1.0).roundedRect(L, y, CW, bannerH, 6).stroke();
+        doc.fillColor('#6366F1').roundedRect(L, y, 5, bannerH, 2.5).fill();
+
+        if (isChap) {
+          doc.fillColor('#4338CA').font('Helvetica-Bold').fontSize(8.5).text('📘 CURRICULUM CHAPTER', L + 14, y + 5);
+          doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(14 + FS_MOD).text(hText, L + 14, y + 17, { width: CW - 24, lineBreak: false });
+        } else {
+          doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(15 + FS_MOD).text(hText, L + 14, y + 8, { width: CW - 24, lineBreak: false });
+        }
+        y += bannerH + 12;
+
       } else if (t.startsWith('## ')) {
         // Embed the next authentic document diagram between major topics
         if (pendingImages.length > 0 && pageNum >= 1 && y > 150) {
           drawDocumentImage(pendingImages.shift());
         }
         drawHeading2(t.slice(3).trim());
+
       } else if (t.startsWith('### ')) {
-        ensureSpace(20);
-        doc.fillColor('#047857').font(FONT_BOLD).fontSize(12 + FS_MOD).text(t.slice(4).trim(), L, y, { width: CW });
-        y += 18;
+        const subText = t.slice(4).trim();
+        ensureSpace(28);
+        doc.fillColor('#ECFDF5').roundedRect(L, y, CW, 24, 4).fill();
+        doc.strokeColor('#A7F3D0').lineWidth(0.6).roundedRect(L, y, CW, 24, 4).stroke();
+        doc.fillColor('#059669').roundedRect(L, y, 3.5, 24, 1.5).fill();
+        doc.fillColor('#047857').font(FONT_BOLD).fontSize(11.5 + FS_MOD).text(subText, L + 12, y + 5, { width: CW - 20, lineBreak: false });
+        y += 30;
       } else if (t.startsWith('- ') || t.startsWith('• ') || t.startsWith('* ')) {
         const bulletText = t.slice(2).trim();
         doc.font(FONT_REG).fontSize(11 + FS_MOD);

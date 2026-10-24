@@ -162,3 +162,4 @@ Time:        24.351 s
 1. **Credential Rotation:** Because legacy MongoDB connection strings were committed in earlier git history, **rotate the MongoDB Atlas user password immediately** in the Atlas console and update the Render environment variable.
 2. **MongoDB Atlas Network Access:** Avoid `0.0.0.0/0` in production if dedicated static egress IPs are available; if dynamic IPs must be supported (standard Render behavior), ensure strong (32+ character) database passwords and SCRAM-SHA-256 authentication.
 3. **Storage Persistence:** Render web services have an ephemeral filesystem by default. For production document and image retention across redeployments, attach a Render Persistent Disk mounted at `/var/data` and configure `UPLOADS_DIR=/var/data/uploads`.
+

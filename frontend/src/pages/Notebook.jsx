@@ -760,7 +760,8 @@ export default function Notebook() {
         slides,
         title: doc?.title || defaultTitle || 'Presentation',
         subject: doc?.subject || doc?.title || 'Academic Lecture',
-        theme: pptTheme
+        theme: pptTheme,
+        docId: doc?._id || doc?.id
       })
       if (res.data.downloadUrl) {
         triggerDownload(res.data.downloadUrl, res.data.fileName || `${doc?.title || 'presentation'}.pptx`)
@@ -2033,11 +2034,50 @@ export default function Notebook() {
                           </div>
                         )}
 
+                        {/* Optional Authentic Diagram / Figure */}
+                        {s.image && (
+                          <div style={{ marginBottom: 14, textAlign: 'center', background: 'rgba(0,0,0,0.18)', borderRadius: 10, padding: 12, border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}` }}>
+                            <img
+                              src={s.image.startsWith('http') || s.image.startsWith('/') ? s.image : `/uploads/${s.image}`}
+                              alt={s.title}
+                              style={{ maxHeight: 240, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }}
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                            <div style={{ fontSize: 11, color: activeThemeObj.text, opacity: 0.8, marginTop: 6, fontWeight: 600 }}>
+                              📐 Figure: Diagram / Visual Model from Document
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Optional Comparative Table */}
+                        {Array.isArray(s.table) && s.table.length > 0 && (
+                          <div style={{ overflowX: 'auto', marginBottom: 14, borderRadius: 8, border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}` }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                              <thead>
+                                <tr style={{ background: activeThemeObj.accent || '#6366F1', color: '#fff' }}>
+                                  {s.table[0].map((th, thi) => (
+                                    <th key={thi} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>{th}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {s.table.slice(1).map((row, ri) => (
+                                  <tr key={ri} style={{ background: ri % 2 === 0 ? (activeThemeObj.cardBg || 'rgba(255,255,255,0.03)') : 'transparent', borderTop: `1px solid ${activeThemeObj.cardBorder || 'rgba(255,255,255,0.08)'}` }}>
+                                    {row.map((cell, ci) => (
+                                      <td key={ci} style={{ padding: '8px 12px', color: activeThemeObj.textColor || activeThemeObj.text }}>{cell}</td>
+                                    ))}
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
                         {/* Gamma AI Multi-Card Grid */}
                         <div
                           style={{
                             display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                            gridTemplateColumns: s.layout === 'two-column' ? 'repeat(auto-fit, minmax(280px, 1fr))' : 'repeat(auto-fit, minmax(220px, 1fr))',
                             gap: 12,
                             margin: '14px 0'
                           }}
@@ -2456,11 +2496,50 @@ export default function Notebook() {
                         </div>
                       )}
 
+                      {/* Optional Diagram / Figure in Slideshow */}
+                      {currSlide.image && (
+                        <div style={{ marginBottom: 16, textAlign: 'center', background: 'rgba(0,0,0,0.18)', borderRadius: 10, padding: 12, border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}` }}>
+                          <img
+                            src={currSlide.image.startsWith('http') || currSlide.image.startsWith('/') ? currSlide.image : `/uploads/${currSlide.image}`}
+                            alt={currSlide.title}
+                            style={{ maxHeight: 220, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }}
+                            onError={(e) => { e.target.style.display = 'none'; }}
+                          />
+                          <div style={{ fontSize: 11, color: activeThemeObj.text, opacity: 0.8, marginTop: 6, fontWeight: 600 }}>
+                            📐 Figure: Visual Model from Document
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Optional Comparative Table in Slideshow */}
+                      {Array.isArray(currSlide.table) && currSlide.table.length > 0 && (
+                        <div style={{ overflowX: 'auto', marginBottom: 16, borderRadius: 8, border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}` }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                            <thead>
+                              <tr style={{ background: activeThemeObj.accent || '#6366F1', color: '#fff' }}>
+                                {currSlide.table[0].map((th, thi) => (
+                                  <th key={thi} style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 700 }}>{th}</th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {currSlide.table.slice(1).map((row, ri) => (
+                                <tr key={ri} style={{ background: ri % 2 === 0 ? (activeThemeObj.cardBg || 'rgba(255,255,255,0.03)') : 'transparent', borderTop: `1px solid ${activeThemeObj.cardBorder || 'rgba(255,255,255,0.08)'}` }}>
+                                  {row.map((cell, ci) => (
+                                    <td key={ci} style={{ padding: '8px 12px', color: activeThemeObj.textColor || activeThemeObj.text }}>{cell}</td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
                       {/* Gamma AI Multi-Card Grid */}
                       <div
                         style={{
                           display: 'grid',
-                          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                          gridTemplateColumns: currSlide.layout === 'two-column' ? 'repeat(auto-fit, minmax(280px, 1fr))' : 'repeat(auto-fit, minmax(220px, 1fr))',
                           gap: 12,
                           marginBottom: 16
                         }}

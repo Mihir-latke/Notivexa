@@ -434,11 +434,28 @@ exports.ppt = async (req, res, next) => {
     const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
+    const imagePaths = await resolveDocImages(doc);
     const pptData = await ai.generatePPT(text, doc.title, doc.subject || doc.title, language);
-    const pdf = await slidePDF(pptData, { title:doc.title });
+
+    // Assign authentic extracted document diagrams to diagram/image slides
+    if (Array.isArray(pptData?.slides) && imagePaths.length > 0) {
+      let imgIdx = 0;
+      for (const slide of pptData.slides) {
+        if (imgIdx < imagePaths.length && (slide.layout === 'image' || slide.layout === 'diagram' || slide.category?.includes('VISUAL') || slide.category?.includes('ARCHITECT'))) {
+          slide.image = imagePaths[imgIdx++];
+          slide.layout = 'image';
+        }
+      }
+      if (imgIdx === 0 && imagePaths.length > 0 && pptData.slides.length > 2) {
+        pptData.slides[2].image = imagePaths[0];
+        pptData.slides[2].layout = 'image';
+      }
+    }
+
+    const pdf = await slidePDF(pptData, { title: doc.title, subject: doc.subject || doc.title });
     if (doc.outputs) doc.outputs.push({ type:'ppt', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
-    res.json({ success:true, pptData, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName });
+    res.json({ success:true, pptData, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, diagrams: doc.diagrams || [] });
   } catch(e) { next(e); }
 };
 
@@ -513,12 +530,20 @@ exports.exportDocx = async (req, res, next) => {
 
 exports.exportPptx = async (req, res, next) => {
   try {
-    const { slides, title = 'Presentation', subject = 'Academic Lecture', theme = 'indigo' } = req.body;
+    const { slides, title = 'Presentation', subject = 'Academic Lecture', theme = 'indigo', documentId, docId } = req.body;
     const slidesData = slides || req.body.pptData?.slides || [];
     if (!slidesData || slidesData.length === 0) {
       return res.status(400).json({ error: 'Slides data is required for PPTX export.' });
     }
-    const result = await generatePPTX(slidesData, { title, subject, theme });
+    let imagePaths = [];
+    const dId = documentId || docId;
+    if (dId) {
+      try {
+        const result = await getDocText(dId, req.user?.id);
+        imagePaths = await resolveDocImages(result.doc);
+      } catch {}
+    }
+    const result = await generatePPTX(slidesData, { title, subject, theme, imagePaths });
     res.json({ success: true, downloadUrl: `/uploads/generated/${result.fileName}`, fileName: result.fileName, fileSize: result.fileSize });
   } catch(e) { next(e); }
 };
