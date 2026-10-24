@@ -16,12 +16,16 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ error: 'Name, email, and password are required.' });
     }
 
+    if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 100) {
+      return res.status(400).json({ error: 'Name must be between 2 and 100 characters.' });
+    }
+
     const normEmail = email.toLowerCase().trim();
-    if (!EMAIL_REGEX.test(normEmail)) {
+    if (!EMAIL_REGEX.test(normEmail) || normEmail.length > 255) {
       return res.status(400).json({ error: 'Please provide a valid email address.' });
     }
 
-    if (typeof password !== 'string' || password.length < 6) {
+    if (typeof password !== 'string' || password.length < 6 || password.length > 128) {
       return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
     }
 
@@ -133,16 +137,6 @@ exports.login = async (req, res, next) => {
           }
         }
 
-        // Support case where password was updated in localStore
-        if (!isMatch) {
-          const localUser = localStore.findUserByEmail(normEmail);
-          if (localUser && await localStore.comparePassword(localUser, password)) {
-            isMatch = true;
-            user.password = password;
-            await user.save();
-          }
-        }
-
         if (isMatch) {
           if (!user.isActive) {
             return res.status(403).json({ error: 'Account has been deactivated. Please contact support.' });
@@ -155,25 +149,34 @@ exports.login = async (req, res, next) => {
         }
       }
 
-      // If user registered in localStore before DB connected, find and migrate now!
+      // If user registered in localStore before DB connected, find and migrate securely using stored hash!
       const localUser = localStore.findUserByEmail(normEmail);
-      if (localUser) {
+      if (localUser && localUser.passwordHash) {
         const isMatch = await localStore.comparePassword(localUser, password);
         if (isMatch) {
           if (!localUser.isActive) {
             return res.status(403).json({ error: 'Account has been deactivated.' });
           }
-          // Migrate into MongoDB Atlas
+          // Migrate into MongoDB Atlas using existing passwordHash (never assign plaintext)
           try {
-            const syncedUser = await User.create({
+            const uid = (localUser._id && mongoose.Types.ObjectId.isValid(localUser._id))
+              ? new mongoose.Types.ObjectId(localUser._id)
+              : new mongoose.Types.ObjectId();
+            const doc = {
+              _id: uid,
               name: localUser.name,
               email: normEmail,
-              password,
+              password: localUser.passwordHash,
               role: localUser.role || 'student',
               institution: localUser.institution || '',
               preferredLanguage: localUser.preferredLanguage || 'English',
-              isActive: true
-            });
+              isActive: true,
+              studyStats: localUser.studyStats || { documentsUploaded: 0, notesGenerated: 0, flashcardsCreated: 0 },
+              createdAt: localUser.createdAt ? new Date(localUser.createdAt) : new Date(),
+              updatedAt: new Date()
+            };
+            await User.collection.insertOne(doc);
+            const syncedUser = await User.findById(uid);
             console.log(`[Auth Login] Auto-migrated local user to MongoDB Atlas: ${normEmail}`);
             return res.json({
               success: true,
@@ -320,4 +323,8 @@ exports.changePassword = async (req, res, next) => {
     }
     next(err);
   }
+};
+
+exports.logout = async (req, res) => {
+  res.json({ success: true, message: 'Logged out successfully.' });
 };

@@ -7,6 +7,8 @@
     "build": "npm --prefix backend install --omit=dev && npm --prefix frontend install && npm --prefix frontend run build",
     "dev": "npm --prefix backend install && npm --prefix frontend install && npm --prefix frontend run build",
     "test": "npm --prefix backend test",
+    "migrate": "npm --prefix backend run migrate",
+    "migrate:dry-run": "npm --prefix backend run migrate:dry-run",
     "start": "node backend/server.js"
   },
   "engines": {

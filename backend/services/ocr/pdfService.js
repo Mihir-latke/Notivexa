@@ -20,6 +20,10 @@ function validatePdfHeader(filePath) {
   if (!fs.existsSync(filePath)) {
     throw new Error(`PDF file not found: ${filePath}`);
   }
+  const stat = fs.statSync(filePath);
+  if (stat.size < 8) {
+    throw new Error('Invalid PDF format: File is empty or too small (< 8 bytes).');
+  }
   const fd = fs.openSync(filePath, 'r');
   const buffer = Buffer.alloc(8);
   fs.readSync(fd, buffer, 0, 8, 0);
@@ -67,7 +71,16 @@ async function inspectAndExtractPdf(filePath, options = {}) {
     useSystemFonts: true
   });
 
-  const pdfDoc = await loadingTask.promise;
+  let pdfDoc;
+  try {
+    pdfDoc = await loadingTask.promise;
+  } catch (err) {
+    if (err.name === 'PasswordException' || /password/i.test(err.message)) {
+      throw new Error('This PDF is password-protected or encrypted. Please remove password encryption before uploading.');
+    }
+    throw new Error(`Could not parse PDF document: ${err.message}`);
+  }
+
   const totalPages = pdfDoc.numPages || 1;
   const pagesToProcess = Math.min(totalPages, maxPages);
   const OPS = pdfjsLib.OPS;

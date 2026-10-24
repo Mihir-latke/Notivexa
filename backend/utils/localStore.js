@@ -26,6 +26,7 @@ const DEFAULT_USERS = [
   {
     _id: '507f191e810c19729de860ea',
     id: '507f191e810c19729de860ea',
+    isDemo: true,
     name: 'Aryan Sharma',
     email: 'student@demo.com',
     passwordHash: bcrypt.hashSync('demo1234', 10),
@@ -39,6 +40,7 @@ const DEFAULT_USERS = [
   {
     _id: '507f191e810c19729de860eb',
     id: '507f191e810c19729de860eb',
+    isDemo: true,
     name: 'Prof. Meera Joshi',
     email: 'teacher@demo.com',
     passwordHash: bcrypt.hashSync('demo1234', 10),
@@ -165,16 +167,14 @@ exports.createUser = async ({ name, email, password, role = 'student', instituti
 
 exports.comparePassword = async (user, password) => {
   if (!user || !password) return false;
-  // Demo accounts bypass for Aryan Sharma and Prof. Meera Joshi in dev/demo
-  if ((user.email === 'student@demo.com' || user.email === 'teacher@demo.com') &&
+  const allowDemo = process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
+  // Demo accounts bypass strictly gated behind development or explicit demo mode
+  if (allowDemo && (user.email === 'student@demo.com' || user.email === 'teacher@demo.com') &&
       (password === 'demo1234' || password === 'student123' || password === 'teacher123')) {
     return true;
   }
   if (user.passwordHash) {
     return bcrypt.compare(password, user.passwordHash);
-  }
-  if (user.password) {
-    return bcrypt.compare(password, user.password);
   }
   return false;
 };

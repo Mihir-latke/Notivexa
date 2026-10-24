@@ -49,14 +49,10 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (
-      !origin ||
-      allowedOrigins.includes(origin) ||
-      process.env.NODE_ENV !== 'production' ||
-      /\.onrender\.com$/.test(new URL(origin).hostname) ||
-      /\.vercel\.app$/.test(new URL(origin).hostname) ||
-      /localhost/.test(origin)
-    ) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    // In local development or test mode, allow localhost/127.0.0.1
+    if (process.env.NODE_ENV !== 'production' && /localhost|127\.0\.0\.1/.test(origin)) {
       return callback(null, true);
     }
     return callback(new Error('CORS blocked: Origin not authorized.'));
@@ -71,16 +67,53 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Serve uploaded files and auto-restore extracted diagrams from DB if missing on disk
-app.get('/uploads/images/extracted/:docId/:fileName', async (req, res, next) => {
+// Helper to extract JWT token from Authorization header or ?token= query parameter
+function getAuthTokenFromReq(req) {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.split(' ')[1];
+  }
+  if (req.query && req.query.token) {
+    return req.query.token;
+  }
+  return null;
+}
+
+const { getJwtSecret } = require('./middleware/auth');
+const jwt = require('jsonwebtoken');
+
+function authenticateMediaRequest(req, res, next) {
+  const token = getAuthTokenFromReq(req);
+  if (!token) {
+    return res.status(401).json({ error: 'Authentication required. No token provided.' });
+  }
+  try {
+    const decoded = jwt.verify(token, getJwtSecret());
+    if (!decoded || !decoded.id) {
+      return res.status(401).json({ error: 'Invalid authentication token.' });
+    }
+    req.userId = decoded.id.toString();
+    next();
+  } catch (err) {
+    if (err.name === 'TokenExpiredError') {
+      return res.status(401).json({ error: 'Authentication session expired. Please sign in again.' });
+    }
+    return res.status(401).json({ error: 'Invalid authentication token.' });
+  }
+}
+
+// Authenticated & authorized access to extracted diagrams/images with IDOR & path-traversal prevention
+app.get('/uploads/images/extracted/:docId/:fileName', authenticateMediaRequest, async (req, res, next) => {
   const safeDocId = path.basename(req.params.docId);
   const safeFileName = path.basename(req.params.fileName);
-  const targetPath = path.join(__dirname, 'uploads/images/extracted', safeDocId, safeFileName);
+  const uploadsDir = path.resolve(__dirname, 'uploads/images/extracted');
+  const targetPath = path.resolve(uploadsDir, safeDocId, safeFileName);
 
-  if (fs.existsSync(targetPath)) {
-    return res.sendFile(targetPath);
+  if (!targetPath.startsWith(uploadsDir)) {
+    return res.status(400).json({ error: 'Invalid path parameter.' });
   }
 
+  // Multi-tenant authorization check: user must own the document or document is public demo
   try {
     const { Document } = require('./models');
     const localStore = require('./utils/localStore');
@@ -89,31 +122,87 @@ app.get('/uploads/images/extracted/:docId/:fileName', async (req, res, next) => 
       try { doc = await Document.findById(safeDocId).lean(); } catch {}
     }
     if (!doc) doc = localStore.getDocById(safeDocId);
-    if (doc && Array.isArray(doc.diagrams)) {
+
+    if (!doc) {
+      return res.status(404).json({ error: 'Document image not found.' });
+    }
+
+    const docOwner = (doc.user?._id || doc.user || '').toString();
+    if (docOwner !== req.userId && !doc.isDemo) {
+      return res.status(403).json({ error: 'Access denied: You do not own this document.' });
+    }
+
+    if (fs.existsSync(targetPath)) {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-transform, max-age=3600');
+      return res.sendFile(targetPath);
+    }
+
+    if (Array.isArray(doc.diagrams)) {
       const match = doc.diagrams.find(d => d.fileName === safeFileName);
       if (match && match.base64) {
         fs.mkdirSync(path.dirname(targetPath), { recursive: true });
         fs.writeFileSync(targetPath, Buffer.from(match.base64, 'base64'));
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cache-Control', 'private, no-transform, max-age=3600');
         return res.sendFile(targetPath);
       }
     }
   } catch (err) {
     console.warn('[Diagram Static Restore Error]', err.message);
   }
-  next();
+  return res.status(404).json({ error: 'Image file not found.' });
 });
 
-// Optimized Range-Streaming for generated MP4 videos (prevents ECONNRESET / socket stalls)
-app.get('/uploads/video/:filename', (req, res, next) => {
+// Authenticated & authorized Range-Streaming for generated MP4 videos
+app.get('/uploads/video/:filename', authenticateMediaRequest, async (req, res, next) => {
   const safeFileName = path.basename(req.params.filename);
-  const filePath = path.join(__dirname, 'uploads/video', safeFileName);
-  if (!fs.existsSync(filePath)) return next();
+  const uploadsDir = path.resolve(__dirname, 'uploads/video');
+  const filePath = path.resolve(uploadsDir, safeFileName);
+
+  if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Video not found.' });
+  }
+
+  // Multi-tenant check: verify that user owns the document/output associated with this video
+  try {
+    const { Document } = require('./models');
+    const localStore = require('./utils/localStore');
+    let isOwner = false;
+
+    if (mongoose.connection.readyState === 1) {
+      const doc = await Document.findOne({
+        user: req.userId,
+        $or: [
+          { 'outputs.fileName': safeFileName },
+          { 'outputs.filePath': { $regex: safeFileName, $options: 'i' } }
+        ]
+      });
+      if (doc) isOwner = true;
+    }
+
+    if (!isOwner) {
+      const userDocs = localStore.getDocsByUser(req.userId);
+      isOwner = userDocs.some(d => (d.outputs || []).some(o => o.fileName === safeFileName || (o.filePath && o.filePath.includes(safeFileName))));
+    }
+
+    // Allow in test/demo mode
+    if (!isOwner && (process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production')) {
+      isOwner = true;
+    }
+
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied: You do not own this video resource.' });
+    }
+  } catch (err) {
+    console.warn('[Video Auth Error]', err.message);
+  }
 
   let stat;
   try {
     stat = fs.statSync(filePath);
   } catch (err) {
-    return next();
+    return res.status(404).json({ error: 'Video file unreadable.' });
   }
 
   const fileSize = stat.size;
@@ -121,6 +210,8 @@ app.get('/uploads/video/:filename', (req, res, next) => {
 
   res.setHeader('Accept-Ranges', 'bytes');
   res.setHeader('Content-Type', 'video/mp4');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Cache-Control', 'private, no-transform, max-age=3600');
 
   if (range) {
     const parts = range.replace(/bytes=/, '').split('-');
@@ -138,7 +229,8 @@ app.get('/uploads/video/:filename', (req, res, next) => {
       'Accept-Ranges': 'bytes',
       'Content-Length': chunksize,
       'Content-Type': 'video/mp4',
-      'Cache-Control': 'public, max-age=3600'
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-transform, max-age=3600'
     });
 
     const fileStream = fs.createReadStream(filePath, { start, end });
@@ -156,7 +248,8 @@ app.get('/uploads/video/:filename', (req, res, next) => {
       'Content-Length': fileSize,
       'Content-Type': 'video/mp4',
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'public, max-age=3600'
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-transform, max-age=3600'
     });
 
     const fileStream = fs.createReadStream(filePath);

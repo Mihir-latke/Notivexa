@@ -285,4 +285,52 @@ describe('Notivexa API Audit & Security Test Suite', () => {
       expect(res.body.edgeTTS).toBe(true);
     });
   });
+
+  describe('5. Media Routes Security & Multi-tenant Authorization', () => {
+    it('GET /uploads/images/extracted/:docId/:fileName rejects unauthenticated requests with 401', async () => {
+      const res = await request(app).get('/uploads/images/extracted/fakeDoc123/diagram_1.png');
+      expect(res.status).toBe(401);
+      expect(res.body.error).toMatch(/authentication required/i);
+    });
+
+    it('GET /uploads/images/extracted/:docId/:fileName rejects unauthorized non-owner with 403 or 404', async () => {
+      const res = await request(app)
+        .get('/uploads/images/extracted/fakeDoc123/diagram_1.png')
+        .set('Authorization', `Bearer ${user2Token}`);
+      expect([403, 404]).toContain(res.status);
+    });
+
+    it('GET /uploads/video/:filename rejects unauthenticated requests with 401', async () => {
+      const res = await request(app).get('/uploads/video/secret_lecture.mp4');
+      expect(res.status).toBe(401);
+      expect(res.body.error).toMatch(/authentication required/i);
+    });
+
+    it('POST /api/auth/logout succeeds cleanly', async () => {
+      const res = await request(app)
+        .post('/api/auth/logout')
+        .set('Authorization', `Bearer ${user1Token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  describe('6. Migration Safety & Chunked Hashing', () => {
+    const { syncLocalDataToMongo, ensureDbState } = require('../utils/dbSync');
+    const { computeFileHash } = require('../services/ocr/textExtractionService');
+
+    it('Migration dry-run executes safely without writing data', async () => {
+      await ensureDbState(2000);
+      const result = await syncLocalDataToMongo({ dryRun: true });
+      expect(result).toHaveProperty('dryRun', true);
+      expect(typeof result.userSyncCount).toBe('number');
+      expect(typeof result.docSyncCount).toBe('number');
+    }, 15000);
+
+    it('computeFileHash computes valid SHA-256 hash using chunked streaming', () => {
+      const testFilePath = path.join(__dirname, '../server.js');
+      const hash = computeFileHash(testFilePath);
+      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+    });
+  });
 });

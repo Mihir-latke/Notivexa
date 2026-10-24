@@ -27,9 +27,24 @@ function ensureCacheDir() {
 }
 
 /**
- * Computes SHA-256 hash of a file's binary content.
+ * Computes SHA-256 hash of a file's binary content using 64KB chunks to avoid large memory allocations.
  */
 function computeFileHash(filePath) {
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`File not found for hashing: ${filePath}`);
+  }
+  const stat = fs.statSync(filePath);
+  if (stat.size > 2 * 1024 * 1024) {
+    const hash = crypto.createHash('sha256');
+    const fd = fs.openSync(filePath, 'r');
+    const buf = Buffer.alloc(64 * 1024);
+    let bytesRead = 0;
+    while ((bytesRead = fs.readSync(fd, buf, 0, buf.length, null)) > 0) {
+      hash.update(buf.subarray(0, bytesRead));
+    }
+    fs.closeSync(fd);
+    return hash.digest('hex');
+  }
   const buffer = fs.readFileSync(filePath);
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
