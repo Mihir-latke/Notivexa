@@ -51,6 +51,7 @@ backend/data/ocr-cache/*
 backend/temp_test.pdf
 
 # System & IDE files
+render.yaml
 .DS_Store
 Thumbs.db
 *.log
