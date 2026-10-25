@@ -326,6 +326,18 @@ exports.importUrl = async (req, res, next) => {
       doc.status        = 'ready';
       await doc.save();
 
+      // If imported document is a PDF, asynchronously extract authentic diagrams
+      if (ext.filePath && typeof ext.filePath === 'string' && ext.filePath.toLowerCase().endsWith('.pdf') && fs.existsSync(ext.filePath)) {
+        const docId = (doc._id || doc.id).toString();
+        extractImagesFromPDF(ext.filePath, docId).then(imgs => {
+          if (imgs && imgs.length > 0) {
+            const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
+            doc.imagePaths = relPaths;
+            doc.save().catch(() => {});
+          }
+        }).catch(() => {});
+      }
+
       await User.findByIdAndUpdate(userId, { $inc: { 'studyStats.documentsUploaded': 1 } });
       res.status(201).json({
         success: true,

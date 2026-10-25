@@ -49,24 +49,52 @@ function isGoogleDriveUrl(url) {
 }
 
 function extractGoogleDriveInfo(url) {
-  if (!url) return null;
-  const isDoc = /docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
-  if (isDoc) return { type: 'doc', id: isDoc[1] };
+  if (!url || typeof url !== 'string') return null;
+  const clean = url.trim();
 
-  const isSlides = /docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
-  if (isSlides) return { type: 'slides', id: isSlides[1] };
+  // Extract resourcekey if present
+  let resourceKey = null;
+  const rkMatch = clean.match(/[?&]resourcekey=([a-zA-Z0-9_-]+)/i);
+  if (rkMatch) resourceKey = rkMatch[1];
 
-  const isSheets = /docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
-  if (isSheets) return { type: 'sheets', id: isSheets[1] };
+  // 1. Google Docs
+  const isDoc = clean.match(/docs\.google\.com\/document(?:\/u\/\d+)?\/d\/([a-zA-Z0-9_-]+)/i);
+  if (isDoc) return { type: 'doc', id: isDoc[1], resourceKey };
 
-  const isFile = /drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/i.exec(url);
-  if (isFile) return { type: 'file', id: isFile[1] };
+  // 2. Google Slides / Presentations
+  const isSlides = clean.match(/docs\.google\.com\/presentation(?:\/u\/\d+)?\/d\/([a-zA-Z0-9_-]+)/i);
+  if (isSlides) return { type: 'slides', id: isSlides[1], resourceKey };
 
-  const isOpen = /drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/i.exec(url);
-  if (isOpen) return { type: 'file', id: isOpen[1] };
+  // 3. Google Sheets
+  const isSheets = clean.match(/docs\.google\.com\/spreadsheets(?:\/u\/\d+)?\/d\/([a-zA-Z0-9_-]+)/i);
+  if (isSheets) return { type: 'sheets', id: isSheets[1], resourceKey };
 
-  const isUc = /[?&]id=([a-zA-Z0-9_-]+)/i.exec(url);
-  if (isUc && /drive\.google\.com|docs\.google\.com/i.test(url)) return { type: 'file', id: isUc[1] };
+  // 4. Drive folders
+  const isFolder = clean.match(/drive\.google\.com\/drive(?:\/u\/\d+)?\/folders\/([a-zA-Z0-9_-]+)/i);
+  if (isFolder) return { type: 'folder', id: isFolder[1], resourceKey };
+
+  // 5. Drive root / my-drive
+  if (/drive\.google\.com\/drive(?:\/u\/\d+)?\/(?:my-drive|home|shared-with-me|recent|starred|trash)/i.test(clean)) {
+    return { type: 'root', id: null };
+  }
+
+  // 6. Drive file (including /file/d/..., /file/u/0/d/..., /open?id=..., /uc?id=...)
+  const isFile = clean.match(/drive\.google\.com\/file(?:\/u\/\d+)?\/d\/([a-zA-Z0-9_-]+)/i);
+  if (isFile) return { type: 'file', id: isFile[1], resourceKey };
+
+  const isOpen = clean.match(/drive\.google\.com\/open\?(?:.*&)?id=([a-zA-Z0-9_-]+)/i);
+  if (isOpen) return { type: 'file', id: isOpen[1], resourceKey };
+
+  const isUc = clean.match(/(?:drive|docs)\.google\.com\/uc\?(?:.*&)?id=([a-zA-Z0-9_-]+)/i);
+  if (isUc) return { type: 'file', id: isUc[1], resourceKey };
+
+  // 7. Generic id param on drive/docs domain
+  const anyId = clean.match(/(?:drive|docs)\.google\.com\/[^\s?#]*[?&]id=([a-zA-Z0-9_-]+)/i);
+  if (anyId) return { type: 'file', id: anyId[1], resourceKey };
+
+  // 8. Any /d/ID pattern on drive/docs
+  const genericD = clean.match(/(?:drive|docs)\.google\.com\/[^\s]*\/d\/([a-zA-Z0-9_-]+)/i);
+  if (genericD) return { type: 'file', id: genericD[1], resourceKey };
 
   return null;
 }
@@ -860,36 +888,50 @@ async function extractWebpage(url, userSubject = 'General') {
 async function extractGoogleDrive(url, userSubject = 'General') {
   console.log(`[URL Engine] Processing Google Drive link: ${url}`);
   const info = extractGoogleDriveInfo(url);
-  if (!info || !info.id) {
-    throw new Error('Could not find a valid Google Drive file ID. Please check the link.');
+  if (!info) {
+    throw new Error('Please enter a valid Google Drive or Google Docs link (e.g., https://drive.google.com/file/d/... or https://docs.google.com/document/d/...).');
   }
 
-  const { type, id } = info;
+  if (info.type === 'folder') {
+    throw new Error('This link points to a Google Drive folder. Please click on the specific PDF or document inside the folder, copy that file\'s link, and paste it here.');
+  }
+
+  if (info.type === 'root') {
+    throw new Error('This link points to your Google Drive homepage. Please open the specific PDF or document you want to import, copy its link, and paste it here.');
+  }
+
+  const { type, id, resourceKey } = info;
+  if (!id) {
+    throw new Error('Could not find a valid Google Drive file ID in this link. Please verify the link.');
+  }
+
+  const rkParam = resourceKey ? `&resourcekey=${resourceKey}` : '';
   let candidateUrls = [];
 
   if (type === 'doc') {
     candidateUrls = [
-      `https://docs.google.com/document/d/${id}/export?format=txt`,
-      `https://docs.google.com/document/d/${id}/export?format=pdf`,
-      `https://drive.usercontent.google.com/download?id=${id}&export=download`
+      `https://docs.google.com/document/d/${id}/export?format=txt${rkParam}`,
+      `https://docs.google.com/document/d/${id}/export?format=pdf${rkParam}`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download${rkParam}`
     ];
   } else if (type === 'slides') {
     candidateUrls = [
-      `https://docs.google.com/presentation/d/${id}/export/pdf`,
-      `https://docs.google.com/presentation/d/${id}/export/txt`,
-      `https://drive.usercontent.google.com/download?id=${id}&export=download`
+      `https://docs.google.com/presentation/d/${id}/export/pdf${rkParam}`,
+      `https://docs.google.com/presentation/d/${id}/export/txt${rkParam}`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download${rkParam}`
     ];
   } else if (type === 'sheets') {
     candidateUrls = [
-      `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`,
-      `https://drive.usercontent.google.com/download?id=${id}&export=download`
+      `https://docs.google.com/spreadsheets/d/${id}/export?format=csv${rkParam}`,
+      `https://drive.usercontent.google.com/download?id=${id}&export=download${rkParam}`
     ];
   } else {
     // General Google Drive file (PDF, TXT, DOCX, image, etc.)
     candidateUrls = [
-      `https://drive.usercontent.google.com/download?id=${id}&export=download`,
-      `https://drive.google.com/uc?export=download&id=${id}`,
-      `https://docs.google.com/uc?export=download&id=${id}`
+      `https://drive.usercontent.google.com/download?id=${id}&export=download&authuser=0${rkParam}`,
+      `https://drive.google.com/uc?export=download&id=${id}${rkParam}`,
+      `https://docs.google.com/uc?export=download&id=${id}${rkParam}`,
+      `https://drive.google.com/file/d/${id}/view${rkParam}`
     ];
   }
 
@@ -902,19 +944,24 @@ async function extractGoogleDrive(url, userSubject = 'General') {
       console.log(`[URL Engine] Attempting Google Drive download: ${downloadUrl}`);
       const res = await fetch(downloadUrl, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': '*/*'
         },
         redirect: 'follow',
-        timeout: 30000
+        timeout: 35000
       });
+
+      // Capture set-cookie headers to pass forward if virus confirmation is needed
+      const rawCookies = res.headers.raw?.()['set-cookie'] || [];
+      const cookieStr = rawCookies.map(c => c.split(';')[0]).join('; ');
 
       // Check if redirected to Google sign-in
       if (res.url && (res.url.includes('accounts.google.com') || res.url.includes('ServiceLogin'))) {
-        throw new Error('Google Drive file is private. Please open Google Drive, right-click the file, click "Share", set General Access to "Anyone with the link can view", and try again.');
+        throw new Error('Google Drive file is private. In Google Drive, click Share (top right), set General Access to "Anyone with the link can view", and try again. Or click Download in Drive and upload the file directly on the Upload tab.');
       }
 
       if (res.status === 401 || res.status === 403) {
-        throw new Error('Access denied to Google Drive file. Please make sure the file is shared with "Anyone with the link".');
+        throw new Error('Access denied to Google Drive file. In Google Drive, right-click the file, click Share, set General Access to "Anyone with the link", and try again.');
       }
 
       if (!res.ok) {
@@ -928,31 +975,59 @@ async function extractGoogleDrive(url, userSubject = 'General') {
         continue;
       }
 
-      // Check if response is an HTML page asking for virus scan confirmation
-      const textSample = buf.slice(0, 1000).toString('utf8');
-      if (textSample.includes('confirm=') && textSample.includes('uc-download-link')) {
-        const confirmMatch = textSample.match(/href="([^"]+confirm=[^"]+)"/i);
-        if (confirmMatch) {
-          const confirmUrl = confirmMatch[1].startsWith('http') ? confirmMatch[1] : `https://drive.google.com${confirmMatch[1]}`;
+      // Check if response is an HTML page asking for virus scan confirmation / large file warning
+      const textSample = buf.slice(0, 3000).toString('utf8');
+      if (textSample.includes('uc-download-link') || textSample.includes('download-form') || (textSample.includes('confirm=') && textSample.includes('id='))) {
+        // Try to find form action + inputs
+        let confirmUrl = null;
+        const formMatch = textSample.match(/<form[^>]+action="([^"]+)"[^>]*>([\s\S]*?)<\/form>/i);
+        if (formMatch) {
+          const action = formMatch[1].startsWith('http') ? formMatch[1] : `https://drive.google.com${formMatch[1]}`;
+          const inputs = {};
+          const inputRegex = /<input[^>]+name="([^"]+)"[^>]+value="([^"]*)"/gi;
+          let m;
+          while ((m = inputRegex.exec(formMatch[2])) !== null) {
+            inputs[m[1]] = m[2];
+          }
+          if (inputs.id || inputs.confirm) {
+            const query = new URLSearchParams(inputs).toString();
+            confirmUrl = `${action}?${query}`;
+          }
+        }
+
+        if (!confirmUrl) {
+          const hrefMatch = textSample.match(/href="([^"]+confirm=[^"]+)"/i);
+          if (hrefMatch) {
+            confirmUrl = hrefMatch[1].startsWith('http') ? hrefMatch[1] : `https://drive.google.com${hrefMatch[1]}`;
+          }
+        }
+
+        if (confirmUrl) {
           console.log(`[URL Engine] Following Google Drive confirmation link: ${confirmUrl}`);
+          const confirmHeaders = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+          };
+          if (cookieStr) confirmHeaders['Cookie'] = cookieStr;
+
           const confirmRes = await fetch(confirmUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-            },
+            headers: confirmHeaders,
             redirect: 'follow',
-            timeout: 30000
+            timeout: 35000
           });
           if (confirmRes.ok) {
-            finalRes = confirmRes;
-            finalBuffer = await confirmRes.buffer();
-            break;
+            const confBuf = await confirmRes.buffer();
+            if (confBuf && confBuf.length > 500) {
+              finalRes = confirmRes;
+              finalBuffer = confBuf;
+              break;
+            }
           }
         }
       }
 
       // Check if it's an HTML page warning about access denied or sign in
       if (textSample.includes('Sign in - Google Accounts') || textSample.includes('Google Drive - Access Denied') || textSample.includes('meet the terms of service')) {
-        throw new Error('Google Drive file is private or access is restricted. Please open Google Drive, right-click the file, click "Share", set General Access to "Anyone with the link", and try again.');
+        throw new Error('Google Drive file is private or access is restricted. In Google Drive, right-click the file, click Share, set General Access to "Anyone with the link", and try again.');
       }
 
       finalRes = res;
@@ -967,7 +1042,7 @@ async function extractGoogleDrive(url, userSubject = 'General') {
   }
 
   if (!finalBuffer || finalBuffer.length === 0) {
-    throw lastError || new Error('Could not download file from Google Drive. Please verify the link and sharing permissions (Anyone with the link).');
+    throw lastError || new Error('Could not download file from Google Drive. Please verify the link and ensure file sharing is set to "Anyone with the link".');
   }
 
   // Detect file name from Content-Disposition header if available
@@ -1007,6 +1082,37 @@ async function extractGoogleDrive(url, userSubject = 'General') {
       originalName,
       fileType: 'gdrive',
       filePath: savedPath,
+      size: finalBuffer.length
+    };
+  }
+
+  // Check if buffer is Image (PNG, JPEG, WEBP)
+  const isPng = finalBuffer.length > 8 && finalBuffer[0] === 0x89 && finalBuffer[1] === 0x50 && finalBuffer[2] === 0x4E && finalBuffer[3] === 0x47;
+  const isJpg = finalBuffer.length > 3 && finalBuffer[0] === 0xFF && finalBuffer[1] === 0xD8 && finalBuffer[2] === 0xFF;
+  const isWebp = finalBuffer.length > 12 && finalBuffer.slice(0, 4).toString('ascii') === 'RIFF' && finalBuffer.slice(8, 12).toString('ascii') === 'WEBP';
+  const isImage = isPng || isJpg || isWebp || (finalRes && finalRes.headers.get('content-type')?.startsWith('image/'));
+
+  if (isImage) {
+    const imgExt = isPng ? '.png' : isWebp ? '.webp' : '.jpg';
+    const mimeType = isPng ? 'image/png' : isWebp ? 'image/webp' : 'image/jpeg';
+    const tempImgName = `gdrive_${uuidv4()}${imgExt}`;
+    const IMG_DIR = path.join(__dirname, '../uploads/images');
+    fs.mkdirSync(IMG_DIR, { recursive: true });
+    const savedImgPath = path.join(IMG_DIR, tempImgName);
+    fs.writeFileSync(savedImgPath, finalBuffer);
+    console.log(`[URL Engine] Saved Google Drive Image to ${savedImgPath} (${(finalBuffer.length / 1024).toFixed(2)} KB)`);
+
+    const { extractDocumentText } = require('./ocr/textExtractionService');
+    const ext = await extractDocumentText(savedImgPath, mimeType);
+    return {
+      text: ext.text,
+      sections: ext.sections,
+      pages: ext.pages || 1,
+      words: ext.words,
+      title: title || 'Google Drive Image Note',
+      originalName,
+      fileType: 'image',
+      filePath: savedImgPath,
       size: finalBuffer.length
     };
   }

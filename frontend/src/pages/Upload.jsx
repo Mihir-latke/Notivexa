@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../utils/api'
@@ -15,6 +15,8 @@ export default function Upload() {
   const [driveUrl, setDriveUrl] = useState('')
   const [driveTitle, setDriveTitle] = useState('')
   const [driveLoading, setDriveLoading] = useState(false)
+  const [openedDriveTab, setOpenedDriveTab] = useState(false)
+  const [detectedClipboardUrl, setDetectedClipboardUrl] = useState('')
 
   // URL Link state
   const [url, setUrl] = useState('')
@@ -24,6 +26,54 @@ export default function Upload() {
   const ref = useRef()
   const cameraRef = useRef()
   const navigate = useNavigate()
+
+  // Detect when user returns to Notivexa tab and inspect clipboard for copied Drive links
+  useEffect(() => {
+    const handleWindowFocus = async () => {
+      if (tab !== 'drive') return
+      try {
+        if (navigator.clipboard?.readText) {
+          const text = await navigator.clipboard.readText()
+          const trimmed = (text || '').trim()
+          if (/drive\.google\.com|docs\.google\.com/i.test(trimmed) && trimmed !== driveUrl) {
+            setDetectedClipboardUrl(trimmed)
+          }
+        }
+      } catch {}
+    }
+    window.addEventListener('focus', handleWindowFocus)
+    return () => window.removeEventListener('focus', handleWindowFocus)
+  }, [tab, driveUrl])
+
+  const handleOpenGoogleDrive = () => {
+    window.open('https://drive.google.com', '_blank', 'noopener,noreferrer')
+    setOpenedDriveTab(true)
+    toast('Google Drive opened! In Drive, open your file, copy the link, and return here.', { icon: '🔷', duration: 5000 })
+  }
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      if (!navigator.clipboard?.readText) {
+        toast.error('Clipboard permission not supported. Please press Ctrl+V to paste.')
+        return
+      }
+      const text = await navigator.clipboard.readText()
+      const trimmed = (text || '').trim()
+      if (!trimmed) {
+        toast.error('Clipboard is empty! Copy a link in Google Drive first.')
+        return
+      }
+      setDriveUrl(trimmed)
+      setDetectedClipboardUrl('')
+      if (/drive\.google\.com|docs\.google\.com/i.test(trimmed)) {
+        toast.success('📋 Google Drive link pasted!')
+      } else {
+        toast('Pasted link from clipboard', { icon: '📋' })
+      }
+    } catch (e) {
+      toast.error('Clipboard access denied. Please paste manually into the input box.')
+    }
+  }
 
   const addFiles = fs => {
     const arr = Array.from(fs).filter(f => f.type === 'application/pdf' || f.type.startsWith('image/'))
@@ -66,6 +116,12 @@ export default function Upload() {
     if (!/drive\.google\.com|docs\.google\.com/i.test(trimmed)) {
       toast.error('Link must be from drive.google.com or docs.google.com'); return
     }
+    if (isGDriveFolder) {
+      toast.error('This is a Google Drive folder link. Please click on the specific file inside the folder and copy its link.'); return
+    }
+    if (isGDriveRoot) {
+      toast.error('This is your Google Drive home page. Please open your specific document and copy its link.'); return
+    }
 
     setDriveLoading(true)
     try {
@@ -82,6 +138,8 @@ export default function Upload() {
       }))
       setDriveUrl('')
       setDriveTitle('')
+      setOpenedDriveTab(false)
+      setDetectedClipboardUrl('')
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to extract content from Google Drive. Ensure file sharing is set to "Anyone with the link".')
     } finally {
@@ -125,7 +183,9 @@ export default function Upload() {
   const isGDriveSlides = /docs\.google\.com\/presentation/i.test(driveUrl)
   const isGDriveSheets = /docs\.google\.com\/spreadsheets/i.test(driveUrl)
   const isGDriveFile = /drive\.google\.com\/(file|open|uc)/i.test(driveUrl)
-  const isGDrive = isGDriveDoc || isGDriveSlides || isGDriveSheets || isGDriveFile || /drive\.google\.com|docs\.google\.com/i.test(driveUrl)
+  const isGDriveFolder = /drive\.google\.com\/drive(?:\/u\/\d+)?\/folders/i.test(driveUrl)
+  const isGDriveRoot = /drive\.google\.com\/drive(?:\/u\/\d+)?\/(?:my-drive|home|recent)/i.test(driveUrl)
+  const isGDrive = isGDriveDoc || isGDriveSlides || isGDriveSheets || isGDriveFile || (!isGDriveFolder && !isGDriveRoot && /drive\.google\.com|docs\.google\.com/i.test(driveUrl))
 
   return (
     <div className="tc" style={{ alignItems:'start' }}>
@@ -186,15 +246,17 @@ export default function Upload() {
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:12 }}>
                 <button className="btn btn-s" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:5 }} onClick={() => cameraRef.current?.click()}>📸 Take Photo</button>
-                <a 
-                  href="https://drive.google.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <button 
+                  type="button"
                   className="btn btn-s" 
-                  style={{ textDecoration:'none', display:'flex', justifyContent:'center', alignItems:'center', gap:5, background:'#EFF6FF', color:'#1D4ED8', borderColor:'#BFDBFE' }}
+                  style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:5, background:'#EFF6FF', color:'#1D4ED8', borderColor:'#BFDBFE', fontWeight:600 }}
+                  onClick={() => setTab('drive')}
                 >
-                  🔷 Open Drive ↗
-                </a>
+                  🔷 Import from Google Drive
+                </button>
+              </div>
+              <div style={{ fontSize:11.5, color:'var(--ink3)', marginTop:8, textAlign:'center' }}>
+                💡 Tip: If you have Google Drive on your computer or phone, you can select your files directly using the browse area above!
               </div>
 
               {files.length > 0 && (
@@ -222,19 +284,23 @@ export default function Upload() {
           <div className="card" style={{ marginBottom:16 }}>
             <div className="ch" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:8 }}>
               <div className="ct">🔷 Import from Google Drive</div>
-              <a 
-                href="https://drive.google.com" 
-                target="_blank" 
-                rel="noopener noreferrer" 
+              <button 
+                type="button"
+                onClick={handleOpenGoogleDrive}
                 className="btn btn-sm"
-                style={{ background:'#E8F0FE', color:'#1A73E8', border:'1px solid #D2E3FC', textDecoration:'none', fontWeight:700, display:'flex', alignItems:'center', gap:6 }}
+                style={{ background:'#E8F0FE', color:'#1A73E8', border:'1px solid #D2E3FC', fontWeight:700, display:'flex', alignItems:'center', gap:6, cursor:'pointer' }}
               >
                 🌐 Open Google Drive ↗
-              </a>
+              </button>
             </div>
             <div className="cb">
-              <div className="ib b" style={{ marginBottom:14, background:'#F0FDF4', borderColor:'#BBF7D0', color:'#166534' }}>
-                <strong>Google Drive Direct Import:</strong> Import PDFs, Google Docs, Slides, and lecture files directly from your Google Drive without needing to download them to your computer!
+              <div className="ib b" style={{ marginBottom:14, background:'#EFF6FF', borderColor:'#BFDBFE', color:'#1E40AF', fontSize:12.5, lineHeight:1.6 }}>
+                <strong>How Google Drive Import Works:</strong>
+                <div style={{ marginTop:4 }}>
+                  Google Drive is an external cloud storage service. When you open a PDF or document in Google Drive, there is no third-party "Upload to Notivexa" button inside Google Drive.
+                  <br/>
+                  👉 <strong>To import into Notivexa:</strong> Simply copy the link of your file in Google Drive and paste it below, or download the file from Drive and drop it into the Upload tab!
+                </div>
               </div>
 
               {/* Fast Open Google Drive Banner */}
@@ -254,22 +320,97 @@ export default function Upload() {
                   <span style={{ fontSize:28 }}>📂</span>
                   <div>
                     <div style={{ fontWeight:700, fontSize:13, color:'var(--ink)' }}>Need to pick a document from your Google Drive?</div>
-                    <div style={{ fontSize:11.5, color:'var(--ink3)' }}>Click to open Google Drive in a new tab, copy any shared file link, and paste below.</div>
+                    <div style={{ fontSize:11.5, color:'var(--ink3)' }}>Click below to open Drive in a new tab, copy your file's link, and return here.</div>
                   </div>
                 </div>
-                <a 
-                  href="https://drive.google.com" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
+                <button 
+                  type="button"
+                  onClick={handleOpenGoogleDrive}
                   className="btn btn-sm"
-                  style={{ background:'#1A73E8', color:'#fff', border:'none', textDecoration:'none', fontWeight:700, padding:'7px 14px', borderRadius:8 }}
+                  style={{ background:'#1A73E8', color:'#fff', border:'none', fontWeight:700, padding:'7px 14px', borderRadius:8, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}
                 >
-                  🚀 Open Google Drive
-                </a>
+                  🚀 Open Google Drive ↗
+                </button>
               </div>
 
+              {/* Live Assistant Banner when Google Drive was opened in another tab */}
+              {openedDriveTab && (
+                <div style={{
+                  background:'#FEF3C7',
+                  border:'1px solid #FCD34D',
+                  borderRadius:10,
+                  padding:'12px 14px',
+                  marginBottom:16,
+                  display:'flex',
+                  flexDirection:'column',
+                  gap:8
+                }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, fontWeight:700, color:'#92400E', fontSize:13 }}>
+                    <span>🌐</span> Google Drive is open in your other tab!
+                  </div>
+                  <div style={{ fontSize:12, color:'#78350F', lineHeight:1.6 }}>
+                    1. In Google Drive, click on your PDF or document to open it.
+                    <br/>
+                    2. <strong>Copy the URL</strong> from your browser address bar (<code>drive.google.com/file/d/...</code>) OR right-click the file → <strong>Share → Copy link</strong>.
+                    <br/>
+                    3. Click the button below to paste your copied link automatically:
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm" 
+                    style={{ alignSelf:'flex-start', background:'#D97706', color:'#fff', border:'none', padding:'7px 16px', fontWeight:700, borderRadius:7, cursor:'pointer' }}
+                    onClick={handlePasteFromClipboard}
+                  >
+                    📋 Paste Copied Link from Clipboard
+                  </button>
+                </div>
+              )}
+
+              {/* Clipboard Auto-detection Banner */}
+              {detectedClipboardUrl && detectedClipboardUrl !== driveUrl && (
+                <div style={{
+                  background:'#DCFCE7',
+                  border:'1px solid #86EFAC',
+                  borderRadius:9,
+                  padding:'10px 14px',
+                  marginBottom:14,
+                  display:'flex',
+                  justifyContent:'space-between',
+                  alignItems:'center',
+                  gap:10,
+                  flexWrap:'wrap'
+                }}>
+                  <div style={{ minWidth:0, flex:1 }}>
+                    <div style={{ fontWeight:700, fontSize:12.5, color:'#166534' }}>📋 Copied Google Drive link detected!</div>
+                    <div style={{ fontSize:11.5, color:'#15803D', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{detectedClipboardUrl}</div>
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-p" 
+                    style={{ background:'#16A34A', border:'none', padding:'6px 14px', cursor:'pointer' }}
+                    onClick={() => {
+                      setDriveUrl(detectedClipboardUrl)
+                      setDetectedClipboardUrl('')
+                      toast.success('✅ Link applied!')
+                    }}
+                  >
+                    ⚡ Use this Link
+                  </button>
+                </div>
+              )}
+
               <div className="fg" style={{ marginBottom:14 }}>
-                <label className="fl">Google Drive / Google Docs Link *</label>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                  <label className="fl" style={{ margin:0 }}>Google Drive / Google Docs Link *</label>
+                  <button 
+                    type="button" 
+                    className="btn btn-s btn-sm" 
+                    style={{ padding:'3px 10px', fontSize:11.5, display:'flex', alignItems:'center', gap:4, background:'#EEF2FF', color:'#4338CA', borderColor:'#C7D2FE', cursor:'pointer' }}
+                    onClick={handlePasteFromClipboard}
+                  >
+                    📋 Paste from Clipboard
+                  </button>
+                </div>
                 <input 
                   className="fi" 
                   placeholder="https://drive.google.com/file/d/... or https://docs.google.com/document/d/..."
@@ -282,7 +423,9 @@ export default function Upload() {
                     {isGDriveSlides && <span style={{ background:'#FEF3C7', color:'#B45309', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📊 Google Presentation / Slides Detected</span>}
                     {isGDriveSheets && <span style={{ background:'#DCFCE7', color:'#15803D', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📈 Google Sheet / CSV Detected</span>}
                     {isGDriveFile && <span style={{ background:'#E0E7FF', color:'#4338CA', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>📄 Google Drive PDF / File Detected</span>}
-                    {!isGDrive && /^https?:\/\//i.test(driveUrl) && <span style={{ background:'#FEE2E2', color:'#B91C1C', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>⚠️ Please enter a drive.google.com or docs.google.com link</span>}
+                    {isGDriveFolder && <span style={{ background:'#FEE2E2', color:'#B91C1C', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>⚠️ Google Drive Folder Link (Please click on the specific file inside the folder and copy its link)</span>}
+                    {isGDriveRoot && <span style={{ background:'#FEE2E2', color:'#B91C1C', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>⚠️ Google Drive Homepage Link (Please open your specific file and copy its link)</span>}
+                    {!isGDrive && !isGDriveFolder && !isGDriveRoot && /^https?:\/\//i.test(driveUrl) && <span style={{ background:'#FEE2E2', color:'#B91C1C', fontSize:11, fontWeight:700, padding:'3px 9px', borderRadius:20 }}>⚠️ Please enter a drive.google.com or docs.google.com link</span>}
                   </div>
                 )}
               </div>
@@ -297,14 +440,17 @@ export default function Upload() {
                 />
               </div>
 
-              {/* Step-by-step sharing instructions */}
-              <div style={{ background:'var(--bg)', borderRadius:9, padding:'11px 14px', fontSize:12, color:'var(--ink2)', marginBottom:16 }}>
-                <strong>📌 Easy 3-step sharing guide:</strong>
-                <ol style={{ margin:'6px 0 0 16px', padding:0, lineHeight:1.7 }}>
+              {/* Step-by-step sharing instructions & Private Files Helper */}
+              <div style={{ background:'var(--bg)', borderRadius:9, padding:'12px 14px', fontSize:12, color:'var(--ink2)', marginBottom:16 }}>
+                <div style={{ fontWeight:700, marginBottom:5 }}>📌 Easy 3-step import guide:</div>
+                <ol style={{ margin:'4px 0 0 16px', padding:0, lineHeight:1.7 }}>
                   <li>Open your document or file in Google Drive.</li>
-                  <li>Click <strong>Share</strong> (top right), then set General access to <strong>"Anyone with the link"</strong>.</li>
-                  <li>Click <strong>Copy link</strong>, paste it into the box above, and click <strong>Extract & Import</strong>!</li>
+                  <li>Click <strong>Share</strong> (top right), set General access to <strong>"Anyone with the link"</strong>, and click <strong>Copy link</strong>.</li>
+                  <li>Click <strong>Paste from Clipboard</strong> above, then click <strong>Extract & Import</strong>!</li>
                 </ol>
+                <div style={{ marginTop:10, paddingTop:8, borderTop:'1px dashed var(--bdr)', fontSize:11.5, color:'var(--ink3)', lineHeight:1.6 }}>
+                  🔒 <strong>Private or School Account File?</strong> If your school or organization blocks public link sharing, simply open the file in Google Drive, click <strong>Download (⬇)</strong>, then drop the downloaded file directly into the <strong>Upload PDF / Image</strong> tab! It works 100% offline with full AI and OCR.
+                </div>
               </div>
 
               <button 
