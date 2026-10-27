@@ -13,7 +13,12 @@ const THEMES = [
 export default function Settings() {
   const { user, updateUser, logout } = useAuth()
   const { theme, setTheme } = useTheme()
-  const [form, setForm] = useState({ name: user?.name||'', institution: user?.institution||'', preferredLanguage: user?.preferredLanguage||'English' })
+  const [form, setForm] = useState({
+    name: user?.name||'',
+    institution: user?.institution||'',
+    preferredLanguage: user?.preferredLanguage||'English',
+    defaultOutputLanguage: user?.defaultOutputLanguage||'english'
+  })
   const [pw, setPw] = useState({ currentPassword:'', newPassword:'', confirmPassword:'' })
   const [saving, setSaving] = useState(false)
   const [savingPw, setSavingPw] = useState(false)
@@ -75,7 +80,29 @@ export default function Settings() {
               <div className="fg"><label className="fl">Institution</label><input className="fi" placeholder="Your college/university" value={form.institution} onChange={e=>setForm(f=>({...f,institution:e.target.value}))}/></div>
               <div className="fg"><label className="fl">Preferred Language</label>
                 <select className="fi" value={form.preferredLanguage} onChange={e=>setForm(f=>({...f,preferredLanguage:e.target.value}))}>
-                  {['English','Hindi','Marathi','Bengali','Tamil'].map(l=><option key={l}>{l}</option>)}
+                  {['English','Hindi','Marathi','Gujarati','Bengali','Tamil','Telugu','Kannada','Urdu','Arabic','Spanish','French','German','Chinese','Japanese','Korean','Russian'].map(l=><option key={l} value={l}>{l}</option>)}
+                </select>
+              </div>
+              <div className="fg"><label className="fl">Default AI Output Language</label>
+                <select className="fi" value={form.defaultOutputLanguage} onChange={e=>setForm(f=>({...f,defaultOutputLanguage:e.target.value}))}>
+                  <option value="english">🇬🇧 English (Default)</option>
+                  <option value="original">📄 Original Document Language</option>
+                  <option value="hindi">🇮🇳 Hindi</option>
+                  <option value="marathi">🇮🇳 Marathi</option>
+                  <option value="gujarati">🇮🇳 Gujarati</option>
+                  <option value="bengali">🇮🇳 Bengali</option>
+                  <option value="tamil">🇮🇳 Tamil</option>
+                  <option value="telugu">🇮🇳 Telugu</option>
+                  <option value="kannada">🇮🇳 Kannada</option>
+                  <option value="urdu">🇵🇰 Urdu</option>
+                  <option value="arabic">🇸🇦 Arabic</option>
+                  <option value="spanish">🇪🇸 Spanish</option>
+                  <option value="french">🇫🇷 French</option>
+                  <option value="german">🇩🇪 German</option>
+                  <option value="chinese">🇨🇳 Chinese (Simplified)</option>
+                  <option value="japanese">🇯🇵 Japanese</option>
+                  <option value="korean">🇰🇷 Korean</option>
+                  <option value="russian">🇷🇺 Russian</option>
                 </select>
               </div>
               <button type="submit" className="btn btn-p" disabled={saving}>{saving?'Saving...':'💾 Save Changes'}</button>

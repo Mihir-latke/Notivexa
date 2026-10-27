@@ -8,7 +8,8 @@ const isDbConnected = () => mongoose.connection.readyState === 1;
 
 exports.message = async (req, res, next) => {
   try {
-    const { message, documentId, sessionId } = req.body;
+    const { message, documentId, sessionId, outputLanguage, language } = req.body;
+    const targetLang = outputLanguage || language || 'english';
     if (!message?.trim()) return res.status(400).json({ error: 'Message required.' });
     const userId = req.user?.id || req.user?._id;
 
@@ -47,7 +48,8 @@ exports.message = async (req, res, next) => {
         session = await Chat.create({ user: userId, docId: documentId && mongoose.Types.ObjectId.isValid(documentId) ? documentId : null, docTitle });
       }
 
-      const reply = await answerChat(message, docText, session.messages || []);
+      const docPrimary = doc?.primaryLanguage || 'eng';
+      const reply = await answerChat(message, docText, session.messages || [], targetLang, docPrimary);
 
       session.messages.push({ role: 'user', content: message });
       session.messages.push({ role: 'assistant', content: reply });
@@ -58,7 +60,8 @@ exports.message = async (req, res, next) => {
     }
 
     // Offline / Demo mode
-    const reply = await answerChat(message, docText, []);
+    const docPrimary = doc?.primaryLanguage || 'eng';
+    const reply = await answerChat(message, docText, [], targetLang, docPrimary);
     res.json({ success: true, reply, sessionId: 'demo_chat_session' });
   } catch (e) {
     next(e);

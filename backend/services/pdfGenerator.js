@@ -66,8 +66,32 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
 
     const lines = cleanContent.split('\n');
     let y = 90;
-    const bodyFont = 'Helvetica';
-    const boldFont = 'Helvetica-Bold';
+    let bodyFont = 'Helvetica';
+    let boldFont = 'Helvetica-Bold';
+
+    // Unicode font selection for non-Latin scripts (Devanagari, Cyrillic, Hangul)
+    const kalamReg = path.join(__dirname, '..', 'Kalam-Regular.ttf');
+    const kalamBold = path.join(__dirname, '..', 'Kalam-Bold.ttf');
+    const libReg = path.join(__dirname, '..', 'node_modules/pdfjs-dist/standard_fonts/LiberationSans-Regular.ttf');
+    const libBold = path.join(__dirname, '..', 'node_modules/pdfjs-dist/standard_fonts/LiberationSans-Bold.ttf');
+    const nanumReg = path.join(__dirname, '..', 'NanumPenScript-Regular.ttf');
+
+    if (/[\u0900-\u097F\uA8E0-\uA8FF]/.test(cleanContent) && fs.existsSync(kalamReg)) {
+      doc.registerFont('Academic-Reg', kalamReg);
+      doc.registerFont('Academic-Bold', fs.existsSync(kalamBold) ? kalamBold : kalamReg);
+      bodyFont = 'Academic-Reg';
+      boldFont = 'Academic-Bold';
+    } else if (/[\u0400-\u04FF]/.test(cleanContent) && fs.existsSync(libReg)) {
+      doc.registerFont('Academic-Reg', libReg);
+      doc.registerFont('Academic-Bold', fs.existsSync(libBold) ? libBold : libReg);
+      bodyFont = 'Academic-Reg';
+      boldFont = 'Academic-Bold';
+    } else if (/[\uAC00-\uD7AF]/.test(cleanContent) && fs.existsSync(nanumReg)) {
+      doc.registerFont('Academic-Reg', nanumReg);
+      doc.registerFont('Academic-Bold', nanumReg);
+      bodyFont = 'Academic-Reg';
+      boldFont = 'Academic-Bold';
+    }
     const validImages = Array.isArray(imagePaths)
       ? imagePaths.map(resolveLocalPath).filter(p => p && fs.existsSync(p))
       : [];
@@ -384,9 +408,23 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
       { id: 'rock-salt',           reg: 'RockSalt-Regular.ttf',            bold: null,                           mod: 2  },
     ];
 
+    // Automatically map font to script to prevent empty glyph boxes
+    const hasDevanagari = /[\u0900-\u097F\uA8E0-\uA8FF]/.test(content);
+    const hasHangul = /[\uAC00-\uD7AF]/.test(content);
+    const hasCyrillic = /[\u0400-\u04FF]/.test(content);
+
+    let effectiveFont = fontName;
+    if (hasDevanagari) {
+      effectiveFont = 'kalam';
+    } else if (hasHangul) {
+      effectiveFont = 'nanum-pen';
+    } else if (hasCyrillic) {
+      effectiveFont = 'marck-script';
+    }
+
     const normalise = s => (s || '').toLowerCase().replace(/[\s_]+/g, '-').replace(/[^a-z0-9-]/g, '');
-    const selected = fonts.find(f => normalise(f.id) === normalise(fontName))
-                  || fonts.find(f => normalise(fontName).includes(normalise(f.id).split('-')[0]))
+    const selected = fonts.find(f => normalise(f.id) === normalise(effectiveFont))
+                  || fonts.find(f => normalise(effectiveFont).includes(normalise(f.id).split('-')[0]))
                   || fonts[0];
 
     let FONT_REG = 'Helvetica';

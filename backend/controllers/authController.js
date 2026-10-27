@@ -20,6 +20,7 @@ exports.register = async (req, res, next) => {
       return res.status(400).json({ error: 'Name must be between 2 and 100 characters.' });
     }
 
+    if (typeof email !== 'string') return res.status(400).json({ error: 'Please provide a valid email address.' });
     const normEmail = email.toLowerCase().trim();
     if (!EMAIL_REGEX.test(normEmail) || normEmail.length > 255) {
       return res.status(400).json({ error: 'Please provide a valid email address.' });
@@ -120,6 +121,7 @@ exports.login = async (req, res, next) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
+    if (typeof email !== 'string') return res.status(400).json({ error: 'Please provide a valid email address.' });
 
     const normEmail = email.toLowerCase().trim();
     const allowDemoMode = process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
@@ -262,11 +264,12 @@ exports.getProfile = async (req, res, next) => {
 exports.updateProfile = async (req, res, next) => {
   try {
     const userId = req.user?.id || req.user?._id;
-    const { name, institution, preferredLanguage } = req.body;
+    const { name, institution, preferredLanguage, defaultOutputLanguage } = req.body;
     const safeUpdates = {};
     if (name && typeof name === 'string') safeUpdates.name = name.trim();
     if (institution !== undefined) safeUpdates.institution = typeof institution === 'string' ? institution.trim() : '';
     if (preferredLanguage && typeof preferredLanguage === 'string') safeUpdates.preferredLanguage = preferredLanguage.trim();
+    if (defaultOutputLanguage && typeof defaultOutputLanguage === 'string') safeUpdates.defaultOutputLanguage = defaultOutputLanguage.trim();
 
     if (isDbConnected() && mongoose.Types.ObjectId.isValid(userId)) {
       const user = await User.findByIdAndUpdate(userId, safeUpdates, { new: true });

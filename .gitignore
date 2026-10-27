@@ -48,6 +48,10 @@ backend/data/*.json
 !backend/data/.gitkeep
 backend/data/ocr-cache/*
 !backend/data/ocr-cache/.gitkeep
+backend/data/ocr-lang-data/*.traineddata*
+backend/data/ocr-lang-data/*.gz
+!backend/data/ocr-lang-data/eng.traineddata
+!backend/data/ocr-lang-data/.gitkeep
 backend/temp_test.pdf
 
 # System & IDE files

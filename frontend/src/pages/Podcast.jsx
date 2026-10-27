@@ -28,7 +28,9 @@ export default function Podcast() {
       const res=await api.post('/generate/podcast',{
         documentId:docId,
         sectionIndex:sec!==''?parseInt(sec):undefined,
-        language:lang,voiceStyle:voice
+        language:lang,
+        outputLanguage:lang,
+        voiceStyle:voice
       })
       setResult(res.data)
       if(res.data.provider&&res.data.provider!=='placeholder'){
@@ -150,9 +152,9 @@ export default function Podcast() {
               </select>
             </div>
           )}
-          <div className="fg"><label className="fl">Language</label>
+          <div className="fg"><label className="fl">Language / Output Language</label>
             <select className="fi" value={lang} onChange={e=>setLang(e.target.value)}>
-              {['English','Hindi','Marathi','Bengali','Tamil'].map(l=><option key={l}>{l}</option>)}
+              {['Original Language','English','Hindi','Marathi','Gujarati','Bengali','Tamil','Telugu','Kannada','Urdu','Arabic','Spanish','French','German','Chinese (Simplified)','Japanese','Korean','Russian'].map(l=><option key={l} value={l}>{l}</option>)}
             </select>
           </div>
           <div className="fg"><label className="fl">Voice</label>

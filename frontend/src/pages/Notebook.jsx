@@ -20,8 +20,47 @@ const TOOLS = [
   { id:'vocabulary',  icon:'🔤', label:'Vocabulary',         desc:'Key terms with Hindi meanings' },
 ]
 
-const LANGS = ['English','Hindi','Marathi','Bengali','Tamil']
-const FLAG = { English:'🇬🇧', Hindi:'🇮🇳', Marathi:'🟠', Bengali:'🟡', Tamil:'🔴' }
+export const LANGS = [
+  'English',
+  'Original',
+  'Hindi',
+  'Marathi',
+  'Gujarati',
+  'Bengali',
+  'Tamil',
+  'Telugu',
+  'Kannada',
+  'Urdu',
+  'Arabic',
+  'Spanish',
+  'French',
+  'German',
+  'Chinese (Simplified)',
+  'Japanese',
+  'Korean',
+  'Russian'
+]
+
+export const FLAG = {
+  English: '🇬🇧',
+  Original: '📄',
+  Hindi: '🇮🇳',
+  Marathi: '🟠',
+  Gujarati: '🟢',
+  Bengali: '🟡',
+  Tamil: '🔴',
+  Telugu: '🟣',
+  Kannada: '🟤',
+  Urdu: '🇵🇰',
+  Arabic: '🇸🇦',
+  Spanish: '🇪🇸',
+  French: '🇫🇷',
+  German: '🇩🇪',
+  'Chinese (Simplified)': '🇨🇳',
+  Japanese: '🇯🇵',
+  Korean: '🇰🇷',
+  Russian: '🇷🇺'
+}
 const EP = {
   notes:'/generate/notes', summary:'/generate/summary',
   questions:'/generate/questions', paper:'/generate/paper',
@@ -680,7 +719,7 @@ export default function Notebook() {
     if (!docId) { toast.error('Select a document first'); return }
     setLoading(true); setResult(null)
     try {
-      const payload = { documentId: docId, language: lang }
+      const payload = { documentId: docId, language: lang, outputLanguage: lang }
       if (section !== '') payload.sectionIndex = parseInt(section)
       if (tool === 'paper') {
         payload.totalMarks = paperType === '20_MARKS' ? 20 : 60
@@ -3044,16 +3083,54 @@ export default function Notebook() {
           </div>
         </div>
 
-        {/* Step 3 - Language */}
+        {/* Step 3 - Output Language */}
         <div className="card" style={{ marginBottom:16 }}>
-          <div className="ch"><div className="ct">🌐 3. Language</div></div>
+          <div className="ch" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <div className="ct">🌐 3. Output Language</div>
+            {doc?.primaryLanguage && (
+              <span style={{ fontSize:11, background:'#ECFDF5', color:'#065F46', padding:'2px 8px', borderRadius:10, fontWeight:600 }}>
+                Doc: {doc.primaryLanguage.toUpperCase()}
+              </span>
+            )}
+          </div>
           <div className="cb">
+            <div style={{ marginBottom:10 }}>
+              <select 
+                className="fi" 
+                value={lang} 
+                onChange={e => setLang(e.target.value)}
+                style={{ fontWeight: 600, fontSize: 13.5 }}
+              >
+                <option value="English">🇬🇧 English (Default)</option>
+                <option value="Original">📄 Original Language ({doc?.primaryLanguage ? doc.primaryLanguage.toUpperCase() : 'Auto-detected'})</option>
+                <option value="Hindi">🇮🇳 Hindi (हिन्दी)</option>
+                <option value="Marathi">🟠 Marathi (मराठी)</option>
+                <option value="Gujarati">🟢 Gujarati (ગુજરાતી)</option>
+                <option value="Bengali">🟡 Bengali (বাংলা)</option>
+                <option value="Tamil">🔴 Tamil (தமிழ்)</option>
+                <option value="Telugu">🟣 Telugu (తెలుగు)</option>
+                <option value="Kannada">🟤 Kannada (ಕನ್ನಡ)</option>
+                <option value="Urdu">🇵🇰 Urdu (اردو)</option>
+                <option value="Arabic">🇸🇦 Arabic (العربية)</option>
+                <option value="Spanish">🇪🇸 Spanish (Español)</option>
+                <option value="French">🇫🇷 French (Français)</option>
+                <option value="German">🇩🇪 German (Deutsch)</option>
+                <option value="Chinese (Simplified)">🇨🇳 Chinese (Simplified 简体中文)</option>
+                <option value="Japanese">🇯🇵 Japanese (日本語)</option>
+                <option value="Korean">🇰🇷 Korean (한국어)</option>
+                <option value="Russian">🇷🇺 Russian (Русский)</option>
+              </select>
+            </div>
             <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
-              {LANGS.map(l => <div key={l} className={'lp'+(lang===l?' on':'')} onClick={()=>setLang(l)}>{FLAG[l]} {l}</div>)}
+              {['English', 'Original', 'Hindi', 'Marathi', 'Gujarati', 'Bengali', 'Tamil'].map(l => (
+                <div key={l} className={'lp' + (lang === l ? ' on' : '')} onClick={() => setLang(l)}>
+                  {l === 'Original' ? '📄 Original' : (FLAG[l] || '🌐') + ' ' + l}
+                </div>
+              ))}
             </div>
             {lang !== 'English' && (
               <div style={{ marginTop:10, fontSize:12, background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:8, padding:'7px 11px', color:'#1D4ED8' }}>
-                🌐 Output will be in {lang}.
+                🌐 Generating study content in {lang === 'Original' ? `document's native language (${doc?.primaryLanguage || 'original'})` : lang}.
               </div>
             )}
           </div>

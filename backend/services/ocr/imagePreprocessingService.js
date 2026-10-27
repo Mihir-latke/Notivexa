@@ -243,8 +243,9 @@ async function preprocessImage(inputBuffer, options = {}) {
   // Step 3: Contrast stretch
   processed = stretchContrast(processed);
 
-  // Step 4: Denoise if aggressive
-  if (level === 'aggressive') {
+  // Step 4: Denoise if aggressive (skip for complex Asian & Indic scripts to preserve fine conjuncts & matras)
+  const isComplexScript = options.script && ['Devanagari', 'Han', 'Hangul', 'Japanese', 'Arabic', 'Bengali', 'Tamil', 'Telugu', 'Kannada', 'Gujarati'].includes(options.script);
+  if (level === 'aggressive' && !isComplexScript) {
     processed = denoise3x3(processed, w, h);
   }
 

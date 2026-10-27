@@ -17,12 +17,13 @@ async function extractFromPDF(filePath) {
 }
 
 function cleanText(t) {
-  return t
+  if (!t || typeof t !== 'string') return '';
+  return t.normalize('NFC')
     .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
     .replace(/\f/g, '\n\n')
     .replace(/[ \t]{4,}/g, '   ')
     .replace(/\n{4,}/g, '\n\n\n')
-    .replace(/[^\x09\x0A\x0D\x20-\x7E\u0900-\u097F\u0A00-\u0A7F\u0B00-\u0B7F]/g, ' ')
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ' ')
     .trim();
 }
 

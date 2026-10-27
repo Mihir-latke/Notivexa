@@ -1,3 +1,4 @@
+const { resolveOutputLanguage, detectTextLanguage, SUPPORTED_LANGUAGES } = require('./ocr/languageDetectionService');
 /**
  * aiService.js — Notivexa AI Engine v2
  * 
@@ -260,26 +261,41 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // SYSTEM PROMPTS
 // ═══════════════════════════════════════════════════════════
 
-function sys(lang = 'English') {
-  const langInstruction = lang === 'English' 
-    ? 'Use clear Indian English. Add [Hindi explanation] for technical terms in square brackets.'
-    : lang === 'Hindi'
-    ? 'Respond ENTIRELY in Hindi (Devanagari script). Keep English technical terms but add Hindi meaning.'
-    : lang === 'Marathi'
-    ? 'Respond ENTIRELY in Marathi (Devanagari script). Keep English technical terms but add Marathi meaning.'
-    : `Respond in ${lang}. Keep technical terms in English.`;
-    
-  return `You are Notivexa AI, an academic assistant for Indian students and teachers.
+function getLanguageInstruction(targetLang = 'English', sourceLang = 'English') {
+  const normTarget = resolveOutputLanguage(targetLang).name;
+  const normSource = resolveOutputLanguage(sourceLang).name;
+
+  let rule = `TARGET OUTPUT LANGUAGE: ${normTarget}.\nSOURCE DOCUMENT LANGUAGE: ${normSource}.\n`;
+
+  if (normTarget.toLowerCase() === 'english') {
+    if (normSource.toLowerCase() !== 'english') {
+      rule += `The source document is in ${normSource}. Translate, explain, and write thoroughly in clear, standard English. Keep key technical terms from ${normSource} in square brackets where helpful.\n`;
+    } else {
+      rule += `Write in clear, standard academic English.\n`;
+    }
+  } else {
+    rule += `Write the ENTIRE content in ${normTarget}. For technical terms, formulas, or standard academic nomenclature, you may include the English term in parentheses alongside the ${normTarget} translation.\n`;
+  }
+
+  rule += `PRESERVATION RULES:\n`;
+  rule += `- Preserve all mathematical equations, scientific formulas, numerical quantities, code snippets, and proper nouns accurately.\n`;
+  rule += `- Strictly produce all explanations, headings, questions, and notes in the requested target language (${normTarget}).\n`;
+
+  return rule;
+}
+
+function sys(lang = 'English', sourceLang = 'English') {
+  return `You are Notivexa AI, an advanced multilingual academic assistant for students and teachers.
 CRITICAL RULE: Generate content STRICTLY from the provided document text. Do NOT add external knowledge.
-${langInstruction}
-Be thorough, accurate, and exam-focused for CBSE/JEE/NEET/University standards.`;
+${getLanguageInstruction(lang, sourceLang)}
+Be thorough, accurate, structured, and exam-focused.`;
 }
 
 // ═══════════════════════════════════════════════════════════
 // CONTENT GENERATORS
 // ═══════════════════════════════════════════════════════════
 
-async function generateNotes(text, title, subject, lang = 'English') {
+async function generateNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
   // ── Chapter-wise, comprehensive notes engine (80-120 pages target) ──
   // For large books and textbooks (up to 3M+ chars), divide into 20-30 logical modules.
   // Each module generates 3-5 pages of rich notes → total 80-120 pages.
@@ -288,7 +304,9 @@ async function generateNotes(text, title, subject, lang = 'English') {
   const chunks = [];
   for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
-  const sysPrompt = `You are an expert academic note-writer for Indian university students.
+  const langRule = getLanguageInstruction(lang, docPrimaryLang);
+  const sysPrompt = `You are an expert academic note-writer for university students.
+${langRule}
 Your job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.
 
 FORMAT — use this EXACT structure for EVERY topic/concept found in the chunk:
@@ -385,7 +403,7 @@ ${promptChunk}`;
   return combined;
 }
 
-async function generateSummary(text, title, subject, lang = 'English') {
+async function generateSummary(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
   const prompt = `Write a concise summary (300-400 words) of this document.
 Title: ${title} | Subject: ${subject}
 
@@ -405,7 +423,7 @@ ${text.slice(0, 10000)}`;
   return result || pdf.makeSummary(text, title, subject);
 }
 
-async function generateFlashcards(text, subject, count = 10, lang = 'English') {
+async function generateFlashcards(text, subject, count = 10, lang = 'English', docPrimaryLang = 'eng') {
   const prompt = `Generate exactly ${count} flashcard Q&A pairs from this document.
 Subject: ${subject}
 
@@ -429,7 +447,7 @@ ${text.slice(0, 10000)}`;
   return pdf.makeFlashcards(text, subject, count);
 }
 
-async function generateQuestions(text, title, subject, lang = 'English') {
+async function generateQuestions(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
   const prompt = `Generate comprehensive practice questions from this document.
 Title: ${title} | Subject: ${subject}
 
@@ -680,7 +698,7 @@ ${docSlice}`;
   return setsArray;
 }
 
-async function generateHandwrittenNotes(text, title, subject, lang = 'English') {
+async function generateHandwrittenNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
   // Target comprehensive multi-page notes (8–20+ pages):
   // Dynamically divide text into 3 to 10 substantial chapters/modules
   const targetChunks = Math.max(3, Math.min(10, Math.ceil(text.length / 10000)));
@@ -804,7 +822,7 @@ ${promptChunk}`;
 }
 
 // Generates professional, document-grounded animated classroom lecture Shorts script
-async function generateVideoScript(text, title, subject, lang = 'English') {
+async function generateVideoScript(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
   const CHUNK = 8000;
   const chunks = [];
   for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
@@ -860,7 +878,7 @@ ${chunk}`;
   return combined;
 }
 
-async function generatePPT(text, title, subject, lang = 'English') {
+async function generatePPT(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
   const prompt = `Create a high-impact, professional academic PowerPoint presentation from this document.
 Title: "${title}" | Subject: ${subject} | Language: ${lang}
 
@@ -969,7 +987,7 @@ ${text.slice(0, 10000)}`;
   return pdf.makePPT(text, title, subject);
 }
 
-async function generateMindmap(text, title) {
+async function generateMindmap(text, title, lang = 'English') {
   const prompt = `Create a comprehensive mind map from this document.
 Return ONLY valid JSON:
 {
@@ -997,7 +1015,7 @@ ${text.slice(0, 7000)}`;
   return pdf.makeMindmap(text, title);
 }
 
-async function generateVocabulary(text, subject, lang = 'English') {
+async function generateVocabulary(text, subject, lang = 'English', docPrimaryLang = 'eng') {
   const prompt = `Extract key academic vocabulary from this document.
 Subject: ${subject}
 
@@ -1025,13 +1043,20 @@ ${text.slice(0, 7000)}`;
 }
 
 // FIXED: Detailed chatbot that gives thorough answers
-async function answerChat(question, docText, history = []) {
+async function answerChat(question, docText, history = [], outputLang = 'english', docPrimaryLang = 'eng') {
   if (!docText || docText.trim().length < 30) {
     return "Please select a PDF document first. I can only answer questions based on your uploaded document content.";
   }
 
   const histText = history.slice(-8).map(m => `${m.role === 'user' ? 'Student' : 'AI'}: ${m.content}`).join('\n\n');
-  
+  const targetInfo = resolveOutputLanguage(outputLang, docPrimaryLang);
+  const qAnalysis = detectTextLanguage(question);
+  const responseLanguage = (outputLang && outputLang.toLowerCase() !== 'english')
+    ? targetInfo.name
+    : (qAnalysis.primaryLanguage !== 'eng' ? resolveOutputLanguage(qAnalysis.primaryLanguage).name : 'English');
+
+  const langPrompt = getLanguageInstruction(responseLanguage, docPrimaryLang);
+
   const prompt = `You are an expert AI Tutor. Answer the student's question THOROUGHLY and COMPLETELY.
 
 DOCUMENT CONTENT (from uploaded PDF):
@@ -1042,20 +1067,24 @@ ${histText}
 
 STUDENT QUESTION: ${question}
 
+LANGUAGE INSTRUCTIONS:
+${langPrompt}
+
 ANSWER REQUIREMENTS:
 1. Give a DETAILED, COMPLETE answer (at least 150-200 words)
-2. If found in document: explain the concept fully with examples
-3. If it's a definition: give the definition + explanation + example
-4. If it's a formula: write it out + explain each component + show usage
-5. If it's a process: give step-by-step explanation
-6. Always relate back to exam context (CBSE/JEE/NEET tips if relevant)
-7. Use Indian English style - clear, friendly, educational
-8. If question NOT in document: say "This specific information is not in your uploaded document" but still try to help with what IS in the document
+2. Respond in ${responseLanguage}
+3. If found in document: explain the concept fully with examples
+4. If it's a definition: give the definition + explanation + example
+5. If it's a formula: write it out + explain each component + show usage
+6. If it's a process: give step-by-step explanation
+7. Always relate back to exam context
+8. Use clear, friendly, educational tone
+9. If question NOT in document: say "This specific information is not in your uploaded document" (in ${responseLanguage}) but still try to help with what IS in the document
 
 DO NOT give one-line answers. Be thorough like a good teacher.`;
 
   const result = await callAI(
-    'You are a thorough, helpful AI tutor for Indian students. Always give detailed, complete answers.',
+    `You are a thorough, helpful AI tutor. Always give detailed, complete answers in ${responseLanguage}.`,
     prompt,
     1500
   );
@@ -1181,13 +1210,28 @@ async function generateAudio(script, opts = {}) {
     console.log('[Audio] Using Microsoft Edge TTS (free Indian voices)...');
 
     const edgeVoiceMap = {
-      'en-IN': { male: 'en-IN-PrabhatNeural',  female: 'en-IN-NeerjaNeural'  },
-      'hi-IN': { male: 'hi-IN-MadhurNeural',   female: 'hi-IN-SwaraNeural'   },
-      'mr-IN': { male: 'mr-IN-ManoharNeural',  female: 'mr-IN-AarohiNeural'  },
-      'ta-IN': { male: 'ta-IN-ValluvarNeural', female: 'ta-IN-PallaviNeural' },
+      'en': { male: 'en-IN-PrabhatNeural',  female: 'en-IN-NeerjaNeural'  },
+      'hi': { male: 'hi-IN-MadhurNeural',   female: 'hi-IN-SwaraNeural'   },
+      'mr': { male: 'mr-IN-ManoharNeural',  female: 'mr-IN-AarohiNeural'  },
+      'gu': { male: 'gu-IN-NiranjanNeural', female: 'gu-IN-DhwaniNeural'  },
+      'bn': { male: 'bn-IN-BashkarNeural',  female: 'bn-IN-TanishaaNeural' },
+      'ta': { male: 'ta-IN-ValluvarNeural', female: 'ta-IN-PallaviNeural' },
+      'te': { male: 'te-IN-MohanNeural',    female: 'te-IN-ShrutiNeural'  },
+      'kn': { male: 'kn-IN-GaganNeural',    female: 'kn-IN-SapnaNeural'   },
+      'ur': { male: 'ur-PK-AsadNeural',     female: 'ur-PK-UzmaNeural'    },
+      'ar': { male: 'ar-SA-HamedNeural',    female: 'ar-SA-ZariyahNeural' },
+      'es': { male: 'es-ES-AlvaroNeural',   female: 'es-ES-ElviraNeural'  },
+      'fr': { male: 'fr-FR-HenriNeural',    female: 'fr-FR-DeniseNeural'  },
+      'de': { male: 'de-DE-ConradNeural',   female: 'de-DE-KatjaNeural'   },
+      'zh': { male: 'zh-CN-YunxiNeural',    female: 'zh-CN-XiaoxiaoNeural'},
+      'ja': { male: 'ja-JP-KeitaNeural',    female: 'ja-JP-NanamiNeural'  },
+      'ko': { male: 'ko-KR-InJoonNeural',   female: 'ko-KR-SunHiNeural'   },
+      'ru': { male: 'ru-RU-DmitryNeural',   female: 'ru-RU-SvetlanaNeural'}
     };
-    const voiceName = edgeVoiceMap[language]?.[voiceStyle]
-      || (voiceStyle === 'male' ? 'en-IN-PrabhatNeural' : 'en-IN-NeerjaNeural');
+    const resolvedLangCode = resolveOutputLanguage(opts.outputLanguage || language).code;
+    const voiceEntry = edgeVoiceMap[resolvedLangCode] || edgeVoiceMap[language] || edgeVoiceMap['en'];
+    const voiceName = voiceEntry?.[voiceStyle] || (voiceStyle === 'male' ? 'en-IN-PrabhatNeural' : 'en-IN-NeerjaNeural');
+    
 
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voiceName, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);

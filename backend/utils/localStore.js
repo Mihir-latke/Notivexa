@@ -228,6 +228,9 @@ exports.createDoc = (docData) => {
     status: 'ready',
     createdAt: new Date().toISOString(),
     outputs: [],
+    primaryLanguage: docData.primaryLanguage || 'en',
+    detectedLanguages: docData.detectedLanguages || ['en'],
+    isRTL: !!docData.isRTL,
     ...docData
   };
   memoryDocs.unshift(newDoc);

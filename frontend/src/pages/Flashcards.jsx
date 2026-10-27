@@ -20,6 +20,7 @@ export default function Flashcards() {
   const [sets, setSets] = useState([])
   const [docs, setDocs] = useState([])
   const [selectedDoc, setSelectedDoc] = useState('')
+  const [lang, setLang] = useState('English')
   const [generating, setGenerating] = useState(false)
   const [active, setActive] = useState(null)
   const [flipped, setFlipped] = useState(new Set())
@@ -60,8 +61,9 @@ export default function Flashcards() {
         documentId: selectedDoc,
         docId: selectedDoc,
         count: 10,
-        language: 'English',
-        lang: 'English'
+        language: lang,
+        lang: lang,
+        outputLanguage: lang
       });
       toast.success('Flashcards generated!');
       if (res.data?.flashcardSet) {
@@ -158,6 +160,9 @@ export default function Flashcards() {
         <select className="fi" style={{margin:0, flex:'1 1 200px', maxWidth:'100%', padding:'6px 10px', height:'auto'}} value={selectedDoc} onChange={e=>setSelectedDoc(e.target.value)}>
           <option value="">-- Select PDF / Image --</option>
           {docs.map(d=><option key={d._id} value={d._id}>{d.title}</option>)}
+        </select>
+        <select className="fi" style={{margin:0, flex:'0 0 160px', padding:'6px 10px', height:'auto'}} value={lang} onChange={e=>setLang(e.target.value)}>
+          {['Original Language','English','Hindi','Marathi','Gujarati','Bengali','Tamil','Telugu','Kannada','Urdu','Arabic','Spanish','French','German','Chinese (Simplified)','Japanese','Korean','Russian'].map(l=><option key={l} value={l}>{l}</option>)}
         </select>
         <button className="btn btn-p btn-sm" onClick={handleGenerate} disabled={!selectedDoc || generating}>
           {generating ? 'Generating...' : '⚡ Generate Flashcards'}

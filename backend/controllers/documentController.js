@@ -120,7 +120,8 @@ exports.upload = async (req, res, next) => {
         const subject = req.body.subject || 'General';
 
         try {
-          const ext = await extractDocumentText(file.path, file.mimetype);
+          const manualLanguage = req.body.language || req.body.ocrLanguage || null;
+          const ext = await extractDocumentText(file.path, file.mimetype, { manualLanguage });
 
           const doc = localStore.createDoc({
             user: userId,
@@ -138,6 +139,9 @@ exports.upload = async (req, res, next) => {
             contentHash: ext.contentHash,
             extractionMethod: ext.extractionMethod,
             ocrConfidence: ext.ocrConfidence,
+            primaryLanguage: ext.primaryLanguage || 'en',
+            detectedLanguages: ext.detectedLanguages || ['en'],
+            isRTL: !!ext.isRTL,
             pageResults: ext.pageResults,
             status: ext.status || 'ready',
             imagePaths: []
@@ -206,7 +210,8 @@ exports.upload = async (req, res, next) => {
       });
 
       try {
-        const ext = await extractDocumentText(file.path, file.mimetype);
+        const manualLanguage = req.body.language || req.body.ocrLanguage || null;
+        const ext = await extractDocumentText(file.path, file.mimetype, { manualLanguage });
         doc.extractedText    = ext.text;
         doc.sections         = ext.sections;
         doc.pageCount        = ext.pages;
@@ -214,6 +219,9 @@ exports.upload = async (req, res, next) => {
         doc.contentHash      = ext.contentHash;
         doc.extractionMethod = ext.extractionMethod;
         doc.ocrConfidence    = ext.ocrConfidence;
+        doc.primaryLanguage  = ext.primaryLanguage || 'en';
+        doc.detectedLanguages = ext.detectedLanguages || ['en'];
+        doc.isRTL            = !!ext.isRTL;
         doc.pageResults      = ext.pageResults;
         doc.status           = ext.status || 'ready';
         await doc.save();

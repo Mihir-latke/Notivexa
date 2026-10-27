@@ -17,6 +17,7 @@ const SUGGESTED = [
 export default function Chatbot() {
   const[docs,setDocs]=useState([])
   const[docId,setDocId]=useState('')
+  const[chatLang,setChatLang]=useState('auto')
   const[sessId,setSessId]=useState(null)
   const[msgs,setMsgs]=useState([
     {role:'assistant',content:`Namaste! 🙏 I am your Notivexa AI Tutor.
@@ -44,7 +45,7 @@ Try asking: "Explain the main topic" or "What are the key formulas?"`}
     setMsgs(p=>[...p,{role:'user',content:m}])
     setLoading(true)
     try{
-      const res=await api.post('/chatbot/message',{message:m,documentId:docId||undefined,sessionId:sessId})
+      const res=await api.post('/chatbot/message',{message:m,documentId:docId||undefined,sessionId:sessId,outputLanguage:chatLang})
       setSessId(res.data.sessionId)
       setMsgs(p=>[...p,{role:'assistant',content:res.data.reply}])
     }catch{
@@ -60,11 +61,31 @@ Try asking: "Explain the main topic" or "What are the key formulas?"`}
 
   return(
     <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 140px)'}}>
-      {/* Doc selector */}
+      {/* Doc selector & Language */}
       <div style={{display:'flex',gap:10,marginBottom:10,flexShrink:0}}>
         <select className="fi" style={{flex:1}} value={docId} onChange={e=>setDocId(e.target.value)}>
           <option value="">🌐 General AI Tutor (no document)</option>
           {docs.map(d=><option key={d._id} value={d._id}>📄 {d.title} ({d.wordCount?.toLocaleString()} words)</option>)}
+        </select>
+        <select className="fi" style={{width:170}} value={chatLang} onChange={e=>setChatLang(e.target.value)}>
+          <option value="auto">🌐 Auto / Original</option>
+          <option value="english">🇬🇧 English</option>
+          <option value="hindi">🇮🇳 Hindi</option>
+          <option value="marathi">🇮🇳 Marathi</option>
+          <option value="gujarati">🇮🇳 Gujarati</option>
+          <option value="bengali">🇮🇳 Bengali</option>
+          <option value="tamil">🇮🇳 Tamil</option>
+          <option value="telugu">🇮🇳 Telugu</option>
+          <option value="kannada">🇮🇳 Kannada</option>
+          <option value="urdu">🇵🇰 Urdu</option>
+          <option value="arabic">🇸🇦 Arabic</option>
+          <option value="spanish">🇪🇸 Spanish</option>
+          <option value="french">🇫🇷 French</option>
+          <option value="german">🇩🇪 German</option>
+          <option value="chinese">🇨🇳 Chinese</option>
+          <option value="japanese">🇯🇵 Japanese</option>
+          <option value="korean">🇰🇷 Korean</option>
+          <option value="russian">🇷🇺 Russian</option>
         </select>
         <button className="btn btn-g btn-sm" onClick={reset}>🔄 New Chat</button>
       </div>

@@ -177,7 +177,7 @@ function resolveLocalImagePath(imgRef) {
   return null;
 }
 
-async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Academic Lecture', theme = 'obsidian', imagePaths = [] } = {}) {
+async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Academic Lecture', theme = 'obsidian', imagePaths = [], language = 'English', isRTL = false } = {}) {
   ensureDir();
   const themeObj = PPT_THEMES[theme] || PPT_THEMES.obsidian || PPT_THEMES.light;
   const rawSlides = Array.isArray(slidesInput) ? slidesInput : (slidesInput?.slides || []);
@@ -185,6 +185,7 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
 
   const pres = new PptxGenJS();
   pres.layout = 'LAYOUT_16x9';
+  if (isRTL) pres.rtlMode = true;
 
   rawSlides.forEach((s, idx) => {
     const slide = pres.addSlide();
@@ -719,7 +720,8 @@ async function generatePPTX(slidesInput, { title = 'Presentation', subject = 'Ac
 // ==========================================
 // 2. Word (.docx) Generator
 // ==========================================
-function parseMarkdownToDocx(rawContent, title, subject) {
+function parseMarkdownToDocx(rawContent, title, subject, options = {}) {
+  const isRTL = !!options.isRTL;
   const children = [];
 
   // Header Title
@@ -1033,7 +1035,7 @@ function generateQuestionPaperDocx(paperData, { title = 'Question Paper', subjec
   return children;
 }
 
-async function generateDocx(rawContent, { title = 'Academic Notes', subject = 'General' } = {}) {
+async function generateDocx(rawContent, { title = 'Academic Notes', subject = 'General', language = 'English', isRTL = false } = {}) {
   ensureDir();
 
   let isPaper = false;
@@ -1051,7 +1053,7 @@ async function generateDocx(rawContent, { title = 'Academic Notes', subject = 'G
 
   const children = isPaper
     ? generateQuestionPaperDocx(paperData, { title, subject })
-    : parseMarkdownToDocx(rawContent, title, subject);
+    : parseMarkdownToDocx(rawContent, title, subject, { language, isRTL });
 
   const doc = new Document({
     creator: 'Notivexa Academic Intelligence',

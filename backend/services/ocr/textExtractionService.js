@@ -1,14 +1,15 @@
 /**
- * textExtractionService.js — Master Unified Text Extraction & OCR Coordinator
+ * textExtractionService.js — Master Unified Text Extraction & Multilingual OCR Coordinator
  * 
  * Orchestrates:
- * 1. SHA-256 Content Hashing & Persistent Disk Caching
+ * 1. SHA-256 Content Hashing & Language-keyed Persistent Disk Caching
  * 2. Native PDF Text Extraction (reading-order sorted)
- * 3. Scanned PDF Page Detection & Bounded Local OCR Fallback
- * 4. Standalone Image OCR (JPG, JPEG, PNG, WEBP)
- * 5. Structured Section Chunking & Memory Cleanup
+ * 3. Automatic Unicode Script & Language Detection (17 core languages)
+ * 4. Scanned PDF Page Detection & Bounded Local Multilingual OCR Fallback
+ * 5. Standalone Image OCR (JPG, JPEG, PNG, WEBP)
+ * 6. Structured Section Chunking & Memory Cleanup
  * 
- * 100% Offline — No external API calls.
+ * 100% Local & Offline capable — Zero external paid APIs.
  */
 
 const fs = require('fs');
@@ -17,6 +18,7 @@ const crypto = require('crypto');
 const { inspectAndExtractPdf } = require('./pdfService');
 const { recognizeImage } = require('./ocrService');
 const { chunkPageResults } = require('./chunkingService');
+const { detectTextLanguage, resolveOutputLanguage } = require('./languageDetectionService');
 
 const CACHE_DIR = path.resolve(__dirname, '../../data/ocr-cache');
 
@@ -49,39 +51,61 @@ function computeFileHash(filePath) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
+function getCacheKey(contentHash, langSet = 'auto') {
+  if (!langSet || langSet === 'auto') return contentHash;
+  const safeLang = langSet.replace(/[^a-zA-Z0-9_+]/g, '_');
+  return `${contentHash}_${safeLang}`;
+}
+
 /**
  * Check disk cache for existing extraction.
  */
-function getCachedResult(contentHash) {
+function getCachedResult(contentHash, langSet = 'auto') {
   ensureCacheDir();
-  const cacheFile = path.join(CACHE_DIR, `${contentHash}.json`);
+  const specificKey = getCacheKey(contentHash, langSet);
+  const cacheFile = path.join(CACHE_DIR, `${specificKey}.json`);
+
   if (fs.existsSync(cacheFile)) {
     try {
       const data = fs.readFileSync(cacheFile, 'utf-8');
       const parsed = JSON.parse(data);
       if (parsed && (parsed.status === 'ready' || parsed.words > 0)) {
-        console.log(`[OCR Cache ⚡] Cache HIT for content hash: ${contentHash.substring(0, 12)}... (${parsed.words} words)`);
+        console.log(`[OCR Cache ⚡] Cache HIT for content hash: ${specificKey.substring(0, 16)}... (${parsed.words} words)`);
         return parsed;
       }
-      // Invalidate empty or partial cache entry
-      console.log(`[OCR Cache 🔄] Invalidating stale or empty cache entry: ${contentHash.substring(0, 12)}...`);
+      console.log(`[OCR Cache 🔄] Invalidating stale or empty cache entry: ${specificKey.substring(0, 16)}...`);
       try { fs.unlinkSync(cacheFile); } catch {}
     } catch (e) {
       console.warn('[OCR Cache] Error reading cache file:', e.message);
     }
   }
+
+  // Fallback to unadorned contentHash.json if specific key missed
+  if (specificKey !== contentHash) {
+    const fallbackFile = path.join(CACHE_DIR, `${contentHash}.json`);
+    if (fs.existsSync(fallbackFile)) {
+      try {
+        const data = fs.readFileSync(fallbackFile, 'utf-8');
+        const parsed = JSON.parse(data);
+        if (parsed && (parsed.status === 'ready' || parsed.words > 0)) {
+          return parsed;
+        }
+      } catch (e) {}
+    }
+  }
+
   return null;
 }
 
 /**
  * Persist extraction result to disk cache.
  */
-function saveCachedResult(contentHash, result) {
+function saveCachedResult(contentHash, result, langSet = 'auto') {
   if (!result || !result.words || result.words === 0) return;
   ensureCacheDir();
-  const cacheFile = path.join(CACHE_DIR, `${contentHash}.json`);
+  const specificKey = getCacheKey(contentHash, langSet);
+  const cacheFile = path.join(CACHE_DIR, `${specificKey}.json`);
   try {
-    // Strip raw buffers before serializing
     const sanitized = {
       ...result,
       pageResults: (result.pageResults || []).map(p => ({
@@ -94,17 +118,23 @@ function saveCachedResult(contentHash, result) {
       }))
     };
     fs.writeFileSync(cacheFile, JSON.stringify(sanitized, null, 2), 'utf-8');
+
+    // Also persist base key if not existing
+    const baseFile = path.join(CACHE_DIR, `${contentHash}.json`);
+    if (!fs.existsSync(baseFile)) {
+      fs.writeFileSync(baseFile, JSON.stringify(sanitized, null, 2), 'utf-8');
+    }
   } catch (e) {
     console.warn('[OCR Cache] Error writing cache file:', e.message);
   }
 }
 
 /**
- * Primary Extraction Function for Documents (PDFs & Images)
+ * Primary Multilingual Extraction Function for Documents (PDFs & Images)
  * 
  * @param {string} filePath - Absolute path to uploaded document
  * @param {string} mimeType - MIME type of uploaded document
- * @param {Object} options - { useCache: boolean, maxPages: number }
+ * @param {Object} options - { useCache: boolean, maxPages: number, language: string }
  * @returns {Promise<Object>}
  */
 async function extractDocumentText(filePath, mimeType = 'application/pdf', options = {}) {
@@ -115,9 +145,17 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
   const useCache = options.useCache !== false;
   const contentHash = computeFileHash(filePath);
 
-  // 1. Check cache
+  // Check user manual language override
+  const manualLang = options.language || options.lang || options.manualLanguage || null;
+  let targetLangSet = 'auto';
+  if (manualLang) {
+    const resolved = resolveOutputLanguage(manualLang);
+    targetLangSet = resolved.code !== 'en' ? `${resolved.code}+eng` : 'eng';
+  }
+
+  // 1. Check disk cache
   if (useCache) {
-    const cached = getCachedResult(contentHash);
+    const cached = getCachedResult(contentHash, targetLangSet);
     if (cached) return cached;
   }
 
@@ -127,10 +165,31 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
 
   if (isImage) {
     console.log(`[Text Extraction] Processing standalone image file: ${path.basename(filePath)}`);
-    const ocrResult = await recognizeImage(filePath, { retryOnLowConfidence: true });
-    const text = (ocrResult.text || '').trim();
-    const words = ocrResult.words || text.split(/\s+/).filter(Boolean).length;
+    let ocrLang = (targetLangSet !== 'auto') ? targetLangSet : 'eng';
 
+    // First OCR recognition pass
+    let ocrResult = await recognizeImage(filePath, { lang: ocrLang, retryOnLowConfidence: true });
+    let text = (ocrResult.text || '').trim();
+
+    // If auto mode and text has non-Latin script or very low confidence, check script detection
+    if (targetLangSet === 'auto') {
+      const detected = detectTextLanguage(text);
+      if (detected.primaryLanguage !== 'eng' && detected.tesseractLangSet !== ocrLang) {
+        console.log(`[Text Extraction 🌐] Detected script for image: ${detected.primaryLanguage} (${detected.tesseractLangSet}). Re-running OCR with optimized model...`);
+        const refinedResult = await recognizeImage(filePath, {
+          lang: detected.tesseractLangSet,
+          script: Object.keys(detected.scripts)[0],
+          retryOnLowConfidence: true
+        });
+        if ((refinedResult.words || 0) >= (ocrResult.words || 0) || (refinedResult.confidence || 0) > (ocrResult.confidence || 0)) {
+          ocrResult = refinedResult;
+          text = (ocrResult.text || '').trim();
+          targetLangSet = detected.tesseractLangSet;
+        }
+      }
+    }
+
+    const words = ocrResult.words || text.split(/\s+/).filter(Boolean).length;
     pageResults.push({
       pageNumber: 1,
       text,
@@ -146,35 +205,77 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
     totalPages = pdfData.totalPages;
     pageResults = pdfData.pageResults;
 
+    // Check if there is native digital text to determine language
+    const sampleNativeText = pageResults
+      .filter(p => p.method === 'native' && p.text)
+      .map(p => p.text)
+      .slice(0, 5)
+      .join('\n');
+
+    let pdfLangSet = (targetLangSet !== 'auto') ? targetLangSet : 'eng';
+    let detectedScript = null;
+
+    if (sampleNativeText.trim().length > 30) {
+      const nativeDetected = detectTextLanguage(sampleNativeText);
+      pdfLangSet = (targetLangSet !== 'auto') ? targetLangSet : nativeDetected.tesseractLangSet;
+      detectedScript = Object.keys(nativeDetected.scripts)[0];
+      console.log(`[Text Extraction 🌐] PDF native text language detected: ${nativeDetected.primaryLanguage} (${pdfLangSet})`);
+    }
+
     // Process any pages flagged for OCR
     const scannedPages = pageResults.filter(p => p.needsOcr && p.imageBuffer);
     if (scannedPages.length > 0) {
-      console.log(`[Text Extraction] Performing local OCR on ${scannedPages.length} scanned page(s)...`);
+      console.log(`[Text Extraction] Performing local multilingual OCR on ${scannedPages.length} scanned page(s) using [${pdfLangSet}]...`);
 
-      for (const pageItem of scannedPages) {
+      for (let i = 0; i < scannedPages.length; i++) {
+        const pageItem = scannedPages[i];
         try {
-          const ocrRes = await recognizeImage(pageItem.imageBuffer, { retryOnLowConfidence: true });
-          const ocrText = (ocrRes.text || '').trim();
-          const words = ocrRes.words || ocrText.split(/\s+/).filter(Boolean).length;
+          // On first scanned page without prior native text, test language detection
+          if (i === 0 && targetLangSet === 'auto' && (!sampleNativeText || sampleNativeText.length < 30)) {
+            let initialOcr = await recognizeImage(pageItem.imageBuffer, { lang: 'eng', retryOnLowConfidence: true });
+            const pageText = (initialOcr.text || '').trim();
+            const pageDetect = detectTextLanguage(pageText);
+            if (pageDetect.primaryLanguage !== 'eng') {
+              console.log(`[Text Extraction 🌐] First scanned page detected as ${pageDetect.primaryLanguage} (${pageDetect.tesseractLangSet})`);
+              pdfLangSet = pageDetect.tesseractLangSet;
+              detectedScript = Object.keys(pageDetect.scripts)[0];
+              initialOcr = await recognizeImage(pageItem.imageBuffer, {
+                lang: pdfLangSet,
+                script: detectedScript,
+                retryOnLowConfidence: true
+              });
+            }
+            pageItem.text = (initialOcr.text || '').trim();
+            pageItem.confidence = initialOcr.confidence;
+            pageItem.wordCount = initialOcr.words || pageItem.text.split(/\s+/).filter(Boolean).length;
+            pageItem.status = initialOcr.status;
+          } else {
+            const ocrRes = await recognizeImage(pageItem.imageBuffer, {
+              lang: pdfLangSet,
+              script: detectedScript,
+              retryOnLowConfidence: true
+            });
+            const ocrText = (ocrRes.text || '').trim();
+            const words = ocrRes.words || ocrText.split(/\s+/).filter(Boolean).length;
 
-          pageItem.text = ocrText;
-          pageItem.confidence = ocrRes.confidence;
-          pageItem.wordCount = words;
-          pageItem.status = ocrRes.status;
-          console.log(`[Text Extraction ✅] Page ${pageItem.pageNumber} OCR completed: ${words} words, ${ocrRes.confidence}% confidence`);
+            pageItem.text = ocrText;
+            pageItem.confidence = ocrRes.confidence;
+            pageItem.wordCount = words;
+            pageItem.status = ocrRes.status;
+          }
+          console.log(`[Text Extraction ✅] Page ${pageItem.pageNumber} OCR completed: ${pageItem.wordCount} words, ${pageItem.confidence}% confidence`);
         } catch (pageErr) {
           console.warn(`[Text Extraction ⚠️] Page ${pageItem.pageNumber} OCR error:`, pageErr.message);
           pageItem.status = 'failed';
           pageItem.confidence = 0;
         } finally {
-          // Free raw buffer immediately
           pageItem.imageBuffer = null;
         }
       }
     }
   }
 
-  // 2. Validate that at least some text was extracted
+  // 2. Validate that readable text exists
   const validPages = pageResults.filter(p => (p.text || '').trim().length > 0);
   if (validPages.length === 0) {
     throw new Error('No readable text could be extracted from this document or scanned images.');
@@ -183,7 +284,13 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
   // 3. Chunk into structured sections
   const chunked = chunkPageResults(pageResults);
 
-  // 4. Determine overall extraction method & confidence
+  // 4. Authoritative multilingual analysis on the unified extracted text
+  const langAnalysis = detectTextLanguage(chunked.text);
+  const detectedLanguages = langAnalysis.detectedLanguages || ['eng'];
+  const primaryLanguage = langAnalysis.primaryLanguage || 'eng';
+  const isRTL = !!langAnalysis.isRTL;
+
+  // 5. Determine overall extraction method & confidence
   const methods = new Set(pageResults.map(p => p.method));
   let overallMethod = 'native';
   if (methods.has('native') && methods.has('ocr')) overallMethod = 'hybrid';
@@ -202,6 +309,10 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
     contentHash,
     extractionMethod: overallMethod,
     ocrConfidence: avgConfidence,
+    detectedLanguages,
+    primaryLanguage,
+    isRTL,
+    scripts: langAnalysis.scripts,
     pageResults: pageResults.map(p => ({
       pageNumber: p.pageNumber,
       text: p.text,
@@ -214,12 +325,12 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
     isPartial: validPages.length < pageResults.length
   };
 
-  // 5. Save to disk cache
+  // 6. Save to disk cache
   if (useCache) {
-    saveCachedResult(contentHash, finalResult);
+    saveCachedResult(contentHash, finalResult, targetLangSet);
   }
 
-  console.log(`[Text Extraction 🎉] Finished: ${finalResult.words} words, ${finalResult.sections.length} sections, method=${overallMethod}, confidence=${avgConfidence}%`);
+  console.log(`[Text Extraction 🎉] Finished: ${finalResult.words} words, lang=${primaryLanguage} (${detectedLanguages.join('+')}), method=${overallMethod}, confidence=${avgConfidence}%`);
   return finalResult;
 }
 
@@ -229,4 +340,3 @@ module.exports = {
   saveCachedResult,
   extractDocumentText
 };
-

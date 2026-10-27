@@ -10,6 +10,7 @@ export default function Upload() {
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState(null)
   const [subject, setSubject] = useState('')
+  const [ocrLanguage, setOcrLanguage] = useState('auto')
   
   // Google Drive state
   const [driveUrl, setDriveUrl] = useState('')
@@ -89,6 +90,7 @@ export default function Upload() {
       const fd = new FormData()
       files.forEach(f => fd.append('files', f.file))
       if (subject) fd.append('subject', subject)
+      if (ocrLanguage && ocrLanguage !== 'auto') fd.append('language', ocrLanguage)
       setFiles(prev => prev.map(f => ({ ...f, progress: 20 })))
       const res = await api.post('/documents/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -540,11 +542,37 @@ export default function Upload() {
         )}
 
         <div className="card">
-          <div className="ch"><div className="ct">⚙️ Subject & Topic</div></div>
+          <div className="ch"><div className="ct">⚙️ Subject & Language</div></div>
           <div className="cb">
-            <div className="fg">
+            <div className="fg" style={{ marginBottom: 12 }}>
               <label className="fl">Subject / Topic (optional)</label>
               <input className="fi" placeholder="e.g. Organic Chemistry, Thermodynamics, Computer Science..." value={subject} onChange={e => setSubject(e.target.value)} />
+            </div>
+            <div className="fg">
+              <label className="fl">Document Language / OCR Override</label>
+              <select className="fi" value={ocrLanguage} onChange={e => setOcrLanguage(e.target.value)}>
+                <option value="auto">🌐 Auto-detect (Multi-lingual OCR)</option>
+                <option value="eng">English</option>
+                <option value="hin">Hindi (हिन्दी)</option>
+                <option value="mar">Marathi (मराठी)</option>
+                <option value="guj">Gujarati (ગુજરાતી)</option>
+                <option value="ben">Bengali (বাংলা)</option>
+                <option value="tam">Tamil (தமிழ்)</option>
+                <option value="tel">Telugu (తెలుగు)</option>
+                <option value="kan">Kannada (ಕನ್ನಡ)</option>
+                <option value="urd">Urdu (اردو)</option>
+                <option value="ara">Arabic (العربية)</option>
+                <option value="spa">Spanish (Español)</option>
+                <option value="fra">French (Français)</option>
+                <option value="deu">German (Deutsch)</option>
+                <option value="chi_sim">Chinese (Simplified 简体中文)</option>
+                <option value="jpn">Japanese (日本語)</option>
+                <option value="kor">Korean (한국어)</option>
+                <option value="rus">Russian (Русский)</option>
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+                Supports English, Hindi, Marathi, Gujarati, Tamil, Arabic, Spanish, etc.
+              </div>
             </div>
           </div>
         </div>
@@ -585,6 +613,16 @@ export default function Upload() {
                   </div>
                   {doc.status === 'ready' || doc.status === 'partial' || doc.wordCount > 0 ? (
                     <>
+                      <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
+                        <span style={{ background:'#ECFDF5', color:'#065F46', border:'1px solid #A7F3D0', padding:'2px 8px', borderRadius:10, fontSize:11, fontWeight:600 }}>
+                          🌐 {doc.primaryLanguage ? doc.primaryLanguage.toUpperCase() : 'ENG'} ({doc.extractionMethod === 'ocr' ? `${doc.ocrConfidence || 95}% OCR` : 'Native Text'})
+                        </span>
+                        {doc.isRTL && (
+                          <span style={{ background:'#FEF3C7', color:'#92400E', border:'1px solid #FDE68A', padding:'2px 8px', borderRadius:10, fontSize:11, fontWeight:600 }}>
+                            RTL
+                          </span>
+                        )}
+                      </div>
                       <div className="ib g" style={{ marginBottom:9, fontSize:12 }}>
                         ✅ <strong>{doc.wordCount?.toLocaleString()}</strong> words · <strong>{doc.pageCount}</strong> pages · <strong>{doc.sections?.length || 1}</strong> sections detected
                       </div>

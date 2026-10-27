@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
   role:        { type: String, enum: ['student','teacher','admin'], default: 'student' },
   institution: { type: String, default: '' },
   preferredLanguage: { type: String, default: 'English' },
+  defaultOutputLanguage: { type: String, default: 'english' },
   isActive:    { type: Boolean, default: true },
   studyStats:  {
     documentsUploaded: { type: Number, default: 0 },
@@ -55,6 +56,9 @@ const documentSchema = new mongoose.Schema({
   contentHash:      { type: String, index: true },
   extractionMethod: { type: String, enum: ['native','ocr','hybrid'], default: 'native' },
   ocrConfidence:    { type: Number, default: 100 },
+  primaryLanguage:   { type: String, default: 'en' },
+  detectedLanguages: [{ type: String }],
+  isRTL:            { type: Boolean, default: false },
   pageResults: [{
     pageNumber: { type: Number },
     text:       { type: String },

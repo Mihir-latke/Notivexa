@@ -1,3 +1,4 @@
+const { resolveOutputLanguage } = require('../services/ocr/languageDetectionService');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
@@ -9,6 +10,15 @@ const localStore = require('../utils/localStore');
 const { getExtractedImages, extractImagesFromPDF } = require('../services/pdfImageExtractor');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
+
+function getResolvedLanguage(req, doc) {
+  const input = req.body.outputLanguage || req.body.language || req.body.lang || 'english';
+  const docPrimary = doc?.primaryLanguage || 'eng';
+  const langInfo = resolveOutputLanguage(input, docPrimary);
+  langInfo.isRTL = ['ar', 'ur'].includes(langInfo.code) || (langInfo.isOriginal && Boolean(doc?.isRTL));
+  return langInfo;
+}
+
 
 function resolveLocalPath(p) {
   if (!p || typeof p !== 'string') return null;
@@ -230,12 +240,13 @@ function injectDiagramsIntoMarkdown(content, docId, imagePaths) {
 exports.notes = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex, font = 'caveat', style = 'yellow' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
     const subj = doc.subject || doc.title;
-    console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language}`);
-    const content = await ai.generateNotes(text, doc.title, subj, language);
+    console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language} (source=${doc.primaryLanguage})`);
+    const content = await ai.generateNotes(text, doc.title, subj, language, doc.primaryLanguage);
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
@@ -250,10 +261,11 @@ exports.notes = async (req, res, next) => {
 exports.summary = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex, font = 'caveat', style = 'yellow' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const content = await ai.generateSummary(text, doc.title, doc.subject || doc.title, language);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const content = await ai.generateSummary(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
@@ -265,10 +277,11 @@ exports.summary = async (req, res, next) => {
 exports.flashcards = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex, count = 10 } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const cards = await ai.generateFlashcards(text, doc.subject || doc.title, parseInt(count) || 10, language);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const cards = await ai.generateFlashcards(text, doc.subject || doc.title, parseInt(count) || 10, language, doc.primaryLanguage);
     if (!Array.isArray(cards) || cards.length === 0) throw new Error('No flashcards generated. Try again.');
     
     let set = null;
@@ -309,10 +322,11 @@ exports.flashcards = async (req, res, next) => {
 exports.questions = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const content = await ai.generateQuestions(text, doc.title, doc.subject || doc.title, language);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const content = await ai.generateQuestions(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
     const pdf = await notesPDF(content, { title:`${doc.title} — Questions`, subject:doc.subject||doc.title });
     if (doc.outputs) doc.outputs.push({ type:'questions', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
@@ -323,7 +337,6 @@ exports.questions = async (req, res, next) => {
 exports.paper = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const {
       sectionIndex,
       totalMarks = 20,
@@ -338,7 +351,9 @@ exports.paper = async (req, res, next) => {
       time
     } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    console.log(`[GEN] Paper "${doc.title}" ${totalMarks}M ${sets} sets`);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    console.log(`[GEN] Paper "${doc.title}" ${totalMarks}M ${sets} sets lang=${language}`);
     const paperSets = await ai.generateQuestionPaper(
       text,
       doc.subject || doc.title,
@@ -374,10 +389,11 @@ exports.paper = async (req, res, next) => {
 exports.handwritten = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex, style = 'yellow', font = 'caveat' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
@@ -415,13 +431,13 @@ exports.handwrittenPdfOnly = async (req, res, next) => {
 exports.podcast = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex, voiceStyle = 'male' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    console.log(`[GEN] Podcast "${doc.title}" ${text.length}c`);
-    const script = await ai.generatePodcast(text, doc.title, doc.subject || doc.title, language);
-    const langMap = { English:'en-IN', Hindi:'hi-IN', Marathi:'mr-IN', Bengali:'bn-IN', Tamil:'ta-IN' };
-    const audio = await ai.generateAudio(script, { language:langMap[language]||'en-IN', voiceStyle:voiceStyle||'male' });
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    console.log(`[GEN] Podcast "${doc.title}" ${text.length}c lang=${language}`);
+    const script = await ai.generatePodcast(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
+    const audio = await ai.generateAudio(script, { language: langInfo.code, outputLanguage: language, voiceStyle: voiceStyle || 'male' });
     if (doc.outputs) doc.outputs.push({ type:'podcast', language, fileName:audio.fileName, filePath:audio.filePath, fileSize:audio.fileSize });
     await safeDocSave(doc);
     res.json({ success:true, script, audioUrl:`/uploads/audio/${audio.fileName}`, fileName:audio.fileName, duration:audio.duration, provider:audio.provider, note:audio.note||null });
@@ -431,11 +447,12 @@ exports.podcast = async (req, res, next) => {
 exports.ppt = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
     const imagePaths = await resolveDocImages(doc);
-    const pptData = await ai.generatePPT(text, doc.title, doc.subject || doc.title, language);
+    const pptData = await ai.generatePPT(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
 
     // Assign authentic extracted document diagrams to diagram/image slides
     if (Array.isArray(pptData?.slides) && imagePaths.length > 0) {
@@ -465,15 +482,16 @@ exports.video = async (req, res, next) => {
   try {
     if (req.setTimeout) req.setTimeout(180000); // 3 minutes timeout for video rendering
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
 
     // 1. Generate strictly document-grounded classroom dialogue script
-    const script = await ai.generateVideoScript(text, doc.title, doc.subject || doc.title, language);
+    const script = await ai.generateVideoScript(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
 
-    // 2. Generate Audio via Edge TTS (Indian male voice)
-    const audio = await ai.generateAudio(script, { language:'en-IN', voiceStyle:'male' });
+    // 2. Generate Audio via Edge TTS
+    const audio = await ai.generateAudio(script, { language: langInfo.code, outputLanguage: language, voiceStyle: 'male' });
 
     // 3. Render realistic animated educational video (with Veo AI motion or Motion Video Engine)
     const videoResult = await createVideoFromAudio(audio.filePath, script, audio.duration);
@@ -499,7 +517,9 @@ exports.mindmap = async (req, res, next) => {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const data = await ai.generateMindmap(text, doc.title);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const data = await ai.generateMindmap(text, doc.title, language);
     res.json({ success:true, mindmapData:data });
   } catch(e) { next(e); }
 };
@@ -507,10 +527,11 @@ exports.mindmap = async (req, res, next) => {
 exports.vocabulary = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const language = req.body.language || req.body.lang || 'English';
     const { sectionIndex } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
-    const vocab = await ai.generateVocabulary(text, doc.subject || doc.title, language);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const vocab = await ai.generateVocabulary(text, doc.subject || doc.title, language, doc.primaryLanguage);
     res.json({ success:true, vocabulary:vocab });
   } catch(e) { next(e); }
 };
@@ -519,11 +540,21 @@ const { generateDocx, generatePPTX } = require('../services/officeGenerator');
 
 exports.exportDocx = async (req, res, next) => {
   try {
-    const { content, title = 'Academic Notes', subject = 'General' } = req.body;
+    const { content, title = 'Academic Notes', subject = 'General', documentId, docId } = req.body;
     if (!content || typeof content !== 'string' || content.trim().length === 0) {
       return res.status(400).json({ error: 'Content is required for Word export.' });
     }
-    const result = await generateDocx(content, { title, subject });
+    let doc = null;
+    const dId = documentId || docId;
+    if (dId) {
+      try {
+        const result = await getDocText(dId, req.user?.id);
+        doc = result.doc;
+      } catch {}
+    }
+    const langInfo = getResolvedLanguage(req, doc);
+    const isRTL = langInfo.isRTL;
+    const result = await generateDocx(content, { title, subject, language: langInfo.name, isRTL });
     res.json({ success: true, downloadUrl: `/uploads/generated/${result.fileName}`, fileName: result.fileName, fileSize: result.fileSize });
   } catch(e) { next(e); }
 };
@@ -536,14 +567,18 @@ exports.exportPptx = async (req, res, next) => {
       return res.status(400).json({ error: 'Slides data is required for PPTX export.' });
     }
     let imagePaths = [];
+    let doc = null;
     const dId = documentId || docId;
     if (dId) {
       try {
         const result = await getDocText(dId, req.user?.id);
-        imagePaths = await resolveDocImages(result.doc);
+        doc = result.doc;
+        imagePaths = await resolveDocImages(doc);
       } catch {}
     }
-    const result = await generatePPTX(slidesData, { title, subject, theme, imagePaths });
+    const langInfo = getResolvedLanguage(req, doc);
+    const isRTL = langInfo.isRTL;
+    const result = await generatePPTX(slidesData, { title, subject, theme, imagePaths, language: langInfo.name, isRTL });
     res.json({ success: true, downloadUrl: `/uploads/generated/${result.fileName}`, fileName: result.fileName, fileSize: result.fileSize });
   } catch(e) { next(e); }
 };
