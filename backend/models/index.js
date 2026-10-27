@@ -43,12 +43,43 @@ const documentSchema = new mongoose.Schema({
   user:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   title:         { type: String, required: true, trim: true },
   originalName:  { type: String },
-  fileType:      { type: String, enum: ['pdf','image','youtube','url','video'], default: 'pdf' },
+  fileType:      { type: String, enum: ['pdf','image','youtube','url','video','docx'], default: 'pdf' },
   size:          { type: Number, default: 0 },
   filePath:      { type: String, required: true },
   status:        { type: String, enum: ['queued','processing','ready','partial','error'], default: 'processing', index: true },
   errorMessage:  { type: String, default: '' },
   extractedText: { type: String, default: '' },
+  documentType: {
+    type: String,
+    enum: [
+      'academic_textbook',
+      'novel_fiction',
+      'poetry_literature',
+      'history_biography',
+      'science_mathematics',
+      'computer_science',
+      'research_paper',
+      'study_guide',
+      'reference_manual',
+      'general_nonfiction'
+    ],
+    default: 'academic_textbook'
+  },
+  documentTypeUserOverridden: { type: Boolean, default: false },
+  author:        { type: String, default: '' },
+  chapters: [{
+    index:      { type: Number },
+    title:      { type: String },
+    content:    { type: String },
+    wordCount:  { type: Number, default: 0 },
+    isInferred: { type: Boolean, default: false }
+  }],
+  extractionQuality: {
+    score:        { type: Number, default: 100 },
+    confidence:   { type: Number, default: 100 },
+    warning:      { type: String, default: '' },
+    isLowQuality: { type: Boolean, default: false }
+  },
   sections:      [sectionSchema],
   pageCount:     { type: Number, default: 0 },
   wordCount:     { type: Number, default: 0 },

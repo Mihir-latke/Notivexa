@@ -150,13 +150,61 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
   let targetLangSet = 'auto';
   if (manualLang) {
     const resolved = resolveOutputLanguage(manualLang);
-    targetLangSet = resolved.code !== 'en' ? `${resolved.code}+eng` : 'eng';
+    const tessCode = resolved.tesseract || 'eng';
+    targetLangSet = tessCode !== 'eng' ? `${tessCode}+eng` : 'eng';
   }
 
   // 1. Check disk cache
   if (useCache) {
     const cached = getCachedResult(contentHash, targetLangSet);
     if (cached) return cached;
+  }
+
+  const isDocx = mimeType.includes('wordprocessingml') || mimeType.includes('msword') || /\.docx$/i.test(filePath);
+  if (isDocx) {
+    console.log(`[Text Extraction] Processing DOCX document: ${path.basename(filePath)}`);
+    const { extractDocxText } = require('./docxExtractionService');
+    const docxData = await extractDocxText(filePath);
+    const fullText = docxData.text;
+    const langAnalysis = detectTextLanguage(fullText);
+    const primaryLanguage = langAnalysis.primaryLanguage;
+    const detectedLanguages = langAnalysis.detectedLanguages;
+    const isRTL = langAnalysis.isRTL;
+    const chunked = chunkPageResults([{
+      pageNumber: 1,
+      text: fullText,
+      method: 'native',
+      confidence: 100,
+      wordCount: docxData.wordCount
+    }]);
+
+    const finalResult = {
+      text: fullText,
+      pages: docxData.pageCount,
+      words: docxData.wordCount,
+      sections: chunked.sections,
+      contentHash,
+      extractionMethod: 'native',
+      ocrConfidence: 100,
+      detectedLanguages,
+      primaryLanguage,
+      isRTL,
+      scripts: langAnalysis.scripts,
+      pageResults: [{
+        pageNumber: 1,
+        text: fullText,
+        method: 'native',
+        status: 'success',
+        confidence: 100,
+        wordCount: docxData.wordCount
+      }],
+      status: docxData.wordCount > 0 ? 'ready' : 'error',
+      isPartial: false
+    };
+    if (useCache) {
+      saveCachedResult(contentHash, finalResult, targetLangSet);
+    }
+    return finalResult;
   }
 
   const isImage = mimeType.startsWith('image/') || /\.(png|jpe?g|webp|bmp|tiff?)$/i.test(filePath);
@@ -232,20 +280,17 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
         try {
           // On first scanned page without prior native text, test language detection
           if (i === 0 && targetLangSet === 'auto' && (!sampleNativeText || sampleNativeText.length < 30)) {
-            let initialOcr = await recognizeImage(pageItem.imageBuffer, { lang: 'eng', retryOnLowConfidence: true });
+            let initialOcr = await recognizeImage(pageItem.imageBuffer, { lang: 'hin+mar+eng', retryOnLowConfidence: true });
             const pageText = (initialOcr.text || '').trim();
             const pageDetect = detectTextLanguage(pageText);
             if (pageDetect.primaryLanguage !== 'eng') {
               console.log(`[Text Extraction 🌐] First scanned page detected as ${pageDetect.primaryLanguage} (${pageDetect.tesseractLangSet})`);
               pdfLangSet = pageDetect.tesseractLangSet;
               detectedScript = Object.keys(pageDetect.scripts)[0];
-              initialOcr = await recognizeImage(pageItem.imageBuffer, {
-                lang: pdfLangSet,
-                script: detectedScript,
-                retryOnLowConfidence: true
-              });
+            } else {
+              pdfLangSet = 'eng';
             }
-            pageItem.text = (initialOcr.text || '').trim();
+            pageItem.text = pageText;
             pageItem.confidence = initialOcr.confidence;
             pageItem.wordCount = initialOcr.words || pageItem.text.split(/\s+/).filter(Boolean).length;
             pageItem.status = initialOcr.status;

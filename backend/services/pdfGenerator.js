@@ -409,7 +409,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
     ];
 
     // Automatically map font to script to prevent empty glyph boxes
-    const hasDevanagari = /[\u0900-\u097F\uA8E0-\uA8FF]/.test(content);
+    const hasDevanagari = /[\u0900-\u097F\uA8E0-\uA8FF]/.test(content) || /[\u0900-\u097F]/.test(title) || /[\u0900-\u097F]/.test(subject);
     const hasHangul = /[\uAC00-\uD7AF]/.test(content);
     const hasCyrillic = /[\u0400-\u04FF]/.test(content);
 
@@ -472,7 +472,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
       if (pNum === 1) {
         // Page 1: Academic Document Header
         const subText = (subject || 'GENERAL').toUpperCase();
-        doc.font('Helvetica-Bold').fontSize(8);
+        doc.font(FONT_BOLD).fontSize(8);
         const subW = doc.widthOfString(subText) + 16;
         doc.fillColor('#EDE9FE').roundedRect(L, 26, subW, 16, 4).fill();
         doc.fillColor('#5B21B6').text(subText, L + 8, 30, { lineBreak: false });
@@ -491,9 +491,9 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
         doc.strokeColor('#CBD5E1').lineWidth(0.5).moveTo(L, 98).lineTo(R, 98).stroke();
       } else {
         // Page 2+: Running Header
-        doc.fillColor('#64748B').font('Helvetica').fontSize(8)
+        doc.fillColor('#64748B').font(FONT_REG).fontSize(8)
            .text(`${title}  •  ${subject}`, L, 28, { width: CW - 80, lineBreak: false });
-        doc.fillColor('#475569').font('Helvetica-Bold').fontSize(8)
+        doc.fillColor('#475569').font(FONT_BOLD).fontSize(8)
            .text(`Page ${pNum}`, R - 60, 28, { width: 60, align: 'right', lineBreak: false });
         doc.strokeColor('#E2E8F0').lineWidth(0.8).moveTo(L, 44).lineTo(R, 44).stroke();
       }
@@ -515,7 +515,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
 
     // ── Helper: Pill Badge (No emojis, razor sharp vector) ──
     const drawBadge = (label, bgCol, textCol, strokeCol = null) => {
-      doc.font('Helvetica-Bold').fontSize(8);
+      doc.font(FONT_BOLD).fontSize(8);
       const textW = doc.widthOfString(label) + 16;
       const bH = 15;
       doc.fillColor(bgCol).roundedRect(L, y, textW, bH, 3).fill();
@@ -693,7 +693,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
       // Pre-calculate height of each row based on cell text content
       const rowHeights = rows.map((row, ri) => {
         const isHeader = ri === 0;
-        doc.font(isHeader ? 'Helvetica-Bold' : FONT_REG).fontSize(isHeader ? 9 : 10 + FS_MOD / 3);
+        doc.font(isHeader ? FONT_BOLD : FONT_REG).fontSize(isHeader ? 9 : 10 + FS_MOD / 3);
         let maxH = isHeader ? 22 : 24;
         row.forEach(cell => {
           const str = String(cell || '').trim();
@@ -720,7 +720,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
           if (isHeader) {
             doc.fillColor('#4F46E5').rect(cx, cy, cellW, rH).fill();
             doc.strokeColor('#3730A3').lineWidth(0.6).rect(cx, cy, cellW, rH).stroke();
-            doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(9);
+            doc.fillColor('#FFFFFF').font(FONT_BOLD).fontSize(9);
             doc.text(String(cell).trim(), cx + 6, cy + 6, { width: cellW - 12, align: 'center', lineGap: 2 });
           } else {
             const rowBg = ri % 2 === 0 ? '#F8FAFC' : '#FFFFFF';
@@ -954,7 +954,7 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
         doc.fillColor('#6366F1').roundedRect(L, y, 5, bannerH, 2.5).fill();
 
         if (isChap) {
-          doc.fillColor('#4338CA').font('Helvetica-Bold').fontSize(8.5).text('📘 CURRICULUM CHAPTER', L + 14, y + 5);
+          doc.fillColor('#4338CA').font(FONT_BOLD).fontSize(8.5).text('📘 CURRICULUM CHAPTER', L + 14, y + 5);
           doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(14 + FS_MOD).text(hText, L + 14, y + 17, { width: CW - 24, lineBreak: false });
         } else {
           doc.fillColor('#1E1B4B').font(FONT_BOLD).fontSize(15 + FS_MOD).text(hText, L + 14, y + 8, { width: CW - 24, lineBreak: false });

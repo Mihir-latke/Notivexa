@@ -8,6 +8,8 @@ r.post('/import-url', c.importUrl);
 r.get('/', c.list);
 r.get('/stats', c.stats);
 r.get('/:id', c.get);
+r.get('/:id/extracted-text', c.getExtractedText);
+r.patch('/:id/type', c.updateDocumentType);
 r.get('/:id/file', c.getFile);
 r.get('/:id/download', c.downloadFile);
 r.delete('/:id', c.remove);

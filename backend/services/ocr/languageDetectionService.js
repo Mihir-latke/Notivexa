@@ -124,18 +124,19 @@ function detectTextLanguage(text) {
 
   const detectedLanguages = [primaryLang];
 
-  // Detect any secondary scripts with significant representation (> 8% of total letters)
+  // Add any other scripts that have significant presence (> 8% of total characters)
   for (const [script, count] of sortedScripts) {
-    if (script !== primaryScript && (count / totalChars) > 0.08) {
-      let secondaryLang = SCRIPT_RANGES.find(r => r.script === script)?.defaultLang;
+    if (script === primaryScript) continue;
+    if ((count / totalChars) > 0.08) {
+      let otherLang = SCRIPT_RANGES.find(r => r.script === script)?.defaultLang;
       if (script === 'Devanagari') {
         const hasMarathiLa = /\u0933/.test(text);
         const marathiWords = /\b(आहे|नाही|आणि|करून|होते|झाले|त्यांच्या|म्हणून|केले|येथे)\b/g;
         const marathiMatches = text.match(marathiWords) || [];
-        secondaryLang = (hasMarathiLa || marathiMatches.length >= 2) ? 'mar' : 'hin';
+        otherLang = (hasMarathiLa || marathiMatches.length >= 2) ? 'mar' : 'hin';
       }
-      if (secondaryLang && !detectedLanguages.includes(secondaryLang)) {
-        detectedLanguages.push(secondaryLang);
+      if (otherLang && !detectedLanguages.includes(otherLang)) {
+        detectedLanguages.push(otherLang);
       }
     }
   }
@@ -162,36 +163,36 @@ function detectTextLanguage(text) {
  */
 function resolveOutputLanguage(langInput, docPrimaryLang = 'eng') {
   if (!langInput || typeof langInput !== 'string') {
-    return { code: 'en', name: 'English', isOriginal: false };
+    return { code: 'en', name: 'English', isOriginal: false, tesseract: 'eng' };
   }
 
   const lower = langInput.toLowerCase().trim();
 
   if (lower === 'original' || lower === 'source' || lower === 'auto') {
     const docInfo = SUPPORTED_LANGUAGES[docPrimaryLang] || SUPPORTED_LANGUAGES.eng;
-    return { code: docInfo.code, name: docInfo.name, isOriginal: true };
+    return { code: docInfo.code, name: docInfo.name, isOriginal: true, tesseract: docInfo.tesseract || 'eng' };
   }
 
   // Check by Tesseract code
   if (SUPPORTED_LANGUAGES[lower]) {
     const match = SUPPORTED_LANGUAGES[lower];
-    return { code: match.code, name: match.name, isOriginal: lower === docPrimaryLang };
+    return { code: match.code, name: match.name, isOriginal: lower === docPrimaryLang, tesseract: match.tesseract };
   }
 
   // Check by ISO 2-letter code
   const byCode = Object.values(SUPPORTED_LANGUAGES).find(l => l.code === lower);
   if (byCode) {
-    return { code: byCode.code, name: byCode.name, isOriginal: byCode.tesseract === docPrimaryLang };
+    return { code: byCode.code, name: byCode.name, isOriginal: byCode.tesseract === docPrimaryLang, tesseract: byCode.tesseract };
   }
 
   // Check by English name
   const byName = Object.values(SUPPORTED_LANGUAGES).find(l => l.name.toLowerCase() === lower);
   if (byName) {
-    return { code: byName.code, name: byName.name, isOriginal: byName.tesseract === docPrimaryLang };
+    return { code: byName.code, name: byName.name, isOriginal: byName.tesseract === docPrimaryLang, tesseract: byName.tesseract };
   }
 
   // Default fallback
-  return { code: 'en', name: 'English', isOriginal: false };
+  return { code: 'en', name: 'English', isOriginal: false, tesseract: 'eng' };
 }
 
 module.exports = {
@@ -200,3 +201,4 @@ module.exports = {
   detectTextLanguage,
   resolveOutputLanguage
 };
+

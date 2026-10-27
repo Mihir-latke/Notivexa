@@ -8,6 +8,12 @@ const { extractFromUrl } = require('../services/urlEngine');
 const { extractDocumentText } = require('../services/ocr/textExtractionService');
 const localStore = require('../utils/localStore');
 const { extractImagesFromPDF } = require('../services/pdfImageExtractor');
+const {
+  classifyDocument,
+  detectBookStructure,
+  calculateExtractionQuality,
+  cleanRunningHeadersAndNoise
+} = require('../services/bookUnderstandingService');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -39,6 +45,11 @@ function validateMagicBytes(filePath) {
     // WEBP check: RIFF....WEBP
     if (stat.size >= 12 && buf.subarray(0, 4).toString('ascii') === 'RIFF' && buf.subarray(8, 12).toString('ascii') === 'WEBP') {
       return 'image/webp';
+    }
+
+    // DOCX / OpenXML ZIP check: PK 03 04 (50 4B 03 04)
+    if (buf[0] === 0x50 && buf[1] === 0x4B && buf[2] === 0x03 && buf[3] === 0x04) {
+      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     }
 
     return null;
@@ -115,7 +126,10 @@ exports.upload = async (req, res, next) => {
     if (!isDbConnected()) {
       const results = [];
       for (const file of req.files) {
+        const extName = path.extname(file.originalname || '').toLowerCase();
         const isImage = file.mimetype.startsWith('image/');
+        const isDocx = extName === '.docx' || file.mimetype.includes('wordprocessingml') || file.mimetype.includes('officedocument');
+        const fileType = isDocx ? 'docx' : (isImage ? 'image' : 'pdf');
         const docTitle = req.body.title || file.originalname.replace(/\.[^/.]+$/, '');
         const subject = req.body.subject || 'General';
 
@@ -123,11 +137,19 @@ exports.upload = async (req, res, next) => {
           const manualLanguage = req.body.language || req.body.ocrLanguage || null;
           const ext = await extractDocumentText(file.path, file.mimetype, { manualLanguage });
 
+          const userDocType = req.body.documentType || null;
+          const classification = userDocType
+            ? { type: userDocType, confidence: 1.0, reasoning: 'Manually specified by user.' }
+            : classifyDocument(ext.text, { title: docTitle, filename: file.originalname, subject });
+          const docType = classification.type;
+          const bookStructure = detectBookStructure(ext.text, docType);
+          const quality = calculateExtractionQuality(ext.text);
+
           const doc = localStore.createDoc({
             user: userId,
             title: docTitle,
             originalName: file.originalname,
-            fileType: isImage ? 'image' : 'pdf',
+            fileType,
             mimeType: file.mimetype,
             size: file.size,
             filePath: file.path,
@@ -143,11 +165,16 @@ exports.upload = async (req, res, next) => {
             detectedLanguages: ext.detectedLanguages || ['en'],
             isRTL: !!ext.isRTL,
             pageResults: ext.pageResults,
+            documentType: docType,
+            documentTypeUserOverridden: !!userDocType,
+            author: bookStructure.author || '',
+            chapters: bookStructure.chapters || [],
+            extractionQuality: quality,
             status: ext.status || 'ready',
             imagePaths: []
           });
 
-          if (!isImage) {
+          if (!isImage && !isDocx) {
             const docId = (doc._id || doc.id).toString();
             extractImagesFromPDF(file.path, docId).then(imgs => {
               if (imgs.length > 0) {
@@ -164,7 +191,7 @@ exports.upload = async (req, res, next) => {
             user: userId,
             title: docTitle,
             originalName: file.originalname,
-            fileType: isImage ? 'image' : 'pdf',
+            fileType,
             mimeType: file.mimetype,
             size: file.size,
             filePath: file.path,
@@ -196,12 +223,16 @@ exports.upload = async (req, res, next) => {
     // 2. Connected MongoDB
     const results = [];
     for (const file of req.files) {
+      const extName = path.extname(file.originalname || '').toLowerCase();
       const isImage = file.mimetype.startsWith('image/');
+      const isDocx = extName === '.docx' || file.mimetype.includes('wordprocessingml') || file.mimetype.includes('officedocument');
+      const fileType = isDocx ? 'docx' : (isImage ? 'image' : 'pdf');
+
       const doc = await Document.create({
         user: userId,
         title: req.body.title || file.originalname.replace(/\.[^/.]+$/, ''),
         originalName: file.originalname,
-        fileType: isImage ? 'image' : 'pdf',
+        fileType,
         mimeType: file.mimetype,
         size: file.size,
         filePath: file.path,
@@ -212,6 +243,15 @@ exports.upload = async (req, res, next) => {
       try {
         const manualLanguage = req.body.language || req.body.ocrLanguage || null;
         const ext = await extractDocumentText(file.path, file.mimetype, { manualLanguage });
+
+        const userDocType = req.body.documentType || null;
+        const classification = userDocType
+          ? { type: userDocType, confidence: 1.0, reasoning: 'Manually specified by user.' }
+          : classifyDocument(ext.text, { title: doc.title, filename: file.originalname, subject: doc.subject });
+        const docType = classification.type;
+        const bookStructure = detectBookStructure(ext.text, docType);
+        const quality = calculateExtractionQuality(ext.text);
+
         doc.extractedText    = ext.text;
         doc.sections         = ext.sections;
         doc.pageCount        = ext.pages;
@@ -223,10 +263,15 @@ exports.upload = async (req, res, next) => {
         doc.detectedLanguages = ext.detectedLanguages || ['en'];
         doc.isRTL            = !!ext.isRTL;
         doc.pageResults      = ext.pageResults;
+        doc.documentType     = docType;
+        doc.documentTypeUserOverridden = !!userDocType;
+        doc.author           = bookStructure.author || '';
+        doc.chapters         = bookStructure.chapters || [];
+        doc.extractionQuality = quality;
         doc.status           = ext.status || 'ready';
         await doc.save();
 
-        if (!isImage) {
+        if (!isImage && !isDocx) {
           const docId = doc._id.toString();
           extractImagesFromPDF(file.path, docId).then(async imgs => {
             if (imgs.length > 0) {
@@ -375,7 +420,7 @@ exports.list = async (req, res, next) => {
         if (search) filter.title = { $regex: search, $options: 'i' };
         if (status) filter.status = status;
         docs = await Document.find(filter)
-          .select('title originalName fileType size status subject createdAt outputs wordCount pageCount imagePaths')
+          .select('title originalName fileType size status subject createdAt outputs wordCount pageCount imagePaths documentType documentTypeUserOverridden author extractionQuality')
           .sort({ createdAt: -1 })
           .lean();
       } catch (err) {
@@ -451,6 +496,92 @@ exports.get = async (req, res, next) => {
     }
 
     return res.json({ success: true, document: doc });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.getExtractedText = async (req, res, next) => {
+  try {
+    const docId = req.params.id;
+    const userId = req.user?.id || req.user?._id;
+    let doc = null;
+
+    if (isDbConnected()) {
+      try {
+        if (mongoose.Types.ObjectId.isValid(docId)) {
+          doc = await Document.findOne({ _id: docId, user: userId });
+        }
+      } catch (err) {
+        console.warn('[DocGetExtracted DB Error]', err.message);
+      }
+    }
+
+    if (!doc) doc = localStore.getDocById(docId, userId);
+    if (!doc && SAMPLE_DEMO_DOCS?.length > 0) {
+      doc = SAMPLE_DEMO_DOCS.find(x => (x._id && x._id.toString() === docId.toString()) || x.id === docId);
+    }
+
+    if (!doc) {
+      return res.status(404).json({ error: 'Document not found or access denied.' });
+    }
+
+    return res.json({
+      success: true,
+      documentId: docId,
+      title: doc.title,
+      documentType: doc.documentType || 'academic_textbook',
+      documentTypeUserOverridden: !!doc.documentTypeUserOverridden,
+      author: doc.author || '',
+      primaryLanguage: doc.primaryLanguage || 'en',
+      detectedLanguages: doc.detectedLanguages || ['en'],
+      wordCount: doc.wordCount || 0,
+      pageCount: doc.pageCount || 0,
+      extractionQuality: doc.extractionQuality || { score: 100, confidence: 100 },
+      chapters: doc.chapters || [],
+      sections: doc.sections || [],
+      extractedText: doc.extractedText || ''
+    });
+  } catch (e) {
+    next(e);
+  }
+};
+
+exports.updateDocumentType = async (req, res, next) => {
+  try {
+    const docId = req.params.id;
+    const userId = req.user?.id || req.user?._id;
+    const { documentType } = req.body;
+    if (!documentType) {
+      return res.status(400).json({ error: 'documentType is required.' });
+    }
+
+    let updated = null;
+    if (isDbConnected() && mongoose.Types.ObjectId.isValid(docId)) {
+      try {
+        updated = await Document.findOneAndUpdate(
+          { _id: docId, user: userId },
+          { documentType, documentTypeUserOverridden: true },
+          { new: true }
+        );
+      } catch (err) {
+        console.warn('[DocUpdateType DB Error]', err.message);
+      }
+    }
+
+    if (!updated) {
+      updated = localStore.updateDoc(docId, { documentType, documentTypeUserOverridden: true }, userId);
+    }
+
+    if (!updated) {
+      return res.status(404).json({ error: 'Document not found or access denied.' });
+    }
+
+    return res.json({
+      success: true,
+      message: 'Document classification updated successfully.',
+      document: updated
+    });
   } catch (e) {
     next(e);
   }

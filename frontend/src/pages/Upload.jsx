@@ -11,6 +11,7 @@ export default function Upload() {
   const [result, setResult] = useState(null)
   const [subject, setSubject] = useState('')
   const [ocrLanguage, setOcrLanguage] = useState('auto')
+  const [documentType, setDocumentType] = useState('auto')
   
   // Google Drive state
   const [driveUrl, setDriveUrl] = useState('')
@@ -77,8 +78,9 @@ export default function Upload() {
   }
 
   const addFiles = fs => {
-    const arr = Array.from(fs).filter(f => f.type === 'application/pdf' || f.type.startsWith('image/'))
-    if (arr.length < Array.from(fs).length) toast.error('Only PDF and image files are accepted')
+    const isDocx = f => f.name.toLowerCase().endsWith('.docx') || (f.type && (f.type.includes('wordprocessingml') || f.type.includes('officedocument')))
+    const arr = Array.from(fs).filter(f => f.type === 'application/pdf' || f.type.startsWith('image/') || isDocx(f))
+    if (arr.length < Array.from(fs).length) toast.error('Only PDF, image, and DOCX files are accepted')
     const mapped = arr.map(f => ({ file:f, id:Date.now()+Math.random(), name:f.name, size:(f.size/1024/1024).toFixed(2)+' MB', progress:0, done:false, error:null }))
     setFiles(prev => [...prev, ...mapped])
   }
@@ -91,6 +93,7 @@ export default function Upload() {
       files.forEach(f => fd.append('files', f.file))
       if (subject) fd.append('subject', subject)
       if (ocrLanguage && ocrLanguage !== 'auto') fd.append('language', ocrLanguage)
+      if (documentType && documentType !== 'auto') fd.append('documentType', documentType)
       setFiles(prev => prev.map(f => ({ ...f, progress: 20 })))
       const res = await api.post('/documents/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -244,7 +247,7 @@ export default function Upload() {
                 <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, marginBottom:5 }}>Drop PDF/Image files here or click to browse</div>
                 <div style={{ fontSize:12, color:'var(--ink3)' }}>PDF or Images · Up to 10 files · 50MB each</div>
               </div>
-              <input ref={ref} type="file" multiple accept=".pdf,application/pdf,image/*" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
+              <input ref={ref} type="file" multiple accept=".pdf,application/pdf,image/*,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:12 }}>
                 <button className="btn btn-s" style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:5 }} onClick={() => cameraRef.current?.click()}>📸 Take Photo</button>
@@ -265,7 +268,9 @@ export default function Upload() {
                 <div style={{ marginTop:13, display:'flex', flexDirection:'column', gap:7 }}>
                   {files.map(f => (
                     <div key={f.id} className="fr">
-                      <div className="fb fb-p">{f.file.type.startsWith('image/') ? 'IMG' : 'PDF'}</div>
+                      <div className="fb fb-p">
+                        {f.file.name.toLowerCase().endsWith('.docx') ? 'DOCX' : (f.file.type.startsWith('image/') ? 'IMG' : 'PDF')}
+                      </div>
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:13, fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{f.name}</div>
                         <div style={{ fontSize:11, color:'var(--ink3)' }}>{f.size}</div>
@@ -572,6 +577,26 @@ export default function Upload() {
               </select>
               <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
                 Supports English, Hindi, Marathi, Gujarati, Tamil, Arabic, Spanish, etc.
+              </div>
+            </div>
+
+            <div className="fg" style={{ marginTop: 12 }}>
+              <label className="fl">Book / Document Category</label>
+              <select className="fi" value={documentType} onChange={e => setDocumentType(e.target.value)}>
+                <option value="auto">✨ Auto-Detect (Content & Structure Classification)</option>
+                <option value="academic_textbook">📚 Academic Textbook</option>
+                <option value="novel_fiction">📖 Novel & Fiction</option>
+                <option value="poetry_literature">🎭 Poetry & Literature</option>
+                <option value="history_biography">📜 History & Biography</option>
+                <option value="science_mathematics">🔬 Science & Mathematics</option>
+                <option value="computer_science">💻 Computer Science & Tech</option>
+                <option value="research_paper">📑 Research Paper</option>
+                <option value="study_guide">📝 Study Guide & Question Bank</option>
+                <option value="reference_manual">📕 Reference Manual & Handbook</option>
+                <option value="general_nonfiction">💡 General Non-Fiction</option>
+              </select>
+              <div style={{ fontSize: 11, color: 'var(--ink3)', marginTop: 4 }}>
+                Tailors notes appropriately: character analysis for novels, chronology for history, methodology for research papers.
               </div>
             </div>
           </div>

@@ -20,6 +20,19 @@ const TOOLS = [
   { id:'vocabulary',  icon:'🔤', label:'Vocabulary',         desc:'Key terms with Hindi meanings' },
 ]
 
+export const DOCUMENT_TYPE_LABELS = {
+  academic_textbook: '📚 Academic Textbook',
+  novel_fiction: '📖 Novel & Fiction',
+  poetry_literature: '🎭 Poetry & Literature',
+  history_biography: '📜 History & Biography',
+  science_mathematics: '🔬 Science & Mathematics',
+  computer_science: '💻 Computer Science & Tech',
+  research_paper: '📑 Research Paper',
+  study_guide: '📝 Study Guide & Questions',
+  reference_manual: '📕 Reference Manual',
+  general_nonfiction: '💡 General Non-Fiction'
+};
+
 export const LANGS = [
   'English',
   'Original',
@@ -650,6 +663,41 @@ export default function Notebook() {
   const [exportingPdf, setExportingPdf] = useState(false)
   const [notesViewMode, setNotesViewMode] = useState('formatted') // 'formatted' | 'handwritten'
 
+  // Document understanding & raw text inspection modal states
+  const [rawTextModalOpen, setRawTextModalOpen] = useState(false)
+  const [rawTextData, setRawTextData] = useState(null)
+  const [rawTextLoading, setRawTextLoading] = useState(false)
+  const [changingType, setChangingType] = useState(false)
+
+  const handleOpenRawText = async () => {
+    if (!docId) return
+    setRawTextLoading(true)
+    setRawTextModalOpen(true)
+    try {
+      const res = await api.get(`/documents/${docId}/extracted-text`)
+      setRawTextData(res.data)
+    } catch (err) {
+      toast.error('Could not load extracted text.')
+    } finally {
+      setRawTextLoading(false)
+    }
+  }
+
+  const handleUpdateDocType = async (newType) => {
+    if (!docId || !newType) return
+    setChangingType(true)
+    try {
+      await api.patch(`/documents/${docId}/type`, { documentType: newType })
+      setDoc(prev => ({ ...prev, documentType: newType, documentTypeUserOverridden: true }))
+      setDocs(prev => prev.map(d => (((d._id || d.id) === docId) ? { ...d, documentType: newType, documentTypeUserOverridden: true } : d)))
+      toast.success('Document classification updated!')
+    } catch (err) {
+      toast.error('Failed to update document type.')
+    } finally {
+      setChangingType(false)
+    }
+  }
+
   useEffect(() => {
     if (!slideshowOpen) return
     const onKeyDown = (e) => {
@@ -719,7 +767,12 @@ export default function Notebook() {
     if (!docId) { toast.error('Select a document first'); return }
     setLoading(true); setResult(null)
     try {
-      const payload = { documentId: docId, language: lang, outputLanguage: lang }
+      const payload = { 
+        documentId: docId, 
+        language: lang, 
+        outputLanguage: lang,
+        documentType: doc?.documentType || 'academic_textbook'
+      }
       if (section !== '') payload.sectionIndex = parseInt(section)
       if (tool === 'paper') {
         payload.totalMarks = paperType === '20_MARKS' ? 20 : 60
@@ -2728,34 +2781,44 @@ export default function Notebook() {
     }
 
     if (t === 'video') {
+      const getAuthedMediaUrl = (url) => {
+        if (!url) return '';
+        const token = localStorage.getItem('ntv_token');
+        if (!token || url.includes('token=')) return url;
+        return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+      };
+      const finalVideoUrl = getAuthedMediaUrl(data.videoUrl);
+      const finalAudioUrl = getAuthedMediaUrl(data.audioUrl);
+
       return (
         <div>
-          <div className="ib g" style={{ marginBottom:12 }}>{data.message || 'Cartoon Classroom Short video generated!'}</div>
+          <div className="ib g" style={{ marginBottom:12 }}>{data.message || 'Educational Video Lecture generated!'}</div>
           {data.videoUrl && (
             <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }}>
               <video
                 controls
                 playsInline
                 preload="metadata"
+                key={finalVideoUrl}
                 style={{
-                  maxWidth: 360,
+                  maxWidth: 680,
                   width: '100%',
-                  maxHeight: 640,
+                  aspectRatio: '16 / 9',
                   borderRadius: 14,
                   display: 'block',
                   background: '#0f172a',
                   boxShadow: '0 10px 32px rgba(0,0,0,0.22)'
                 }}
               >
-                <source src={data.videoUrl} type="video/mp4" />
+                <source src={finalVideoUrl} type="video/mp4" />
                 Your browser does not support HTML5 video.
               </video>
             </div>
           )}
           <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', justifyContent: 'center' }}>
-            {data.videoUrl && <a href={data.videoUrl} download="cartoon_classroom_short.mp4" className="btn btn-p btn-sm" style={{ textDecoration:'none' }}>⬇️ Download Video MP4</a>}
+            {data.videoUrl && <a href={finalVideoUrl} download="notivexa_lecture_video.mp4" className="btn btn-p btn-sm" style={{ textDecoration:'none' }}>⬇️ Download Video MP4</a>}
             {data.slidesUrl && <a href={data.slidesUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none' }}>⬇️ Slides PDF</a>}
-            {data.audioUrl && <a href={data.audioUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none', background:'transparent', color:'var(--ink2)', border:'1px solid var(--bdr)' }}>⬇️ Audio Only</a>}
+            {data.audioUrl && <a href={finalAudioUrl} download="lecture_audio.mp3" className="btn btn-s btn-sm" style={{ textDecoration:'none', background:'transparent', color:'var(--ink2)', border:'1px solid var(--bdr)' }}>⬇️ Audio Only</a>}
           </div>
           <div style={{ fontFamily:'Sora,sans-serif', fontSize:13, fontWeight:700, marginBottom:8 }}>📜 1-2 Minute Lecture Script:</div>
           <div className="ob">
@@ -3051,8 +3114,63 @@ export default function Notebook() {
               </select>
             )}
             {doc && (
-              <div style={{ marginTop:10, fontSize:12, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'8px 12px', color:'#166534' }}>
-                ✅ <strong>{doc.title}</strong> — {doc.wordCount?.toLocaleString()} words · {doc.pageCount} pages · {doc.sections?.length} sections
+              <div style={{ marginTop:10, fontSize:12, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'10px 12px', color:'#166534' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:6, marginBottom:6 }}>
+                  <div>
+                    ✅ <strong>{doc.title}</strong>
+                    {doc.author && <span style={{ color:'#15803D', marginLeft:6 }}>by {doc.author}</span>}
+                  </div>
+                  <button 
+                    type="button" 
+                    className="btn btn-sm" 
+                    onClick={handleOpenRawText}
+                    style={{ background:'#FFFFFF', border:'1px solid #86EFAC', color:'#15803D', fontSize:11, padding:'3px 8px', borderRadius:6, cursor:'pointer' }}
+                  >
+                    🔍 View Extracted Text
+                  </button>
+                </div>
+
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:11.5, color:'#14532D' }}>
+                  <span>{doc.wordCount?.toLocaleString() || 0} words · {doc.pageCount || 0} pages · {doc.sections?.length || 0} sections</span>
+                  {doc.extractionQuality && (
+                    <span style={{ 
+                      padding:'2px 7px', 
+                      borderRadius:10, 
+                      fontWeight:600,
+                      background: doc.extractionQuality.score >= 70 ? '#DCFCE7' : '#FEF3C7',
+                      color: doc.extractionQuality.score >= 70 ? '#15803D' : '#B45309'
+                    }}>
+                      {doc.extractionQuality.score >= 70 ? '✓ Quality: Good' : '⚠️ Quality: Partial'} ({doc.extractionQuality.score}/100)
+                    </span>
+                  )}
+                </div>
+
+                {/* Document Type Badge and quick change dropdown */}
+                <div style={{ marginTop:8, paddingTop:8, borderTop:'1px dashed #BBF7D0', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    <span style={{ fontWeight:700, fontSize:11.5 }}>Book Type:</span>
+                    <span style={{ background:'#DCFCE7', color:'#166534', padding:'2px 8px', borderRadius:12, fontWeight:700, fontSize:11 }}>
+                      {DOCUMENT_TYPE_LABELS[doc.documentType] || '📚 Academic Textbook'}
+                    </span>
+                  </div>
+                  <select 
+                    style={{ fontSize:11, padding:'2px 6px', borderRadius:6, border:'1px solid #86EFAC', background:'#FFFFFF', color:'#15803D' }}
+                    value={doc.documentType || 'academic_textbook'}
+                    onChange={e => handleUpdateDocType(e.target.value)}
+                    disabled={changingType}
+                  >
+                    <option value="academic_textbook">📚 Academic Textbook</option>
+                    <option value="novel_fiction">📖 Novel & Fiction</option>
+                    <option value="poetry_literature">🎭 Poetry & Literature</option>
+                    <option value="history_biography">📜 History & Biography</option>
+                    <option value="science_mathematics">🔬 Science & Mathematics</option>
+                    <option value="computer_science">💻 Computer Science & Tech</option>
+                    <option value="research_paper">📑 Research Paper</option>
+                    <option value="study_guide">📝 Study Guide</option>
+                    <option value="reference_manual">📕 Reference Manual</option>
+                    <option value="general_nonfiction">💡 General Non-Fiction</option>
+                  </select>
+                </div>
               </div>
             )}
             {doc?.sections?.length > 1 && (
@@ -3358,6 +3476,190 @@ export default function Notebook() {
           </div>
         )}
       </div>
+
+      {/* Raw Extracted Text & Quality Inspection Modal */}
+      {rawTextModalOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 0, 0, 0.65)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16
+          }}
+          onClick={() => setRawTextModalOpen(false)}
+        >
+          <div 
+            style={{
+              background: 'var(--card)',
+              borderRadius: 14,
+              maxWidth: 860,
+              width: '100%',
+              maxHeight: '88vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 20px 45px rgba(0,0,0,0.3)',
+              border: '1px solid var(--bdr)'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--bdr)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--ink)' }}>
+                  📄 Raw Extracted Text & Understanding
+                </h3>
+                <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 2 }}>
+                  {rawTextData?.title || doc?.title}
+                </div>
+              </div>
+              <button 
+                className="btn btn-g btn-sm"
+                onClick={() => setRawTextModalOpen(false)}
+                style={{ fontSize: 16, padding: '4px 10px', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '16px 20px', overflowY: 'auto', flex: 1 }}>
+              {rawTextLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--ink3)' }}>
+                  <div style={{ fontSize: 24, marginBottom: 8 }}>⏳</div>
+                  <div>Loading raw extracted document text...</div>
+                </div>
+              ) : rawTextData ? (
+                <div>
+                  {/* Quality & Metadata banner */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+                    gap: 10,
+                    marginBottom: 16,
+                    background: 'var(--bg)',
+                    padding: 12,
+                    borderRadius: 10,
+                    border: '1px solid var(--bdr)'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase' }}>Book Category</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 2 }}>
+                        {DOCUMENT_TYPE_LABELS[rawTextData.documentType] || rawTextData.documentType}
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase' }}>Extracted Words</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 2 }}>
+                        {rawTextData.wordCount?.toLocaleString() || 0} words ({rawTextData.pageCount || 0} pages)
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase' }}>Primary Language</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 2 }}>
+                        {rawTextData.primaryLanguage?.toUpperCase()} ({rawTextData.detectedLanguages?.join(', ') || 'en'})
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase' }}>Extraction Quality</div>
+                      <div style={{ 
+                        fontSize: 13, 
+                        fontWeight: 700, 
+                        color: (rawTextData.extractionQuality?.score || 100) >= 70 ? '#15803D' : '#B45309', 
+                        marginTop: 2 
+                      }}>
+                        {rawTextData.extractionQuality?.score || 100}/100
+                        {(rawTextData.extractionQuality?.score || 100) >= 70 ? ' (Clean)' : ' (Noisy)'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {rawTextData.extractionQuality?.warning && (
+                    <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', padding: '8px 12px', borderRadius: 8, fontSize: 12, marginBottom: 14 }}>
+                      ⚠️ {rawTextData.extractionQuality.warning}
+                    </div>
+                  )}
+
+                  {/* Chapters detected if any */}
+                  {rawTextData.chapters && rawTextData.chapters.length > 0 && (
+                    <div style={{ marginBottom: 14 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)', marginBottom: 6 }}>
+                        📚 Real Chapters Detected ({rawTextData.chapters.length}):
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {rawTextData.chapters.slice(0, 12).map((ch, idx) => (
+                          <span 
+                            key={idx} 
+                            style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', padding: '3px 8px', borderRadius: 12, fontSize: 11, fontWeight: 600 }}
+                          >
+                            {ch.title || `Chapter ${idx + 1}`}
+                          </span>
+                        ))}
+                        {rawTextData.chapters.length > 12 && (
+                          <span style={{ fontSize: 11, color: 'var(--ink3)', alignSelf: 'center' }}>
+                            +{rawTextData.chapters.length - 12} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Raw Extracted Text Content */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ink2)' }}>
+                      Raw Text Extracted from File:
+                    </span>
+                    <button 
+                      className="btn btn-g btn-sm"
+                      onClick={() => {
+                        if (rawTextData?.extractedText) {
+                          navigator.clipboard?.writeText(rawTextData.extractedText);
+                          toast.success('Extracted text copied to clipboard!');
+                        }
+                      }}
+                      style={{ fontSize: 11, padding: '3px 8px' }}
+                    >
+                      📋 Copy All Text
+                    </button>
+                  </div>
+                  <pre 
+                    style={{
+                      background: 'var(--bg)',
+                      border: '1px solid var(--bdr)',
+                      borderRadius: 8,
+                      padding: 12,
+                      fontSize: 12,
+                      lineHeight: 1.6,
+                      color: 'var(--ink)',
+                      whiteSpace: 'pre-wrap',
+                      wordBreak: 'break-word',
+                      maxHeight: 380,
+                      overflowY: 'auto',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+                    }}
+                  >
+                    {rawTextData.extractedText || 'No text extracted from this document.'}
+                  </pre>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '30px 0', color: 'var(--ink3)' }}>
+                  No text data available.
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--bdr)', display: 'flex', justifyContent: 'flex-end' }}>
+              <button className="btn btn-p btn-sm" onClick={() => setRawTextModalOpen(false)}>
+                Close Preview
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

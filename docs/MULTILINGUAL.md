@@ -1,4 +1,4 @@
-# Notivexa Multilingual Architecture & Documentation
+   # Notivexa Multilingual Architecture & Documentation
 
 ## Overview
 
@@ -113,3 +113,4 @@ Tests cover:
 - Traineddata on-demand downloading and offline fallback.
 - Unicode PDF rendering for Devanagari (Hindi/Marathi) and Cyrillic (Russian).
 - Arabic DOCX and PPTX exports with RTL mode enabled.
+

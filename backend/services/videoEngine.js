@@ -245,33 +245,32 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 45
       return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${cs.toString().padStart(2, '0')}`;
     };
 
+    const hasDevanagari = /[\u0900-\u097F]/.test(rawScript);
+    const fontName = hasDevanagari ? 'Nirmala UI, Mangal, Arial' : 'Arial';
+
     let assContent = `[Script Info]
 ScriptType: v4.00+
-PlayResX: 720
-PlayResY: 1280
+PlayResX: 1280
+PlayResY: 720
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: TopHeader,Arial,25,&H00FFFFFF,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,8,2,8,20,20,30,1
-Style: BoardTitle,Arial,25,&H0022D3EE,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,68,1
-Style: BoardBullets,Arial,22,&H00F0FDF4,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,7,2,8,45,45,108,1
-Style: BottomPill,Arial,22,&H00FFFFFF,&H00000000,&H000F172A,&HFF000000,-1,0,0,0,100,100,0,0,1,6,2,2,20,20,30,1
-Style: ActiveDialogue,Arial,36,&H00FFFFFF,&H00FFFFFF,&H00000000,&HB0000000,-1,0,0,0,100,100,0,0,1,8,3,8,25,25,315,1
+Style: TopHeader,${fontName},24,&H00FFFFFF,&H00000000,&H000F172A,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,8,30,30,15,1
+Style: ActiveDialogue,${fontName},28,&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000,-1,0,0,0,100,100,0,0,1,3,2,2,40,40,32,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopHeader,,0,0,0,,{\\b1}🎓 LECTURE: ${topicName.toUpperCase()} | SMART STUDY{\\b0}
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardTitle,,0,0,0,,{\\b1}📌 KEY SYLLABUS PRINCIPLES:{\\b0}
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BoardBullets,,0,0,0,,{\\b1}• 1. ${points[0] || 'Core Architecture'}\\N• 2. ${points[1] || 'Process Workflow'}\\N• 3. ${points[2] || 'Exam Takeaway'}{\\b0}
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1}📚 Notivexa Smart Study | Verified Document Lecture{\\b0}
+Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopHeader,,0,0,0,,{\\b1}🎓 LECTURE: ${topicName.toUpperCase()} | Notivexa Smart Study{\\b0}
 `;
 
     dialogueLines.forEach(item => {
       const isTeacher = item.speaker === 'teacher';
+      const teacherLabel = hasDevanagari ? '[प्राध्यापक]: ' : '[PROFESSOR]: ';
+      const studentLabel = hasDevanagari ? '[विद्यार्थी]: ' : '[STUDENT]: ';
       const prefix = item.isFirstChunk
-        ? (isTeacher ? '{\\c&H00D7FF&\\b1}[PROFESSOR]: {\\c&HFFFFFF&\\b0}' : '{\\c&HFFE259&\\b1}[STUDENT]: {\\c&HFFFFFF&\\b0}')
+        ? (isTeacher ? `{\\c&H00D7FF&\\b1}${teacherLabel}{\\c&HFFFFFF&\\b0}` : `{\\c&HFFE259&\\b1}${studentLabel}{\\c&HFFFFFF&\\b0}`)
         : (isTeacher ? '{\\c&H00D7FF&\\b1}• {\\c&HFFFFFF&\\b0}' : '{\\c&HFFE259&\\b1}• {\\c&HFFFFFF&\\b0}');
-      assContent += `Dialogue: 2,${formatAssTime(item.start)},${formatAssTime(item.end)},ActiveDialogue,,0,0,315,,{\\fscx95\\fscy95\\t(0,60,\\fscx100\\fscy100)}${prefix}${item.text}\n`;
+      assContent += `Dialogue: 2,${formatAssTime(item.start)},${formatAssTime(item.end)},ActiveDialogue,,0,0,32,,{\\fscx95\\fscy95\\t(0,60,\\fscx100\\fscy100)}${prefix}${item.text}\n`;
     });
 
     fs.writeFileSync(assPath, assContent);
@@ -294,11 +293,11 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
       // Input 0: Audio track
       cmd = cmd.input(finalAudioPath);
 
-      // Input 1: Motion Video Footage (NO static image inputs)
+      // Input 1: Motion Video Footage (1280x720 landscape educational presentation)
       if (motionVideoPath) {
         cmd = cmd.input(motionVideoPath).inputOptions(['-stream_loop', '-1', '-t', String(targetDuration)]);
       } else {
-        cmd = cmd.input('color=c=#0f172a:s=720x1280:r=24').inputFormat('lavfi').inputOptions(['-t', String(targetDuration)]);
+        cmd = cmd.input('color=c=#0f172a:s=1280x720:r=24').inputFormat('lavfi').inputOptions(['-t', String(targetDuration)]);
       }
 
       // Filtergraph construction
@@ -306,20 +305,23 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},BottomPill,,0,0,0,,{\\b1
         '[0:a]asplit=2[a_wave][a_out]'
       ];
 
-      // Format video: scale & crop to vertical 9:16 (720x1280)
+      // Format video: scale & fit to 1280x720 without distorting the real teacher footage
       if (motionVideoPath) {
-        complexFilter.push(`[1:v]scale=720:1280:force_original_aspect_ratio=increase,crop=720:1280,format=yuv420p[base_vid]`);
+        complexFilter.push(`[1:v]scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=yuv420p[base_vid]`);
       } else {
         complexFilter.push(`[1:v]format=yuv420p[base_vid]`);
       }
 
-      // Classroom chalkboard frame on top with key syllabus concepts
-      complexFilter.push(`[base_vid]drawbox=x=25:y=50:w=670:h=225:color=#061c14@0.90:t=fill[bg_board]`);
-      complexFilter.push(`[bg_board]drawbox=x=25:y=50:w=670:h=225:color=#10b981@0.85:t=3[bg_board_framed]`);
+      // Top semi-transparent header bar
+      complexFilter.push(`[base_vid]drawbox=x=0:y=0:w=1280:h=55:color=#061c14@0.80:t=fill[top_bar]`);
 
-      // Add audio visualizer waveform across bottom (lightweight for 512MB RAM cloud containers)
-      complexFilter.push(`[a_wave]showwaves=s=720x60:colors=#10b981:mode=line:rate=20,colorkey=black:0.1:0.1[wave]`);
-      complexFilter.push(`[bg_board_framed][wave]overlay=0:H-h-110:shortest=1[scene_wave]`);
+      // Bottom subtitle container with subtle Scholar Green border
+      complexFilter.push(`[top_bar]drawbox=x=40:y=625:w=1200:h=75:color=#0f172a@0.85:t=fill[sub_bar]`);
+      complexFilter.push(`[sub_bar]drawbox=x=40:y=625:w=1200:h=75:color=#10b981@0.75:t=2[sub_framed]`);
+
+      // Add audio visualizer waveform across bottom
+      complexFilter.push(`[a_wave]showwaves=s=1200x25:colors=#10b981:mode=line:rate=20,colorkey=black:0.1:0.1[wave]`);
+      complexFilter.push(`[sub_framed][wave]overlay=40:600:shortest=1[scene_wave]`);
 
       if (withSubtitles && hasAss && relAssPath) {
         complexFilter.push(`[scene_wave]ass='${relAssPath}'[out_final]`);

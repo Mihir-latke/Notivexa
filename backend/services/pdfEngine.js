@@ -5,6 +5,10 @@
  */
 const pdfParse = require('pdf-parse');
 const fs = require('fs');
+const {
+  cleanRunningHeadersAndNoise,
+  extractEntitiesAndThemes
+} = require('./bookUnderstandingService');
 
 // ═══════════════════════════════════════════════════════════
 // EXTRACTION
@@ -71,30 +75,39 @@ function buildSections(text) {
 // ═══════════════════════════════════════════════════════════
 
 function getSentences(text) {
-  return (text.match(/[^.!?\n]{20,400}[.!?]/g) || []).map(s => s.trim());
+  if (!text || typeof text !== 'string') return [];
+  // Match sentences ending with ., !, ?, Indic danda (।, ॥), Arabic/Urdu stop/question (۔, ؟), or CJK stops (。, ！, ？), or double newline
+  const matches = text.match(/[^.!?।॥۔؟。！？\n]{15,500}[.!?।॥۔؟।！？]|\n{2,}/g);
+  if (matches) {
+    return matches.map(s => s.trim()).filter(s => s.length >= 15);
+  }
+  return text.split(/(?<=[.!?।॥۔؟।！？\n])\s+/).map(s => s.trim()).filter(s => s.length >= 15);
 }
 
 function getKeyFacts(text, max = 20) {
   const sentences = getSentences(text);
-  const important = /\d+|formula|equation|theorem|law|principle|definition|important|key|note|result|therefore|thus|hence|=|→|∝/i;
+  const important = /\d+|formula|equation|theorem|law|principle|definition|important|key|note|result|therefore|thus|hence|=|→|∝|महत्त्व|नियम|तत्व|सूत्र|कारण|परिणाम/i;
   return sentences.filter(s => important.test(s)).slice(0, max);
 }
 
 function getDefinitions(text, max = 15) {
+  if (!text) return [];
   const defs = [];
   const pats = [
     /([A-Za-z][A-Za-z\s]{2,35})\s+(?:is|are)\s+(?:defined as|known as|called|said to be)\s+([^.]{20,200})/gi,
     /([A-Za-z][A-Za-z\s]{2,35})\s+refers?\s+to\s+([^.]{20,200})/gi,
     /([A-Za-z][A-Za-z\s]{2,35})\s+means?\s+([^.]{20,200})/gi,
     /([A-Za-z][A-Za-z\s]{2,35}):\s+([A-Z][^.\n]{20,200})/g,
+    /([\u0900-\u097F\s]{2,35})\s+(?:म्हणजे|म्हणतात|का अर्थ)\s+([^।\n]{15,200})/g,
+    /([\u0900-\u097F\s]{2,35}):\s+([\u0900-\u097F][^।\n]{15,200})/g
   ];
   for (const p of pats) {
     let m;
     while ((m = p.exec(text)) !== null) {
       const term = m[1].trim();
       const def = m[2].trim();
-      if (term.split(' ').length <= 5 && def.length >= 20 && !defs.find(d => d.term === term)) {
-        defs.push({ term, definition: def.slice(0,250) });
+      if (term.split(' ').length <= 6 && def.length >= 15 && !defs.find(d => d.term === term)) {
+        defs.push({ term, definition: def.slice(0, 250) });
         if (defs.length >= max) break;
       }
     }
@@ -103,13 +116,28 @@ function getDefinitions(text, max = 15) {
 }
 
 function getTopics(text) {
+  if (!text || typeof text !== 'string') return [];
   const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
   const topics = [];
+  const isNoise = (str) => {
+    if (!str || str.length < 3) return true;
+    if (/^(page|pg\.?|p\.)\s*\d+/i.test(str)) return true;
+    if (/^\d+(\s*(of|\/)\s*\d+)?$/i.test(str)) return true;
+    if (/^\[?\d+\]?$/.test(str)) return true;
+    if (/^isbn/i.test(str)) return true;
+    if (/^copyright/i.test(str)) return true;
+    if (/^all rights reserved/i.test(str)) return true;
+    if (/^(published|printed|e-?book|publisher|edition|price|mrp)/i.test(str)) return true;
+    if (/^[•|–—]\s*/.test(str)) return true;
+    return false;
+  };
+
   for (const l of lines) {
     const clean = l.replace(/^#+\s*/, '').replace(/^\*\*(.*?)\*\*$/, '$1').trim();
-    if (clean.length > 4 && clean.length < 100 && /^[A-Za-z\u0900-\u097F]/.test(clean)) {
-      if (/^[A-Z][A-Za-z0-9\s\-–:()]{4,}$/.test(clean) ||
-          /^(chapter|unit|section|module|topic|part|\d+[\.\)])/i.test(clean) ||
+    if (clean.length >= 3 && clean.length <= 100 && /^[A-Za-z\u0900-\u097F\u0600-\u06FF\u4E00-\u9FFF]/.test(clean)) {
+      if (isNoise(clean)) continue;
+      if (/^[A-Z\u0900-\u097F][A-Za-z0-9\u0900-\u097F\s\-–:()]{3,}$/.test(clean) ||
+          /^(chapter|unit|section|module|topic|part|अध्याय|प्रकरण|घटक|पाठ)\s+[\d\w\u0966-\u096F]/i.test(clean) ||
           l.startsWith('#') || (l.startsWith('**') && l.endsWith('**'))) {
         if (!topics.includes(clean)) {
           topics.push(clean);
@@ -141,77 +169,172 @@ function firstN(text, n = 3) {
 // CONTENT GENERATORS — all use actual PDF text
 // ═══════════════════════════════════════════════════════════
 
-function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1) {
+function makeNovelHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
   const topics = getTopics(text);
-  const defs = getDefinitions(text, 12);
-  const facts = getKeyFacts(text, 25);
   const sentences = getSentences(text);
+  const entitiesAndThemes = extractEntitiesAndThemes(text, 'novel_fiction');
+  const numModules = Math.min(6, Math.max(2, Math.ceil(sentences.length / 8)));
+  const textChunks = getChunks(text, numModules);
 
-  const heading = topics[0] || `Module ${idx}: Core Architecture & Concepts`;
-  const overview = sentences.slice(0, 3).join(' ') || firstN(text, 2);
-  const mainDef = defs[0] ? `${defs[0].term}: ${defs[0].definition}` : `Fundamental principles and operating mechanisms of ${heading}.`;
+  let out = `# Chapter ${idx}: ${subject || title} — Literary Narrative & Themes\n\n`;
 
-  let out = `# Chapter ${idx}: ${subject || title} — Academic Syllabus\n\n`;
-  out += `## Topic ${idx}.1: ${heading}\n\n`;
-  out += `**Definition:** ${mainDef}\n\n`;
-  out += `**Overview:** ${overview}\n\n`;
+  for (let m = 0; m < numModules; m++) {
+    const chunkText = textChunks[m] || text;
+    const chunkSentences = getSentences(chunkText);
+    const heading = topics[m] || `प्रकरण / Scene ${idx}.${m + 1}`;
+    const settingContext = chunkSentences.slice(0, 3).join(' ') || firstN(chunkText, 2);
+    const summary = chunkSentences.slice(3, 7).join(' ') || firstN(chunkText, 3);
 
-  out += `### Subtopic: Key Foundational Points\n`;
-  const keyPoints = facts.length >= 6 ? facts.slice(0, 8) : sentences.slice(2, 9);
-  keyPoints.forEach(f => {
-    out += `- ${f.replace(/^[-•*\d.]+\s*/, '')}\n`;
-  });
-  out += '\n';
+    out += `## Topic ${idx}.${m + 1}: ${heading}\n\n`;
+    out += `DEFINITION: ${settingContext}\n\n`;
+    out += `SUMMARY: ${summary}\n\n`;
 
-  out += `### Subtopic: In-Depth Conceptual Explanation\n`;
-  const p1 = sentences.slice(3, 7).join(' ');
-  const p2 = sentences.slice(7, 11).join(' ');
-  const p3 = sentences.slice(11, 15).join(' ');
-  if (p1) out += `${p1}\n\n`;
-  if (p2) out += `${p2}\n\n`;
-  if (p3) out += `${p3}\n\n`;
-
-  if (defs.length > 1) {
-    out += `### Subtopic: Comparative Specifications & Definitions\n\n`;
-    out += `| Term / Concept | Category | Specification / Rule |\n`;
-    out += `|---|---|---|\n`;
-    defs.slice(0, 4).forEach(d => {
-      out += `| ${d.term.slice(0, 25)} | Foundational Principle | ${d.definition.slice(0, 45)} |\n`;
+    out += `### Subtopic: Key Events & Plot Progression\n\n`;
+    out += `EXPLANATION:\n`;
+    const plotPoints = chunkSentences.slice(2, 9);
+    plotPoints.forEach((p, i) => {
+      out += `- Event & Interaction ${i + 1}: ${p.replace(/^[-•*\d.]+\s*/, '')}\n`;
     });
     out += '\n';
-  }
 
-  out += `### Subtopic: Practical Applications & Case Studies\n`;
-  const exSentences = sentences.filter(s => /for example|such as|in practice|e\.g\.|application|system|process|algorithm/i.test(s)).slice(0, 3);
-  if (exSentences.length > 0) {
-    exSentences.forEach((ex, i) => {
-      out += `- Practical Case ${i + 1}: ${ex}\n`;
-    });
-  } else {
-    out += `- Practical Application 1: Core system resource management and architecture workflow\n`;
-    out += `- Practical Application 2: Real-time concurrent processing, algorithmic scheduling, and memory optimization\n`;
-  }
-  out += '\n';
+    // Character and thematic interaction table
+    out += `### Subtopic: Characters & Narrative Significance\n\n`;
+    out += `| पात्र / व्यक्ती (Character) | संदर्भ व भूमिका (Narrative Role) | कृती व भावनिक महत्त्व (Action & Significance) |\n`;
+    out += `|---|---|---|\n`;
+    const chars = entitiesAndThemes.entities.slice(m * 2, m * 2 + 2);
+    if (chars.length >= 2) {
+      out += `| ${chars[0].slice(0, 25)} | मध्यवर्ती पात्र / मुख्य भूमिका | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'प्रसंगातील महत्त्वाचा निर्णय व संघर्ष'} |\n`;
+      out += `| ${chars[1].slice(0, 25)} | सहपात्र / ऐतिहासिक व्यक्ती | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'नाट्यमय संवाद व नातेसंबंधांचे प्रकटीकरण'} |\n`;
+    } else if (chars.length === 1) {
+      out += `| ${chars[0].slice(0, 25)} | मुख्य व्यक्तिरेखा | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'भावनिक आणि वैचारिक संघर्ष'} |\n`;
+      out += `| प्रसंग / दृश्य | कथाप्रवाहातील वळण | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'घटनांची गुंफण आणि नाट्यमय प्रसंग'} |\n`;
+    } else {
+      out += `| मुख्य व्यक्तिरेखा | कथाप्रवाहाचे केंद्र | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'कथानकातील भावनिक व वैचारिक मंथन'} |\n`;
+      out += `| कथानकाचा प्रसंग | नाट्यमय संघर्ष | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'पात्रांमधील परस्पर संबंध आणि संवाद'} |\n`;
+    }
+    out += '\n';
 
-  out += `### Subtopic: Summary & Exam Takeaways\n`;
-  const summarySentences = sentences.slice(Math.max(0, sentences.length - 3)).join(' ') || overview;
-  out += `${summarySentences}\n\n`;
-  out += `> KEY TAKEAWAY: Memorize the foundational mechanisms, comparative table metrics, and process flow for high scores on examinations.\n\n`;
+    out += `### Subtopic: Themes, Motifs & Literary Insights\n\n`;
+    out += `EXAMPLE:\n`;
+    const dialogueOrExcerpt = chunkSentences.find(s => /["'“]/.test(s)) || chunkSentences[chunkSentences.length - 2] || chunkSentences[0];
+    if (dialogueOrExcerpt) {
+      out += `- Excerpt / Dialogue: ${dialogueOrExcerpt.slice(0, 180)}\n`;
+    }
+    const themeFound = entitiesAndThemes.themes[m % Math.max(1, entitiesAndThemes.themes.length)] || 'कथानकातील नैतिक आणि भावनिक संघर्ष (Moral & Emotional Conflict)';
+    out += `- Thematic Analysis: ${themeFound}\n`;
+    out += `- Literary Reflection: पात्रांचे मनोविश्लेषण, भाषिक सौंदर्य आणि ऐतिहासिक संदर्भांची सखोल मांडणी.\n\n`;
+    out += `---\n\n`;
+  }
 
   return out;
 }
 
-function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
+function makeHistoryHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
+  const topics = getTopics(text);
+  const sentences = getSentences(text);
+  const entities = extractEntitiesAndThemes(text, 'history_biography');
+  const numModules = Math.min(6, Math.max(2, Math.ceil(sentences.length / 8)));
+  const textChunks = getChunks(text, numModules);
+
+  let out = `# Chapter ${idx}: ${subject || title} — Historical Analysis & Chronology\n\n`;
+
+  for (let m = 0; m < numModules; m++) {
+    const chunkText = textChunks[m] || text;
+    const chunkSentences = getSentences(chunkText);
+    const heading = topics[m] || `Historical Milestone ${idx}.${m + 1}`;
+    const context = chunkSentences.slice(0, 3).join(' ') || firstN(chunkText, 2);
+    const summary = chunkSentences.slice(3, 7).join(' ') || firstN(chunkText, 3);
+
+    out += `## Topic ${idx}.${m + 1}: ${heading}\n\n`;
+    out += `DEFINITION: ${context}\n\n`;
+    out += `SUMMARY: ${summary}\n\n`;
+
+    out += `### Subtopic: Chronological Progression & Key Milestones\n\n`;
+    out += `EXPLANATION:\n`;
+    const milestones = chunkSentences.slice(2, 9);
+    milestones.forEach((p, i) => {
+      out += `- Historical Event ${i + 1}: ${p.replace(/^[-•*\d.]+\s*/, '')}\n`;
+    });
+    out += '\n';
+
+    out += `### Subtopic: Key Historical Figures & Leadership\n\n`;
+    out += `| ऐतिहासिक व्यक्ती / नेतृत्व | भूमिका व अधिकार | योगदान व ऐतिहासिक निर्णय |\n`;
+    out += `|---|---|---|\n`;
+    const leaders = entities.entities.slice(m * 2, m * 2 + 2);
+    if (leaders.length >= 2) {
+      out += `| ${leaders[0].slice(0, 25)} | प्रमुख नेतृत्व व रणनीती | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'राजकीय व लष्करी नेतृत्व'} |\n`;
+      out += `| ${leaders[1].slice(0, 25)} | सरदार / मुत्सद्दी | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'रणसंग्राम व राज्यकारभारातील सहभाग'} |\n`;
+    } else {
+      out += `| प्रमुख सत्ताधीश / सेनापती | स्वराज्य रक्षण व रणनीती | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'साम्राज्य विस्तार व लढा'} |\n`;
+      out += `| ऐतिहासिक निर्णय | प्रशासकीय व युद्धनीती | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'तत्कालीन परिस्थितीवरील दूरगामी प्रभाव'} |\n`;
+    }
+    out += '\n';
+
+    out += `### Subtopic: Causes, Outcomes & Strategic Legacy\n\n`;
+    out += `EXAMPLE:\n`;
+    out += `- Strategic Cause & Action: ${chunkSentences[2] ? chunkSentences[2].slice(0, 160) : 'साम्राज्यावरील आक्रमणे व त्याला दिलेले चोख प्रत्युत्तर.'}\n`;
+    out += `- Geopolitical Outcome: ${chunkSentences[3] ? chunkSentences[3].slice(0, 160) : 'प्रादेशिक सुरक्षितता, स्वाभिमान व स्वराज्याचे सार्वभौमत्व.'}\n`;
+    out += `- Historical Legacy: इतिहासातील अतुलनीय पराक्रम, त्याग आणि लोककल्याणकारी राज्यकारभार.\n\n`;
+    out += `---\n\n`;
+  }
+
+  return out;
+}
+
+function makeResearchHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
+  const topics = getTopics(text);
+  const sentences = getSentences(text);
+  const defs = getDefinitions(text, 10);
+  const numModules = Math.min(6, Math.max(2, Math.ceil(sentences.length / 8)));
+  const textChunks = getChunks(text, numModules);
+
+  let out = `# Section ${idx}: ${subject || title} — Research Methodology & Findings\n\n`;
+
+  for (let m = 0; m < numModules; m++) {
+    const chunkText = textChunks[m] || text;
+    const chunkSentences = getSentences(chunkText);
+    const heading = topics[m] || `Research Phase ${idx}.${m + 1}`;
+    const def = defs[m] ? `${defs[m].term}: ${defs[m].definition}` : (chunkSentences[0] || `Research problem analysis for ${heading}`);
+    const summary = chunkSentences.slice(1, 5).join(' ') || firstN(chunkText, 3);
+
+    out += `## Topic ${idx}.${m + 1}: ${heading}\n\n`;
+    out += `DEFINITION: ${def}\n\n`;
+    out += `SUMMARY: ${summary}\n\n`;
+
+    out += `### Subtopic: Methodology & Theoretical Framework\n\n`;
+    out += `EXPLANATION:\n`;
+    const methodPoints = chunkSentences.slice(2, 8);
+    methodPoints.forEach((p, i) => {
+      out += `- Experimental Formulation ${i + 1}: ${p.replace(/^[-•*\d.]+\s*/, '')}\n`;
+    });
+    out += '\n';
+
+    out += `### Subtopic: Comparative Evaluation & Metrics\n\n`;
+    out += `| Parameter / Metric | Experimental Approach | Empirical Observation |\n`;
+    out += `|---|---|---|\n`;
+    out += `| Baseline Metric | Standard evaluation dataset | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'Controlled experimental reference'} |\n`;
+    out += `| Proposed Technique | Documented algorithmic pipeline | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'Measurable performance optimization'} |\n\n`;
+
+    out += `### Subtopic: Findings, Limitations & Implications\n\n`;
+    out += `EXAMPLE:\n`;
+    out += `- Empirical Finding: ${chunkSentences[3] ? chunkSentences[3].slice(0, 160) : 'Statistically significant result observed in experimental evaluation.'}\n`;
+    out += `- Research Takeaway: Rigorous validation of theoretical hypothesis under realistic operational bounds.\n\n`;
+    out += `---\n\n`;
+  }
+
+  return out;
+}
+
+function makeAcademicHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
   const topics = getTopics(text);
   const allDefs = getDefinitions(text, 30);
   const allFacts = getKeyFacts(text, 50);
   const allSentences = getSentences(text);
 
-  // Divide into multiple comprehensive concept modules
   const numModules = Math.min(8, Math.max(3, topics.length));
   const textChunks = getChunks(text, numModules);
   
-  let out = `# Chapter ${idx}: ${subject || title} — Core Curriculum & Architecture\n\n`;
+  let out = `# Chapter ${idx}: ${subject || title} — Core Curriculum Concepts\n\n`;
 
   for (let m = 0; m < numModules; m++) {
     const chunkText = textChunks[m] || text;
@@ -219,9 +342,10 @@ function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
     const chunkDefs = getDefinitions(chunkText, 6);
     const chunkFacts = getKeyFacts(chunkText, 12);
 
-    const heading = topics[m] || `Module ${idx}.${m + 1}: ${subject} Core Principles`;
+    const heading = topics[m] || `Module ${idx}.${m + 1}: ${subject || 'Core Principles'}`;
     const def = chunkDefs[0] ? `${chunkDefs[0].term} is defined as ${chunkDefs[0].definition}` : 
-                (allDefs[m] ? `${allDefs[m].term} is defined as ${allDefs[m].definition}` : `Fundamental theoretical architecture and practical operation of ${heading}.`);
+                (allDefs[m] ? `${allDefs[m].term} is defined as ${allDefs[m].definition}` : 
+                (chunkSentences[0] || `Principles and fundamental concept of ${heading}.`));
     const summary = chunkSentences.slice(0, 4).join(' ') || allSentences.slice(m * 2, m * 2 + 3).join(' ') || firstN(chunkText, 3);
 
     out += `## Topic ${idx}.${m + 1}: ${heading}\n\n`;
@@ -230,9 +354,9 @@ function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
 
     out += `### Subtopic: Theoretical Foundation & Mechanics\n\n`;
     out += `EXPLANATION:\n`;
-    const bulletPoints = chunkFacts.length >= 5 ? chunkFacts.slice(0, 8) : chunkSentences.slice(2, 9);
+    const bulletPoints = chunkFacts.length >= 4 ? chunkFacts.slice(0, 8) : chunkSentences.slice(1, 8);
     bulletPoints.forEach((bp, i) => {
-      out += `- Technical Detail ${i + 1}: ${bp.replace(/^[-•*\d.]+\s*/, '')}\n`;
+      out += `- Point ${i + 1}: ${bp.replace(/^[-•*\d.]+\s*/, '')}\n`;
     });
     if (chunkDefs.length > 1) {
       chunkDefs.slice(1, 4).forEach(d => {
@@ -241,47 +365,63 @@ function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1) {
     }
     out += '\n';
 
-    // Structured Educational Comparison Table
     out += `### Subtopic: Comparative Specifications & Parameters\n\n`;
-    out += `| Parameter / Aspect | Key Characteristic | Operational Role |\n`;
+    out += `| Parameter / Concept | Key Characteristic | Operational Role |\n`;
     out += `|---|---|---|\n`;
     if (chunkDefs.length >= 2) {
-      out += `| ${chunkDefs[0].term.slice(0, 25)} | Foundational Paradigm | ${chunkDefs[0].definition.slice(0, 40)} |\n`;
-      out += `| ${chunkDefs[1].term.slice(0, 25)} | Operating Mechanism | ${chunkDefs[1].definition.slice(0, 40)} |\n`;
+      out += `| ${chunkDefs[0].term.slice(0, 25)} | Primary Characteristic | ${chunkDefs[0].definition.slice(0, 45)} |\n`;
+      out += `| ${chunkDefs[1].term.slice(0, 25)} | Operational Function | ${chunkDefs[1].definition.slice(0, 45)} |\n`;
     } else {
-      out += `| Architecture Model | Distributed & Deterministic | Governs core algorithmic execution bounds |\n`;
-      out += `| Operational Throughput | High-Efficiency Pipeline | Minimizes latency and optimizes resource utilization |\n`;
+      out += `| ${heading.slice(0, 25)} | Core Concept | ${chunkSentences[1] ? chunkSentences[1].slice(0, 45) : 'Governs primary subject mechanics'} |\n`;
+      out += `| Process / Flow | Implementation | ${chunkSentences[2] ? chunkSentences[2].slice(0, 45) : 'Ensures systematic understanding'} |\n`;
     }
-    out += `| Performance Metric | Asymptotic Stability | Guarantees bounded convergence under high load |\n\n`;
+    out += '\n';
 
     out += `### Subtopic: Practical Applications & Case Studies\n\n`;
     out += `EXAMPLE:\n`;
-    const ex = chunkSentences.filter(s => /for example|such as|e\.g\.|practice|algorithm|system|use case|implementation/i.test(s)).slice(0, 2);
+    const ex = chunkSentences.filter(s => /for example|such as|e\.g\.|practice|use case|उदा|जसे की/i.test(s)).slice(0, 2);
     if (ex.length > 0) {
       ex.forEach((e, i) => {
-        out += `- Practical Case Study ${i + 1}: ${e}\n`;
+        out += `- Case Study ${i + 1}: ${e}\n`;
       });
     } else {
-      out += `- Real-world Application 1: Core enterprise deployment and system workflow in scalable production environments\n`;
-      out += `- Real-world Application 2: Architectural resource optimization, fault tolerance, and algorithmic efficiency\n`;
+      out += `- Practical Application: ${chunkSentences[2] ? chunkSentences[2].slice(0, 140) : 'Essential practical application within this syllabus module.'}\n`;
+      out += `- Real-world Context: ${chunkSentences[3] ? chunkSentences[3].slice(0, 140) : 'Direct application to real-world scenarios and problem solving.'}\n`;
     }
-    out += `- University Exam Tip: Thoroughly memorize the formal definition, process diagram flow, and key trade-offs between performance and overhead.\n\n`;
+    out += `- Key Takeaway: Thoroughly review the primary definitions, process flow, and relationships between concepts.\n\n`;
     out += `---\n\n`;
   }
 
   return out;
 }
 
-function makeNotes(text, title, subject) {
+function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1, docType = 'academic_textbook') {
+  if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+    return makeNovelHandwrittenNotes(text, title, subject, idx, total);
+  }
+  if (docType === 'history_biography') {
+    return makeHistoryHandwrittenNotes(text, title, subject, idx, total);
+  }
+  if (docType === 'research_paper') {
+    return makeResearchHandwrittenNotes(text, title, subject, idx, total);
+  }
+  return makeAcademicHandwrittenNotes(text, title, subject, idx, total);
+}
+
+function makeDetailedChapterNotes(text, title, subject, idx = 1, total = 1, docType = 'academic_textbook') {
+  return makeHandwrittenChapterNotes(text, title, subject, idx, total, docType);
+}
+
+function makeNotes(text, title, subject, docType = 'academic_textbook') {
   const topics = getTopics(text);
   const defs = getDefinitions(text);
   const facts = getKeyFacts(text, 20);
   const chunks = getChunks(text, 6);
 
-  let out = `# ${title}\n**Subject:** ${subject}  |  **Source:** Your uploaded PDF\n\n`;
+  let out = `# ${title}\n**Subject:** ${subject}  |  **Source:** Your uploaded document\n\n`;
 
   if (topics.length > 0) {
-    out += `---\n## 📋 Topics in This Document\n`;
+    out += `---\n## 📋 Major Topics & Sections\n`;
     topics.forEach(t => { out += `- ${t}\n`; });
     out += '\n';
   }
@@ -301,12 +441,12 @@ function makeNotes(text, title, subject) {
   });
 
   if (defs.length > 0) {
-    out += `---\n## 🔑 Key Definitions\n\n`;
+    out += `---\n## 🔑 Key Definitions & Terminology\n\n`;
     defs.slice(0,10).forEach(d => { out += `**${d.term}:** ${d.definition}\n\n`; });
   }
 
   if (facts.length > 0) {
-    out += `---\n## ⭐ Important Facts & Formulas\n\n`;
+    out += `---\n## ⭐ Core Points & Principles\n\n`;
     facts.slice(0,12).forEach(f => { out += `• ${f}\n`; });
     out += '\n';
   }
@@ -314,13 +454,24 @@ function makeNotes(text, title, subject) {
   out += `---\n## 🎯 Key Takeaways\n\n`;
   const kp = facts.slice(0,5);
   if (kp.length > 0) kp.forEach((f,i) => { out += `${i+1}. ${f}\n`; });
-  else { out += `Review all definitions and formulas highlighted above.\n`; }
+  else { out += `Review all highlighted sections and key points above.\n`; }
 
-  out += `\n---\n## 📌 Exam Tips\n`;
-  out += `- Review each definition and be able to explain it in your own words\n`;
-  out += `- Focus on the formulas and relationships between concepts\n`;
-  out += `- Practice writing short answers for each major topic\n`;
-  out += `- Create your own examples for abstract concepts\n`;
+  if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+    out += `\n---\n## 📖 Literary & Thematic Insights\n`;
+    out += `- Analyze the emotional development and psychological depth of key characters\n`;
+    out += `- Reflect upon the narrative symbolism, dialogue choices, and cultural subtext\n`;
+    out += `- Understand how pivotal chapter events drive the overall literary conflict\n`;
+  } else if (docType === 'history_biography') {
+    out += `\n---\n## 📜 Historical Perspective & Insights\n`;
+    out += `- Connect chronological milestones with the underlying socio-political causes\n`;
+    out += `- Analyze strategic leadership decisions and their long-term consequences\n`;
+    out += `- Examine historical evidence, alliances, and civilizational legacy\n`;
+  } else {
+    out += `\n---\n## 📌 Key Study & Revision Tips\n`;
+    out += `- Review each definition and be able to explain it in your own words\n`;
+    out += `- Focus on the formulas, principles, and relationships between concepts\n`;
+    out += `- Practice explaining step-by-step processes for each major topic\n`;
+  }
 
   return out;
 }
@@ -952,7 +1103,8 @@ function answerQuestion(question, text) {
 module.exports = {
   extractFromPDF,
   makeNotes, makeDetailedChapterNotes, makeHandwrittenChapterNotes,
+  makeNovelHandwrittenNotes, makeHistoryHandwrittenNotes, makeResearchHandwrittenNotes, makeAcademicHandwrittenNotes,
   makeSummary, makeFlashcards, makeQuestions, makeQuestionPaper,
   makePodcastScript, makeVideoScript, makePPT, makeMindmap, makeVocabulary,
-  answerQuestion, getKeyFacts, getDefinitions, getSentences, getChunks
+  answerQuestion, getKeyFacts, getDefinitions, getSentences, getTopics, getChunks
 };

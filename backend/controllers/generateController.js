@@ -245,12 +245,13 @@ exports.notes = async (req, res, next) => {
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
     const subj = doc.subject || doc.title;
-    console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language} (source=${doc.primaryLanguage})`);
-    const content = await ai.generateNotes(text, doc.title, subj, language, doc.primaryLanguage);
+    const docType = req.body.documentType || doc.documentType || 'academic_textbook';
+    console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language} docType=${docType} (source=${doc.primaryLanguage})`);
+    const content = await ai.generateNotes(text, doc.title, subj, language, doc.primaryLanguage, docType);
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
-    const pdf = await handwrittenPDF(finalContent, { title: doc.title, subject: subj, style, fontName: font, imagePaths });
+    const pdf = await handwrittenPDF(finalContent, { title: doc.title, subject: subj, style, fontName: font, imagePaths, language, primaryLanguage: doc.primaryLanguage, docType });
     if (doc.outputs) doc.outputs.push({ type:'notes', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     await safeUserStatsUpdate(req.user?.id, { $inc: { 'studyStats.notesGenerated': 1 } });
@@ -393,11 +394,12 @@ exports.handwritten = async (req, res, next) => {
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
-    const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
+    const docType = req.body.documentType || doc.documentType || 'academic_textbook';
+    const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage, docType);
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
-    const pdf = await handwrittenPDF(finalContent, { title:doc.title, subject:doc.subject||doc.title, style:style||'yellow', fontName:font, imagePaths });
+    const pdf = await handwrittenPDF(finalContent, { title:doc.title, subject:doc.subject||doc.title, style:style||'yellow', fontName:font, imagePaths, language, primaryLanguage: doc.primaryLanguage, docType });
     if (doc.outputs) doc.outputs.push({ type:'handwritten', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize, diagrams: doc.diagrams || [] });
@@ -498,11 +500,13 @@ exports.video = async (req, res, next) => {
     
     if (doc.outputs) doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
     await safeDocSave(doc);
+    const userToken = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+    const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
     res.json({
       success: true,
       script,
       audioUrl: `/uploads/audio/${audio.fileName}`,
-      videoUrl: videoResult.videoUrl,
+      videoUrl: `${videoResult.videoUrl}${tokenQuery}`,
       audioProvider: audio.provider,
       audioDuration: audio.duration,
       audioNote: audio.note,

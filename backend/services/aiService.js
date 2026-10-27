@@ -295,7 +295,7 @@ Be thorough, accurate, structured, and exam-focused.`;
 // CONTENT GENERATORS
 // ═══════════════════════════════════════════════════════════
 
-async function generateNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
+async function generateNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng', docType = 'academic_textbook') {
   // ── Chapter-wise, comprehensive notes engine (80-120 pages target) ──
   // For large books and textbooks (up to 3M+ chars), divide into 20-30 logical modules.
   // Each module generates 3-5 pages of rich notes → total 80-120 pages.
@@ -305,17 +305,25 @@ async function generateNotes(text, title, subject, lang = 'English', docPrimaryL
   for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
   const langRule = getLanguageInstruction(lang, docPrimaryLang);
-  const sysPrompt = `You are an expert academic note-writer for university students.
-${langRule}
-Your job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.
+  let domainInstruction = 'You are an expert academic note-writer for university students.\nYour job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.';
+  if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+    domainInstruction = 'You are an expert literary scholar and master note-taker specializing in novels, literature, and narrative drama.\nYour job: produce rich, narrative-driven study notes capturing plot milestones, character arcs, dialogues, and literary themes from each part of the book.';
+  } else if (docType === 'history_biography') {
+    domainInstruction = 'You are an expert historian and master biographer.\nYour job: produce detailed chronological notes detailing historical milestones, leadership figures, strategic causes, and geopolitical outcomes from each part of the work.';
+  } else if (docType === 'research_paper') {
+    domainInstruction = 'You are an expert academic research reviewer.\nYour job: produce structured research notes detailing problem statements, theoretical methodologies, experimental findings, and critical analysis from each section.';
+  }
 
-FORMAT — use this EXACT structure for EVERY topic/concept found in the chunk:
+  const sysPrompt = `${domainInstruction}
+${langRule}
+
+FORMAT — use this EXACT structure for EVERY topic/concept/chapter found in the chunk:
 
 ## [Topic/Chapter/Section Title]
 
-**Definition:** One clear sentence defining the concept.
+**Definition / Context:** One to two clear sentences defining the concept or setting the narrative/historical context.
 
-**Overview:** 2-3 sentences giving a high-level explanation.
+**Overview / Summary:** 2-4 sentences giving a high-level explanation of mechanisms or plot/historical progression.
 
 ### Key Points
 - Detailed point 1 — explain fully, include sub-details
@@ -324,30 +332,29 @@ FORMAT — use this EXACT structure for EVERY topic/concept found in the chunk:
 - Add 5-10 bullet points. Be thorough. Each bullet should be 1-3 sentences.
 
 ### In-Depth Explanation
-Write 3-6 paragraphs of clear, detailed explanation as if teaching a student for the first time. Cover:
-- How it works, why it matters
-- Step-by-step processes if applicable  
-- Relationships to other concepts
-- Important formulas, laws, theorems (write in plain text, no LaTeX)
+Write 3-6 paragraphs of clear, detailed explanation covering:
+- Core principles, narrative actions, or experimental methodologies
+- Step-by-step processes or dramatic progression
+- Relationships between characters, entities, or concepts
+- Important quotes, formulas, laws, or historical turning points (plain text, no LaTeX)
 
 ### Examples & Applications
-- Real-world Example 1: (specific, practical)
-- Real-world Example 2: (different context)
-- Application in industry/real-world: ...
+- Real-world Example / Key Excerpt 1: (specific, practical, or textual quote)
+- Real-world Example / Character Action 2: (different context or perspective)
+- Practical / Thematic significance: ...
 
 ### Summary
-2-3 sentences summarising the key takeaway for exam purposes.
+2-3 sentences summarising the key takeaway or significance.
 
 ---
 
 STRICT RULES:
-- Cover EVERY concept, term, formula, and idea found in the text — do NOT skip anything
-- Be VERBOSE and DETAILED — a student should be able to learn the topic from your notes alone
+- Ground all content directly in the provided text — do NOT invent unrelated computer science or enterprise corporate jargon
+- Cover EVERY concept, character, turning point, and idea found in the text — do NOT skip anything
+- Be VERBOSE and DETAILED — a reader should gain a deep understanding from your notes alone
 - Write at minimum 800 words per chunk
 - Do NOT use LaTeX, $ signs, or Mermaid diagrams
-- Do NOT write "I cannot" or "the text does not contain" — extract what is there and expand it
-- Use ## for main topics, ### for sub-sections
-- At the end of each chunk's notes, add a "### Key Formulas / Important Points" section listing all formulas/dates/facts found`;
+- Use ## for main topics, ### for sub-sections`;
 
   const CONCURRENCY = 3;
   const parts = [];
@@ -356,11 +363,11 @@ STRICT RULES:
     const batchPromises = batch.map(async (chunk, bIdx) => {
       const idx = i + bIdx;
       const promptChunk = chunk.slice(0, 8000);
-      const prompt = `Generate comprehensive study notes for PART ${idx + 1} of ${chunks.length}.
-Title: "${title}" | Subject: "${subject}"
+      const prompt = `Generate comprehensive notes for PART ${idx + 1} of ${chunks.length}.
+Title: "${title}" | Subject: "${subject}" | Document Type: "${docType}"
 Language: ${lang}
 
-For EVERY concept found in this text, write the full structured notes (Definition, Key Points, In-Depth Explanation, Examples, Summary).
+For EVERY concept, chapter, or scene found in this text, write the full structured notes.
 Never skip a concept. Write at least 800 words for this part.
 
 Document Part ${idx + 1}/${chunks.length}:
@@ -372,13 +379,13 @@ ${promptChunk}`;
           console.log(`[Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
           return result;
         } else {
-          const fallback = pdf.makeDetailedChapterNotes(chunk, title, subject, idx + 1, chunks.length);
+          const fallback = pdf.makeDetailedChapterNotes(chunk, title, subject, idx + 1, chunks.length, docType);
           if (fallback && fallback.length > 50) return fallback;
         }
       } catch (e) {
         console.warn(`[Notes] Part ${idx + 1} fallback:`, e.message);
         try {
-          const fallback = pdf.makeDetailedChapterNotes(chunk, title, subject, idx + 1, chunks.length);
+          const fallback = pdf.makeDetailedChapterNotes(chunk, title, subject, idx + 1, chunks.length, docType);
           if (fallback && fallback.length > 50) return fallback;
         } catch {}
       }
@@ -392,7 +399,7 @@ ${promptChunk}`;
   }
 
   if (parts.length === 0) {
-    return pdf.makeDetailedChapterNotes(text, title, subject, 1, 1);
+    return pdf.makeDetailedChapterNotes(text, title, subject, 1, 1, docType);
   }
 
   let combined = `# ${title}\n### ${subject} — Complete Study Notes\n\n` + parts.join('\n\n---\n\n');
@@ -698,7 +705,7 @@ ${docSlice}`;
   return setsArray;
 }
 
-async function generateHandwrittenNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
+async function generateHandwrittenNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng', docType = 'academic_textbook') {
   // Target comprehensive multi-page notes (8–20+ pages):
   // Dynamically divide text into 3 to 10 substantial chapters/modules
   const targetChunks = Math.max(3, Math.min(10, Math.ceil(text.length / 10000)));
@@ -706,7 +713,8 @@ async function generateHandwrittenNotes(text, title, subject, lang = 'English', 
   const chunks = [];
   for (let i = 0; i < text.length; i += chunkSize) chunks.push(text.slice(i, i + chunkSize));
 
-  const sysPrompt = `You are an expert academic professor and master note-taker who creates comprehensive, textbook-grade study notes for university students.
+  const langRule = getLanguageInstruction(lang, docPrimaryLang);
+  let domainPrompt = `You are an expert academic professor and master note-taker who creates comprehensive, textbook-grade study notes.
 You MUST format EVERY chapter and topic found in the text using this EXACT educational hierarchy:
 
 # Chapter [Number]: [Chapter Title]
@@ -722,33 +730,123 @@ EXPLANATION:
 - Detailed point 1: Full technical explanation with mechanisms and reasoning
 - Detailed point 2: Deep dive into the process or structure with clear sub-points
 - Detailed point 3: Dependencies, operational rules, and interactions
-- Detailed point 4: Important formulas, laws, theorems, algorithms, or quantitative principles
-- Detailed point 5: Architectural workflow, step-by-step pipeline, or lifecycle
-- Detailed point 6: Key design trade-offs, constraints, and optimizations
 - Provide 6-10 bullet points per topic. Never abbreviate.
 
-### Subtopic: Comparative Analysis & Specifications
+### Subtopic: Comparative Specifications & Parameters
 | Parameter / Concept | Key Characteristic | Practical Implementation |
 |---|---|---|
 | Aspect 1 | Primary theoretical rule | Operational role in system |
 | Aspect 2 | Quantitative threshold | Real-world optimization |
-| Aspect 3 | Performance behavior | Trade-off or constraint |
 
 ### Subtopic: Practical Applications & Case Studies
 EXAMPLE:
-- Real-world Application 1: Concrete industry or real-life implementation
-- Real-world Application 2: Practical engineering, scientific, or business case study
-- Exam Tip: High-scoring advice, common errors, or questions asked by university examiners
+- Practical Application 1: Real-world practical use case
+- Practical Application 2: Industry or scientific case study
+- Key Takeaway: High-scoring advice and essential principles`;
 
----
+  if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+    domainPrompt = `You are an expert literary scholar and master note-taker who creates rich, narrative study notes for literature, novels, and drama.
+You MUST format EVERY chapter, scene, or act found in the text using this EXACT literary hierarchy:
+
+# Chapter [Number]: [Chapter Title / Episode]
+
+## Topic: [Plot Milestone, Character Arc, or Scene Name]
+
+DEFINITION: 2-3 sentences establishing the scene, atmosphere, emotional tone, and dramatic context.
+
+SUMMARY: 4-5 sentences detailing the narrative events, dialogue conflicts, character actions, and consequences.
+
+### Subtopic: Key Events & Plot Progression
+EXPLANATION:
+- Narrative Action 1: Key event or character action in this chapter
+- Narrative Action 2: Turning point, dialogue exchange, or emotional struggle
+- Narrative Action 3: Character motivations, inner conflicts, and reactions
+- Narrative Action 4: Social, familial, or political tensions in the scene
+- Provide 6-10 bullet points per topic detailing the actual story.
+
+### Subtopic: Characters & Narrative Significance
+| Character / Figure | Dramatic Role & Allegiance | Action & Emotional Significance |
+|---|---|---|
+| Character 1 | Main protagonist / key role | Key decision or moral dilemma |
+| Character 2 | Supporting figure / rival | Interaction and dramatic tension |
+
+### Subtopic: Themes, Motifs & Literary Insights
+EXAMPLE:
+- Excerpt / Dialogue: Direct notable dialogue or impactful quote from this chapter
+- Thematic Analysis: Core literary theme (e.g., courage, sacrifice, loyalty, duty, grief)
+- Literary Takeaway: Author's narrative craft and character evolution`;
+  } else if (docType === 'history_biography') {
+    domainPrompt = `You are an expert historian and master biographer who creates deep chronological study notes.
+You MUST format EVERY historical phase or chapter found in the text using this EXACT historical hierarchy:
+
+# Chapter [Number]: [Historical Era / Phase / Campaign]
+
+## Topic: [Historical Event, Leader, or Turning Point]
+
+DEFINITION: 2-3 sentences establishing the geopolitical theater, period, and historical situation.
+
+SUMMARY: 4-5 sentences describing the chronological progression of events, strategic battles, or political shifts.
+
+### Subtopic: Chronological Progression & Strategic Decisions
+EXPLANATION:
+- Historical Milestone 1: Concrete historical occurrence and military/political moves
+- Historical Milestone 2: Treaties, alliances, diplomacy, or administrative policies
+- Historical Milestone 3: Leadership decisions, courage, resistance, or crises
+- Provide 6-10 bullet points per topic grounded in the text.
+
+### Subtopic: Key Historical Figures & Leadership
+| Historical Figure | Role & Office | Contribution & Historic Impact |
+|---|---|---|
+| Leader 1 | Sovereign / Commander | Strategic leadership and decisive actions |
+| Leader 2 | Statesman / Ally | Regional influence and diplomatic role |
+
+### Subtopic: Causes, Outcomes & Strategic Legacy
+EXAMPLE:
+- Strategic Cause: Primary socio-political or military catalyst
+- Historical Outcome: Immediate effect on sovereignty, society, and territory
+- Lasting Legacy: Civilizational significance and historical lessons`;
+  } else if (docType === 'research_paper') {
+    domainPrompt = `You are an expert scientific researcher and academic reviewer.
+You MUST format EVERY paper section using this EXACT research hierarchy:
+
+# Section [Number]: [Section Title / Problem Area]
+
+## Topic: [Research Problem, Methodology, or Finding]
+
+DEFINITION: Clear statement of the research problem, hypothesis, or theoretical foundation.
+
+SUMMARY: 4-5 sentences summarizing the experimental formulation, pipeline, and findings.
+
+### Subtopic: Methodology & Theoretical Framework
+EXPLANATION:
+- Methodological Step 1: Formal mathematical definition or experimental design
+- Methodological Step 2: Algorithmic pipeline, dataset, or laboratory apparatus
+- Methodological Step 3: Theoretical assumptions, control variables, and metrics
+- Provide 6-10 bullet points per section.
+
+### Subtopic: Comparative Evaluation & Metrics
+| Parameter / Metric | Experimental Approach | Empirical Observation |
+|---|---|---|
+| Metric 1 | Proposed Technique | Measurable performance or outcome |
+| Metric 2 | Baseline Standard | Comparative difference and analysis |
+
+### Subtopic: Findings, Limitations & Implications
+EXAMPLE:
+- Empirical Finding: Primary quantitative or qualitative discovery
+- Methodological Limitation: Constraints and experimental boundaries
+- Research Takeaway: Scientific contribution and future directions`;
+  }
+
+  const sysPrompt = `${domainPrompt}
+${langRule}
 
 RULES:
+- Ground EVERY point directly in the provided text. NEVER insert unrelated computer science or corporate templates into literature or history
 - Always use the EXACT section structure: # Chapter, ## Topic, DEFINITION:, SUMMARY:, ### Subtopic, EXPLANATION:, Markdown Tables, EXAMPLE:, and ---
 - Markdown Tables MUST use standard syntax with | pipes and |---|---| separator
 - Do NOT generate ASCII flowcharts or artificial code art
-- Do NOT use LaTeX or $ signs — write equations in readable plain text
-- Cover EVERY concept, law, theorem, date, and algorithm in this document part — do NOT skip anything
-- Be VERBOSE and EXHAUSTIVE — notes must be detailed enough for a student to score an A+ on university finals
+- Do NOT use LaTeX or $ signs — write in readable plain text
+- Cover EVERY concept, character, and event in this document part — do NOT skip anything
 - Write at least 1,000 words per chunk across 3 to 5 distinct concepts`;
 
   const CONCURRENCY = 2;
@@ -759,26 +857,26 @@ RULES:
       const idx = i + bIdx;
       const promptChunk = chunk.slice(0, 10000);
       const prompt = `Generate comprehensive, multi-page handwritten study notes for PART ${idx + 1} of ${chunks.length}.
-Title: "${title}" | Subject: "${subject}" | Language: ${lang}
+Title: "${title}" | Subject: "${subject}" | Document Type: "${docType}" | Language: ${lang}
 
-For EVERY concept, theory, formula, and process found in the text below, write the COMPLETE structured note:
+For EVERY concept, chapter, or scene found in the text below, write the COMPLETE structured note:
 # Chapter ${idx + 1}: [Chapter / Module Name]
-## Topic: [Concept Name]
+## Topic: [Concept / Scene Name]
 DEFINITION: ...
 SUMMARY: ...
-### Subtopic: Theoretical Foundation & Mechanics
+### Subtopic: ...
 EXPLANATION:
 - ...
-### Subtopic: Comparative Specifications
-| Parameter / Concept | Key Characteristic | Practical Implementation |
+### Subtopic: ...
+| ... | ... | ... |
 |---|---|---|
 | ... | ... | ... |
-### Subtopic: Practical Applications & Case Studies
+### Subtopic: ...
 EXAMPLE:
 - ...
 ---
 
-Cover at least 3 to 5 distinct concepts found in this document part. Do NOT summarise briefly.
+Cover at least 3 to 5 distinct topics found in this document part. Do NOT summarise briefly.
 Write at minimum 1,000 words for this part.
 
 Document Part ${idx + 1}/${chunks.length}:
@@ -790,13 +888,13 @@ ${promptChunk}`;
           console.log(`[HW Notes] Part ${idx + 1}/${chunks.length}: ${result.length} chars`);
           return result;
         } else {
-          const fallback = pdf.makeHandwrittenChapterNotes(chunk, title, subject, idx + 1, chunks.length);
+          const fallback = pdf.makeHandwrittenChapterNotes(chunk, title, subject, idx + 1, chunks.length, docType);
           if (fallback && fallback.length > 50) return fallback;
         }
       } catch (e) {
         console.warn(`[HW Notes] Part ${idx + 1} fallback:`, e.message);
         try {
-          const fallback = pdf.makeHandwrittenChapterNotes(chunk, title, subject, idx + 1, chunks.length);
+          const fallback = pdf.makeHandwrittenChapterNotes(chunk, title, subject, idx + 1, chunks.length, docType);
           if (fallback && fallback.length > 50) return fallback;
         } catch {}
       }
@@ -810,7 +908,7 @@ ${promptChunk}`;
   }
 
   if (parts.length === 0) {
-    return pdf.makeHandwrittenChapterNotes(text, title, subject, 1, 1);
+    return pdf.makeHandwrittenChapterNotes(text, title, subject, 1, 1, docType);
   }
 
   let combined = `# ${title}\n## ${subject}\n\n` + parts.join('\n\n---\n\n');
