@@ -177,13 +177,13 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 45
   const points = [];
 
   lines.forEach(l => {
-    if (l.toLowerCase().includes('topic:') || l.toLowerCase().includes('title:')) {
-      const extracted = l.replace(/.*(?:topic|title):\s*/i, '').replace(/["'\[\]]/g, '').trim();
-      if (extracted.length > 2) topicName = extracted.slice(0, 32);
+    if (l.toLowerCase().includes('topic:') || l.toLowerCase().includes('title:') || l.startsWith('विषय:') || l.startsWith('शीर्षक:')) {
+      const extracted = l.replace(/.*(?:topic|title|विषय|शीर्षक):\s*/i, '').replace(/["'\[\]]/g, '').trim();
+      if (extracted.length > 2) topicName = extracted.slice(0, 36);
     }
     if (l.match(/^[-•*\d.]+\s+/)) {
       const p = l.replace(/^[-•*\d.]+\s*/, '').replace(/\*\*/g, '').replace(/__/g, '').trim();
-      if (p.length > 3) points.push(p.slice(0, 32));
+      if (p.length > 3) points.push(p.slice(0, 36));
     }
   });
 
@@ -196,26 +196,39 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 45
   // Build dialogue phrases for ASS Subtitles
   const dialogueLines = [];
   lines.forEach(l => {
-    if (l.startsWith('[') || l.toLowerCase().includes('visual:') || l.toLowerCase().startsWith('topic:')) return;
-    const isStudent = /^(?:student|bunty|learner|class):\s*/i.test(l);
+    // Skip headers and structure directives
+    if (/^\[\s*(?:board points|dialogue|visual|hook|intro|scene|संभाषण|तक्ता)\b/i.test(l)) return;
+    if (l.toLowerCase().includes('visual:') || l.toLowerCase().startsWith('topic:') || l.startsWith('विषय:') || l.startsWith('शीर्षक:')) return;
+    if (l.match(/^[-•*\d.]+\s+/)) return; // board points bullet, not spoken dialogue
+
+    // Detect speaker (supports English + Marathi/Hindi/Urdu)
+    const isStudent = /^(?:\[?(?:student|bunty|learner|class|विद्यार्थी|छात्र|बंटी|शिष्य)\]?):\s*/i.test(l);
     const speaker = isStudent ? 'student' : 'teacher';
-    const cleanL = l.replace(/^(?:professor|teacher|student|bunty|sir|instructor|narrator|narration):\s*/i, '').trim();
-    if (cleanL) {
+    const cleanL = l.replace(/^(?:\[?(?:professor|teacher|student|bunty|sir|instructor|narrator|narration|प्राध्यापक|शिक्षक|विद्यार्थी|छात्र|बंटी|शिष्य)\]?):\s*/i, '').trim();
+
+    if (cleanL && cleanL.length > 1) {
       const words = cleanL.split(/\s+/).filter(Boolean);
-      for (let i = 0; i < words.length; i += 5) {
+      for (let i = 0; i < words.length; i += 6) {
         dialogueLines.push({
           speaker,
           isFirstChunk: i === 0,
-          text: words.slice(i, i + 5).join(' ')
+          text: words.slice(i, i + 6).join(' ')
         });
       }
     }
   });
 
   if (dialogueLines.length === 0) {
-    dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: `Welcome to ${topicName} lecture!` });
-    dialogueLines.push({ speaker: 'student', isFirstChunk: true, text: 'Professor, how does it operate?' });
-    dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: 'Notice the core syllabus principles!' });
+    const hasDev = /[\u0900-\u097F]/.test(rawScript);
+    if (hasDev) {
+      dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: `नमस्कार वर्गा! आज आपण ${topicName} अभ्यासणार आहोत.` });
+      dialogueLines.push({ speaker: 'student', isFirstChunk: true, text: 'प्राध्यापक, हे प्रत्यक्ष कसे कार्य करते?' });
+      dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: 'यातील प्रमुख नियमांकडे आणि संरचनेकडे लक्ष द्या!' });
+    } else {
+      dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: `Welcome to ${topicName} lecture!` });
+      dialogueLines.push({ speaker: 'student', isFirstChunk: true, text: 'Professor, how does it operate?' });
+      dialogueLines.push({ speaker: 'teacher', isFirstChunk: true, text: 'Notice the core syllabus principles!' });
+    }
   }
 
   const totalChars = dialogueLines.reduce((acc, d) => acc + d.text.length, 0) || 1;
@@ -246,7 +259,10 @@ async function createVideoFromAudio(audioPath, script = '', durationSeconds = 45
     };
 
     const hasDevanagari = /[\u0900-\u097F]/.test(rawScript);
-    const fontName = hasDevanagari ? 'Nirmala UI, Mangal, Arial' : 'Arial';
+    // ASS fontname MUST NOT contain commas; commas shift the CSV columns in the style line
+    const fontName = hasDevanagari ? (process.platform === 'win32' ? 'Nirmala UI' : 'Noto Sans Devanagari') : 'Arial';
+
+    const headerTitle = hasDevanagari ? `व्याख्यान: ${topicName} | Notivexa` : `LECTURE: ${topicName.toUpperCase()} | Notivexa Smart Study`;
 
     let assContent = `[Script Info]
 ScriptType: v4.00+
@@ -260,7 +276,7 @@ Style: ActiveDialogue,${fontName},28,&H00FFFFFF,&H00FFFFFF,&H00000000,&H90000000
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopHeader,,0,0,0,,{\\b1}🎓 LECTURE: ${topicName.toUpperCase()} | Notivexa Smart Study{\\b0}
+Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopHeader,,0,0,0,,{\\b1}🎓 ${headerTitle}{\\b0}
 `;
 
     dialogueLines.forEach(item => {
@@ -273,7 +289,7 @@ Dialogue: 1,0:00:00.00,${formatAssTime(targetDuration)},TopHeader,,0,0,0,,{\\b1}
       assContent += `Dialogue: 2,${formatAssTime(item.start)},${formatAssTime(item.end)},ActiveDialogue,,0,0,32,,{\\fscx95\\fscy95\\t(0,60,\\fscx100\\fscy100)}${prefix}${item.text}\n`;
     });
 
-    fs.writeFileSync(assPath, assContent);
+    fs.writeFileSync(assPath, assContent, 'utf8');
     hasAss = true;
     relAssPath = path.relative(process.cwd(), assPath).replace(/\\/g, '/').replace(/:/g, '\\:');
   } catch (e) {

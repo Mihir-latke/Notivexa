@@ -6,6 +6,7 @@ import api from '../utils/api'
 const TOOLS = [
   { path:'/upload',    icon:'📤', title:'Upload / Link',     desc:'PDF, Google Drive, YouTube & Web',   color:'#EDE9FE', badge:'START' },
   { path:'/notebook',  icon:'📓', title:'AI Notebook',      desc:'Notes, Q-papers, slides, mindmaps',color:'#DBEAFE', badge:'CORE'  },
+  { path:'/video-studio',icon:'🎬',title:'AI Video Studio', desc:'Dynamic educational videos via AI',color:'#FCE7F3', badge:'NEW'   },
   { path:'/flashcards',icon:'🃏', title:'Flashcard Studio', desc:'AI flip cards from your PDF',      color:'#DCFCE7', badge:null    },
   { path:'/chatbot',   icon:'🧠', title:'Ask Your PDF',     desc:'Detailed answers from document',   color:'#FEF9C3', badge:'NEW'   },
   { path:'/podcast',   icon:'🎙️', title:'Audio Lecture',    desc:'PDF → spoken MP3 lecture',         color:'#E0E7FF', badge:null    },

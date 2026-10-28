@@ -20,6 +20,7 @@ const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const DOCS_FILE = path.join(DATA_DIR, 'documents.json');
 const FLASHCARDS_FILE = path.join(DATA_DIR, 'flashcards.json');
 const PLANS_FILE = path.join(DATA_DIR, 'plans.json');
+const VIDEO_JOBS_FILE = path.join(DATA_DIR, 'video_jobs.json');
 
 // Default initial demo users
 const DEFAULT_USERS = [
@@ -124,6 +125,7 @@ let memoryUsers = readJson(USERS_FILE, DEFAULT_USERS);
 let memoryDocs = readJson(DOCS_FILE, DEFAULT_DOCS);
 let memoryFlashcards = readJson(FLASHCARDS_FILE, []);
 let memoryPlans = readJson(PLANS_FILE, []);
+let memoryVideoJobs = readJson(VIDEO_JOBS_FILE, []);
 
 // Users store operations
 exports.getUsers = () => memoryUsers;
@@ -323,4 +325,64 @@ exports.deletePlan = (id, userId) => {
   plan.isActive = false;
   writeJson(PLANS_FILE, memoryPlans);
   return true;
+};
+
+// Video Jobs store operations
+exports.getVideoJobs = () => memoryVideoJobs;
+
+exports.getVideoJobsByUser = (userId) => {
+  if (!userId) return [];
+  const strId = userId.toString();
+  return memoryVideoJobs.filter(v => v.user && v.user.toString() === strId);
+};
+
+exports.getVideoJobById = (id, userId = null) => {
+  if (!id) return null;
+  const strId = id.toString();
+  const job = memoryVideoJobs.find(v => (v._id && v._id.toString() === strId) || (v.id && v.id.toString() === strId));
+  if (!job) return null;
+  if (userId && job.user && job.user.toString() !== userId.toString()) {
+    return null; // Unauthorized
+  }
+  return job;
+};
+
+exports.createVideoJob = (jobData) => {
+  const newJob = {
+    _id: 'vjob_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    ...jobData,
+    createdAt: new Date().toISOString()
+  };
+  if (!newJob.id) newJob.id = newJob._id;
+  if (!newJob.jobId) newJob.jobId = newJob.id;
+  memoryVideoJobs.unshift(newJob);
+  writeJson(VIDEO_JOBS_FILE, memoryVideoJobs);
+  return newJob;
+};
+
+exports.updateVideoJob = (id, updates, userId = null) => {
+  const job = exports.getVideoJobById(id, userId);
+  if (!job) return null;
+  Object.assign(job, updates);
+  job.updatedAt = new Date().toISOString();
+  writeJson(VIDEO_JOBS_FILE, memoryVideoJobs);
+  return job;
+};
+
+exports.deleteVideoJob = (id, userId = null) => {
+  const strId = id ? id.toString() : '';
+  const initialLen = memoryVideoJobs.length;
+  memoryVideoJobs = memoryVideoJobs.filter(v => {
+    const isTarget = (v._id && v._id.toString() === strId) || (v.id && v.id.toString() === strId);
+    if (!isTarget) return true;
+    if (userId && v.user && v.user.toString() !== userId.toString()) {
+      return true;
+    }
+    return false;
+  });
+  if (memoryVideoJobs.length !== initialLen) {
+    writeJson(VIDEO_JOBS_FILE, memoryVideoJobs);
+    return true;
+  }
+  return false;
 };

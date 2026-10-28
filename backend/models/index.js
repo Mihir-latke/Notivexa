@@ -168,10 +168,60 @@ const planSchema = new mongoose.Schema({
 
 planSchema.index({ user: 1, isActive: 1 });
 
+const videoJobSchema = new mongoose.Schema({
+  user:           { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  docId:          { type: mongoose.Schema.Types.ObjectId, ref: 'Document' },
+  docTitle:       { type: String, default: '' },
+  sourceType:     { type: String, enum: ['book', 'chapter', 'notes', 'summary', 'custom'], default: 'book' },
+  chapter:        { type: String, default: '' },
+  sectionIndex:   { type: Number, default: null },
+  title:          { type: String, required: true },
+  subject:        { type: String, default: 'General' },
+  language:       { type: String, default: 'English' },
+  style:          { type: String, default: 'realistic_cinematic' },
+  audienceLevel:  { type: String, default: 'intermediate' },
+  aspectRatio:    { type: String, enum: ['16:9', '9:16'], default: '16:9' },
+  durationSeconds:{ type: Number, default: 18 },
+  storyboard: [{
+    sceneNumber:       { type: Number },
+    learningObjective: { type: String },
+    sourceTopic:       { type: String },
+    visualDescription: { type: String },
+    mainSubject:       { type: String },
+    cameraDirection:   { type: String },
+    onScreenText:      { type: String },
+    durationSeconds:   { type: Number, default: 6 },
+    narration:         { type: String },
+    continuityNote:    { type: String }
+  }],
+  status:         { type: String, enum: ['pending', 'storyboard_ready', 'generating_scenes', 'processing_media', 'completed', 'failed'], default: 'pending', index: true },
+  progress:       { type: String, default: 'Queued for generation' },
+  engine:         { type: String, default: 'google_veo' },
+  modelUsed:      { type: String, default: 'veo-3.1-generate-preview' },
+  veoOperationIds:[String],
+  clips: [{
+    sceneNumber: Number,
+    fileName: String,
+    filePath: String,
+    duration: Number,
+    isVeo: Boolean
+  }],
+  finalVideoUrl:  { type: String, default: '' },
+  finalVideoPath: { type: String, default: '' },
+  audioUrl:       { type: String, default: '' },
+  subtitlesUrl:   { type: String, default: '' },
+  fileSize:       { type: Number, default: 0 },
+  error:          { type: String, default: null },
+  completedAt:    { type: Date }
+}, { timestamps: true });
+
+videoJobSchema.index({ user: 1, createdAt: -1 });
+
 module.exports = {
   User:      mongoose.model('User',      userSchema),
   Document:  mongoose.model('Document',  documentSchema),
   Flashcard: mongoose.model('Flashcard', flashcardSchema),
   Chat:      mongoose.model('Chat',      chatSchema),
-  Plan:      mongoose.model('Plan',      planSchema)
+  Plan:      mongoose.model('Plan',      planSchema),
+  VideoJob:  mongoose.model('VideoJob',  videoJobSchema)
 };

@@ -12,6 +12,7 @@ import Chatbot from './pages/Chatbot'
 import Library from './pages/Library'
 import Ebooks from './pages/Ebooks'
 import Planner from './pages/Planner'
+import VideoStudio from './pages/VideoStudio'
 import Settings from './pages/Settings'
 import NotFound from './pages/NotFound'
 
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="dashboard"  element={<Dashboard/>}/>
           <Route path="upload"     element={<Upload/>}/>
           <Route path="notebook"   element={<Notebook/>}/>
+          <Route path="video-studio" element={<VideoStudio/>}/>
           <Route path="flashcards" element={<Flashcards/>}/>
           <Route path="podcast"    element={<Podcast/>}/>
           <Route path="chatbot"    element={<Chatbot/>}/>

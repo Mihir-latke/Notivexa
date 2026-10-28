@@ -2784,8 +2784,12 @@ export default function Notebook() {
       const getAuthedMediaUrl = (url) => {
         if (!url) return '';
         const token = localStorage.getItem('ntv_token');
-        if (!token || url.includes('token=')) return url;
-        return `${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+        let cleanUrl = url;
+        if (cleanUrl.includes('token=')) {
+          cleanUrl = cleanUrl.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
+        }
+        if (!token) return cleanUrl;
+        return `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
       };
       const finalVideoUrl = getAuthedMediaUrl(data.videoUrl);
       const finalAudioUrl = getAuthedMediaUrl(data.audioUrl);
@@ -2794,11 +2798,12 @@ export default function Notebook() {
         <div>
           <div className="ib g" style={{ marginBottom:12 }}>{data.message || 'Educational Video Lecture generated!'}</div>
           {data.videoUrl && (
-            <div style={{ marginBottom: 18, display: 'flex', justifyContent: 'center' }}>
+            <div style={{ marginBottom: 18, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <video
                 controls
                 playsInline
-                preload="metadata"
+                preload="auto"
+                src={finalVideoUrl}
                 key={finalVideoUrl}
                 style={{
                   maxWidth: 680,
@@ -2813,12 +2818,33 @@ export default function Notebook() {
                 <source src={finalVideoUrl} type="video/mp4" />
                 Your browser does not support HTML5 video.
               </video>
+              <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 8 }}>
+                💡 Click play to start lecture with synchronized subtitles and voiceover.
+              </div>
             </div>
           )}
           <div style={{ display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', justifyContent: 'center' }}>
             {data.videoUrl && <a href={finalVideoUrl} download="notivexa_lecture_video.mp4" className="btn btn-p btn-sm" style={{ textDecoration:'none' }}>⬇️ Download Video MP4</a>}
+            {data.videoUrl && (
+              <a
+                href={finalVideoUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-s btn-sm"
+                style={{ textDecoration: 'none' }}
+              >
+                ↗️ Open Video in New Tab
+              </a>
+            )}
             {data.slidesUrl && <a href={data.slidesUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none' }}>⬇️ Slides PDF</a>}
             {data.audioUrl && <a href={finalAudioUrl} download="lecture_audio.mp3" className="btn btn-s btn-sm" style={{ textDecoration:'none', background:'transparent', color:'var(--ink2)', border:'1px solid var(--bdr)' }}>⬇️ Audio Only</a>}
+            <a
+              href="/video-studio"
+              className="btn btn-s btn-sm"
+              style={{ textDecoration: 'none', background: 'rgba(79,70,229,0.08)', color: 'var(--brand)', borderColor: 'var(--brand)' }}
+            >
+              🎬 Advanced AI Video Studio
+            </a>
           </div>
           <div style={{ fontFamily:'Sora,sans-serif', fontSize:13, fontWeight:700, marginBottom:8 }}>📜 1-2 Minute Lecture Script:</div>
           <div className="ob">

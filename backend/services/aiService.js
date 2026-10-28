@@ -926,29 +926,34 @@ async function generateVideoScript(text, title, subject, lang = 'English', docPr
   for (let i = 0; i < text.length; i += CHUNK) chunks.push(text.slice(i, i + CHUNK));
   const toProcess = chunks.slice(0, 1); // 1 chunk for a 45-60 second educational Short
 
-  const sysPrompt = `You are a professional educational scriptwriter and academic animator.
+  const langRule = getLanguageInstruction(lang, docPrimaryLang);
+  const normLang = resolveOutputLanguage(lang).name;
+
+  const sysPrompt = `You are a professional educational scriptwriter and academic animator for Notivexa.
 CRITICAL RULES:
 1. STRICT DOCUMENT GROUNDING: Use ONLY the concepts, definitions, and technical facts present in the provided document. DO NOT include generic jokes, meme humor, or unrelated comedy tropes.
-2. Structure format (Professional Classroom Lecture between Professor and Student):
-TOPIC: [Core Concept Name from document - max 4 words]
+2. ${langRule}
+3. Structure format (Professional Classroom Lecture between Professor and Student):
+TOPIC: [Core Concept Name from document - in ${normLang}]
 [BOARD POINTS]
-• 1. [First key syllabus principle from document - max 6 words]
-• 2. [Second key mechanism/method from document - max 6 words]
-• 3. [Third key rule/impact from document - max 6 words]
+• 1. [First key syllabus principle from document - in ${normLang}]
+• 2. [Second key mechanism/method from document - in ${normLang}]
+• 3. [Third key rule/impact from document - in ${normLang}]
 [DIALOGUE]
-Professor: Welcome class! Today we are analyzing [Core Concept]. Can anyone explain what problem it solves?
-Student: Professor, does [Core Concept] primarily ensure [First key principle from document]?
-Professor: Exactly! It establishes [Key explanation from document]. Furthermore, it [Second mechanism from document].
-Student: Understood! How does this directly affect [Third rule/impact from document]?
-Professor: Brilliant question! That ensures [Final technical takeaway from document]. Remember these three core principles on the board for your exam!
-3. TONE: Clear, academic, engaging, easy for university/high-school students to understand.
-4. Total dialogue length: 60-80 words (ideal for 25-30s educational short).`;
+Professor: [Teacher opening lecture in ${normLang} - introducing the core concept and asking student a foundational question]
+Student: [Student responding in ${normLang} with an insightful question about how it works]
+Professor: [Teacher explaining the key mechanism clearly in ${normLang}]
+Student: [Student acknowledging and asking about practical exam/impact in ${normLang}]
+Professor: [Teacher concluding with final core takeaway in ${normLang}]
+4. TONE: Clear, academic, engaging, easy for university/high-school students to understand.
+5. Total dialogue length: 60-80 words (ideal for 25-30s educational short).
+IMPORTANT: Keep the structural labels "TOPIC:", "[BOARD POINTS]", "[DIALOGUE]", "Professor:", "Student:" so the animation engine can parse them, but write ALL dialogue and explanatory content strictly in ${normLang}.`;
 
   const parts = [];
   for (let idx = 0; idx < toProcess.length; idx++) {
     const chunk = toProcess[idx];
     const prompt = `Write the Professional Academic Classroom Shorts script based strictly on this document.
-Title: ${title} | Subject: ${subject}
+Title: ${title} | Subject: ${subject} | Output Language: ${normLang}
 
 Document Content:
 ${chunk}`;
@@ -970,7 +975,7 @@ ${chunk}`;
   let slideCounter = 1;
   combined = combined.replace(/\[SLIDE \d+:/gi, () => `[SLIDE ${slideCounter++}:`);
 
-  if (lang !== 'English' && !containsDevanagari(combined)) {
+  if (normLang !== 'English' && !containsDevanagari(combined) && ['Marathi', 'Hindi'].includes(normLang)) {
     combined = await translateFree(combined, lang);
   }
   return combined;

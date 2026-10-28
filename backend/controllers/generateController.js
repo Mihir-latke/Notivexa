@@ -498,7 +498,8 @@ exports.video = async (req, res, next) => {
     // 3. Render realistic animated educational video (with Veo AI motion or Motion Video Engine)
     const videoResult = await createVideoFromAudio(audio.filePath, script, audio.duration);
     
-    if (doc.outputs) doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
+    if (!doc.outputs) doc.outputs = [];
+    doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
     await safeDocSave(doc);
     const userToken = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
     const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';

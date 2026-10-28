@@ -9,6 +9,7 @@ const NAV=[
   {p:'/upload',i:'📤',l:'Upload PDF',b:'START'},
   {s:'AI Tools — From Your PDF'},
   {p:'/notebook',i:'📓',l:'AI Notebook',b:'CORE'},
+  {p:'/video-studio',i:'🎬',l:'AI Video Studio',b:'NEW'},
   {p:'/flashcards',i:'🃏',l:'Flashcard Studio'},
   {p:'/podcast',i:'🎙️',l:'Audio Lecture'},
   {p:'/chatbot',i:'🧠',l:'Ask Your PDF'},
@@ -33,6 +34,11 @@ const META={
     t:'AI Notebook',
     s:'Generate handwritten notes in 15 fonts, exams, slides & mindmaps',
     d:'Generate realistic handwritten study notes, Bloom’s Taxonomy question papers, slide presentations, and process flowcharts.'
+  },
+  '/video-studio':{
+    t:'AI Video Studio',
+    s:'Dynamic AI educational video generation with Google Veo & Motion Engine',
+    d:'Generate Full HD video lectures with multi-scene storyboards, realistic academic visuals, synchronized subtitles, and spoken narration.'
   },
   '/flashcards':{
     t:'Flashcard Studio',
