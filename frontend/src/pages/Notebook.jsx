@@ -668,6 +668,32 @@ export default function Notebook() {
   const [rawTextData, setRawTextData] = useState(null)
   const [rawTextLoading, setRawTextLoading] = useState(false)
   const [changingType, setChangingType] = useState(false)
+  const [enhancingVision, setEnhancingVision] = useState(false)
+
+  const handleEnhanceVision = async () => {
+    if (!docId) return
+    setEnhancingVision(true)
+    const tId = toast.loading('✨ Transcribing and analyzing image with Google Gemini Vision...')
+    try {
+      const res = await api.post(`/documents/${docId}/enhance-vision`)
+      if (res.data?.success && res.data.document) {
+        const updated = res.data.document
+        setDoc(updated)
+        setDocs(prev => prev.map(d => (((d._id || d.id) === docId) ? updated : d)))
+        toast.success('✨ High-fidelity content extracted via Google Gemini Vision!', { id: tId })
+        if (rawTextModalOpen) {
+          const rawRes = await api.get(`/documents/${docId}/extracted-text`)
+          setRawTextData(rawRes.data)
+        }
+      } else {
+        toast.error('Could not extract content with Gemini Vision.', { id: tId })
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to enhance image with Gemini Vision.', { id: tId })
+    } finally {
+      setEnhancingVision(false)
+    }
+  }
 
   const handleOpenRawText = async () => {
     if (!docId) return
@@ -3139,67 +3165,7 @@ export default function Notebook() {
                 })}
               </select>
             )}
-            {doc && (
-              <div style={{ marginTop:10, fontSize:12, background:'#F0FDF4', border:'1px solid #BBF7D0', borderRadius:8, padding:'10px 12px', color:'#166534' }}>
-                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:6, marginBottom:6 }}>
-                  <div>
-                    ✅ <strong>{doc.title}</strong>
-                    {doc.author && <span style={{ color:'#15803D', marginLeft:6 }}>by {doc.author}</span>}
-                  </div>
-                  <button 
-                    type="button" 
-                    className="btn btn-sm" 
-                    onClick={handleOpenRawText}
-                    style={{ background:'#FFFFFF', border:'1px solid #86EFAC', color:'#15803D', fontSize:11, padding:'3px 8px', borderRadius:6, cursor:'pointer' }}
-                  >
-                    🔍 View Extracted Text
-                  </button>
-                </div>
-
-                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:11.5, color:'#14532D' }}>
-                  <span>{doc.wordCount?.toLocaleString() || 0} words · {doc.pageCount || 0} pages · {doc.sections?.length || 0} sections</span>
-                  {doc.extractionQuality && (
-                    <span style={{ 
-                      padding:'2px 7px', 
-                      borderRadius:10, 
-                      fontWeight:600,
-                      background: doc.extractionQuality.score >= 70 ? '#DCFCE7' : '#FEF3C7',
-                      color: doc.extractionQuality.score >= 70 ? '#15803D' : '#B45309'
-                    }}>
-                      {doc.extractionQuality.score >= 70 ? '✓ Quality: Good' : '⚠️ Quality: Partial'} ({doc.extractionQuality.score}/100)
-                    </span>
-                  )}
-                </div>
-
-                {/* Document Type Badge and quick change dropdown */}
-                <div style={{ marginTop:8, paddingTop:8, borderTop:'1px dashed #BBF7D0', display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ fontWeight:700, fontSize:11.5 }}>Book Type:</span>
-                    <span style={{ background:'#DCFCE7', color:'#166534', padding:'2px 8px', borderRadius:12, fontWeight:700, fontSize:11 }}>
-                      {DOCUMENT_TYPE_LABELS[doc.documentType] || '📚 Academic Textbook'}
-                    </span>
-                  </div>
-                  <select 
-                    style={{ fontSize:11, padding:'2px 6px', borderRadius:6, border:'1px solid #86EFAC', background:'#FFFFFF', color:'#15803D' }}
-                    value={doc.documentType || 'academic_textbook'}
-                    onChange={e => handleUpdateDocType(e.target.value)}
-                    disabled={changingType}
-                  >
-                    <option value="academic_textbook">📚 Academic Textbook</option>
-                    <option value="novel_fiction">📖 Novel & Fiction</option>
-                    <option value="poetry_literature">🎭 Poetry & Literature</option>
-                    <option value="history_biography">📜 History & Biography</option>
-                    <option value="science_mathematics">🔬 Science & Mathematics</option>
-                    <option value="computer_science">💻 Computer Science & Tech</option>
-                    <option value="research_paper">📑 Research Paper</option>
-                    <option value="study_guide">📝 Study Guide</option>
-                    <option value="reference_manual">📕 Reference Manual</option>
-                    <option value="general_nonfiction">💡 General Non-Fiction</option>
-                  </select>
-                </div>
-              </div>
-            )}
-            {doc?.sections?.length > 1 && (
+                        {doc?.sections?.length > 1 && (
               <div className="fg" style={{ marginTop:12 }}>
                 <label className="fl">Section (optional)</label>
                 <select className="fi" value={section} onChange={e=>setSection(e.target.value)}>
@@ -3601,6 +3567,56 @@ export default function Notebook() {
                         {(rawTextData.extractionQuality?.score || 100) >= 70 ? ' (Clean)' : ' (Noisy)'}
                       </div>
                     </div>
+                    <div>
+                      <div style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--ink3)', textTransform: 'uppercase' }}>Extraction Method</div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: rawTextData.extractionMethod === 'gemini_vision' ? '#7C3AED' : 'var(--ink)', marginTop: 2 }}>
+                        {rawTextData.extractionMethod === 'gemini_vision' ? '✨ Gemini Vision AI (98%)' : (rawTextData.extractionMethod === 'ocr' ? `📷 Local OCR (${rawTextData.ocrConfidence || 90}%)` : '📄 Native Digital')}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Gemini Vision Enhance Banner */}
+                  <div style={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'space-between', 
+                    flexWrap: 'wrap', 
+                    gap: 10,
+                    background: rawTextData.extractionMethod === 'gemini_vision' ? '#FAF5FF' : '#F8FAFC', 
+                    border: rawTextData.extractionMethod === 'gemini_vision' ? '1px solid #E9D5FF' : '1px solid #E2E8F0', 
+                    padding: '10px 14px', 
+                    borderRadius: 8, 
+                    marginBottom: 14 
+                  }}>
+                    <div>
+                      <strong style={{ color: rawTextData.extractionMethod === 'gemini_vision' ? '#6B21A8' : '#1E293B', fontSize: 12.5 }}>
+                        {rawTextData.extractionMethod === 'gemini_vision' ? '✨ Transcribed via Google Gemini Vision AI' : '💡 Need deeper image / diagram transcription?'}
+                      </strong>
+                      <div style={{ fontSize: 11.5, color: 'var(--ink3)', marginTop: 2 }}>
+                        {rawTextData.extractionMethod === 'gemini_vision' 
+                          ? 'Transcribed with full academic fidelity, including diagram breakdown, math formulas, and handwritten notes.'
+                          : 'Use Google Gemini Vision to accurately extract all text, formulas, handwriting, and detailed diagram explanations.'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-sm"
+                      onClick={handleEnhanceVision}
+                      disabled={enhancingVision}
+                      style={{ 
+                        background: '#7C3AED', 
+                        color: '#FFFFFF', 
+                        border: 'none', 
+                        padding: '6px 14px', 
+                        borderRadius: 6, 
+                        fontSize: 11.5, 
+                        fontWeight: 700, 
+                        cursor: 'pointer', 
+                        whiteSpace: 'nowrap' 
+                      }}
+                    >
+                      {enhancingVision ? '⏳ Extracting...' : (rawTextData.extractionMethod === 'gemini_vision' ? '✨ Re-scan with Gemini Vision' : '✨ Extract with Gemini Vision')}
+                    </button>
                   </div>
 
                   {rawTextData.extractionQuality?.warning && (

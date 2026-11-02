@@ -82,8 +82,31 @@ const authenticate = async (req, res, next) => {
   }
 };
 
+/**
+ * Role-Based Access Control (RBAC) middleware: Enforces role permissions.
+ * Protects admin and teacher functions from unauthorized access or privilege escalation.
+ */
+function requireRole(...roles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required.' });
+    }
+    const userRole = req.user.role || 'student';
+    if (!roles.includes(userRole)) {
+      return res.status(403).json({ error: 'Access denied: Insufficient role permissions.' });
+    }
+    next();
+  };
+}
+
+const requireAdmin = requireRole('admin');
+const requireTeacher = requireRole('teacher', 'admin');
+
 module.exports = {
   authenticate,
+  requireRole,
+  requireAdmin,
+  requireTeacher,
   getJwtSecret,
   signToken
 };

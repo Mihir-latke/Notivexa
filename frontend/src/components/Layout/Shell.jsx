@@ -9,7 +9,6 @@ const NAV=[
   {p:'/upload',i:'📤',l:'Upload PDF',b:'START'},
   {s:'AI Tools — From Your PDF'},
   {p:'/notebook',i:'📓',l:'AI Notebook',b:'CORE'},
-  {p:'/video-studio',i:'🎬',l:'AI Video Studio',b:'NEW'},
   {p:'/flashcards',i:'🃏',l:'Flashcard Studio'},
   {p:'/podcast',i:'🎙️',l:'Audio Lecture'},
   {p:'/chatbot',i:'🧠',l:'Ask Your PDF'},

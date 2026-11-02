@@ -169,12 +169,6 @@ exports.createUser = async ({ name, email, password, role = 'student', instituti
 
 exports.comparePassword = async (user, password) => {
   if (!user || !password) return false;
-  const allowDemo = process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production';
-  // Demo accounts bypass strictly gated behind development or explicit demo mode
-  if (allowDemo && (user.email === 'student@demo.com' || user.email === 'teacher@demo.com') &&
-      (password === 'demo1234' || password === 'student123' || password === 'teacher123')) {
-    return true;
-  }
   if (user.passwordHash) {
     return bcrypt.compare(password, user.passwordHash);
   }
@@ -328,6 +322,16 @@ exports.deletePlan = (id, userId) => {
 };
 
 // Video Jobs store operations
+exports.findVideoJobByHash = (hash, userId = null) => {
+  if (!hash) return null;
+  const strId = userId ? userId.toString() : null;
+  return memoryVideoJobs.find(v => {
+    if (v.contentHash !== hash) return false;
+    if (strId && v.user && v.user.toString() !== strId) return false;
+    return true;
+  }) || null;
+};
+
 exports.getVideoJobs = () => memoryVideoJobs;
 
 exports.getVideoJobsByUser = (userId) => {

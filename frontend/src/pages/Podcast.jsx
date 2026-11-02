@@ -18,6 +18,17 @@ export default function Podcast() {
   const ref=useRef()
   const navigate=useNavigate()
 
+  const getAuthedMediaUrl = (url) => {
+    if (!url) return '';
+    const token = localStorage.getItem('ntv_token');
+    let cleanUrl = url;
+    if (cleanUrl.includes('token=')) {
+      cleanUrl = cleanUrl.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
+    }
+    if (!token) return cleanUrl;
+    return `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+  };
+
   useEffect(()=>{api.get('/documents?status=ready').then(r=>setDocs(r.data.documents||[])).catch(()=>{})},[])
   useEffect(()=>{if(docId)api.get(`/documents/${docId}`).then(r=>setDoc(r.data.document)).catch(()=>{})},[docId])
 
@@ -96,12 +107,12 @@ export default function Podcast() {
 
               {/* Download */}
               <div style={{display:'flex',justifyContent:'center',gap:10,marginTop:14}}>
-                <a href={result.audioUrl} download className="btn" style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',fontSize:12,borderRadius:20,padding:'6px 16px',textDecoration:'none'}}>⬇️ Download Audio</a>
+                <a href={getAuthedMediaUrl(result.audioUrl)} download className="btn" style={{background:'rgba(255,255,255,0.1)',border:'none',color:'#fff',fontSize:12,borderRadius:20,padding:'6px 16px',textDecoration:'none'}}>⬇️ Download Audio</a>
               </div>
             </div>
 
             {/* Hidden audio element */}
-            <audio ref={ref} src={result.audioUrl}
+            <audio ref={ref} src={getAuthedMediaUrl(result.audioUrl)}
               onTimeUpdate={()=>setProg(ref.current?.currentTime||0)}
               onLoadedMetadata={()=>setDur(ref.current?.duration||0)}
               onEnded={()=>setPlaying(false)}

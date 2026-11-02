@@ -47,7 +47,7 @@ Before initiating deployment on Render, verify that all mandatory environment va
 3. **Verify Database Connection String:**
    - The connection string format must be:
      ```text
-     mongodb+srv://<username>:<password>@cluster0.t09sptg.mongodb.net/notivexa?retryWrites=true&w=majority
+     mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/notivexa?retryWrites=true&w=majority
      ```
 
 ---

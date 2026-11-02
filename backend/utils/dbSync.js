@@ -3,11 +3,42 @@ const { User, Document, Flashcard, Plan } = require('../models');
 const localStore = require('./localStore');
 const { seedUsers } = require('./seed');
 
+function isDatabaseConfigured() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri || typeof uri !== 'string') return false;
+  const trimmed = uri.trim();
+  if (
+    trimmed === '' ||
+    trimmed.includes('<db_password>') ||
+    trimmed.includes('<password>') ||
+    trimmed.includes('<username>') ||
+    trimmed.includes('YOUR_') ||
+    trimmed.includes('cluster0.xxxxx.mongodb.net') ||
+    trimmed.includes('cluster0.xxx.mongodb.net')
+  ) {
+    return false;
+  }
+  return true;
+}
+
 function resolveMongoUri(inputUri) {
   const isProd = process.env.NODE_ENV === 'production';
   let uri = inputUri || process.env.MONGODB_URI;
 
-  if (!uri || uri.includes('<db_password>') || uri.includes('<password>') || uri.includes('YOUR_')) {
+  if (uri && typeof uri === 'string') {
+    uri = uri.trim();
+  }
+
+  const isInvalidOrPlaceholder = !uri ||
+    uri === '' ||
+    uri.includes('<db_password>') ||
+    uri.includes('<password>') ||
+    uri.includes('<username>') ||
+    uri.includes('YOUR_') ||
+    uri.includes('cluster0.xxxxx.mongodb.net') ||
+    uri.includes('cluster0.xxx.mongodb.net');
+
+  if (isInvalidOrPlaceholder) {
     if (isProd) {
       return null;
     }
@@ -220,18 +251,22 @@ async function attemptMongoConnect(inputUri) {
   isConnecting = true;
   try {
     await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 8000,
+      serverSelectionTimeoutMS: 5000,
     });
-    console.log('✅ MongoDB Atlas connected successfully!');
+    console.log(`✅ MongoDB connected successfully to: ${uri.includes('127.0.0.1') ? 'Local MongoDB' : 'Configured Database Cluster'}`);
     if (process.env.NODE_ENV !== 'production' || process.env.RUN_DB_SYNC === 'true') {
       await syncLocalDataToMongo();
     }
   } catch (err) {
     const now = Date.now();
-    // Throttle duplicate warning logs to once every 30 seconds
     if (now - lastErrorLoggedTime > 30000) {
-      console.warn('⚠️  MongoDB Atlas connection failed:', err.message);
-      console.warn('👉 Tip: Whitelist IP 0.0.0.0/0 in MongoDB Atlas Network Access');
+      if (uri.includes('127.0.0.1') || uri.includes('localhost')) {
+        console.warn(`ℹ️  [Local Database] Could not connect to local MongoDB at ${uri}: ${err.message}`);
+        console.warn('👉 Tip: Start MongoDB locally or set MONGODB_URI in backend/.env to connect to your own MongoDB Atlas cluster.');
+      } else {
+        console.warn('⚠️  MongoDB connection failed:', err.message);
+        console.warn('👉 Tip: Check your database credentials and whitelist your server IP in MongoDB Atlas Network Access.');
+      }
       lastErrorLoggedTime = now;
     }
   } finally {
@@ -239,15 +274,12 @@ async function attemptMongoConnect(inputUri) {
   }
 }
 
-/**
- * Ensures MongoDB connection is ready or actively being connected before continuing critical operations.
- */
 async function ensureDbState(maxWaitMs = 4000) {
   if (mongoose.connection.readyState === 1) return true;
 
   const uri = resolveMongoUri();
 
-  if (mongoose.connection.readyState === 0) {
+  if (mongoose.connection.readyState === 0 && uri) {
     attemptMongoConnect(uri).catch(() => {});
   }
 
@@ -275,28 +307,41 @@ async function ensureDbState(maxWaitMs = 4000) {
   return mongoose.connection.readyState === 1;
 }
 
-/**
- * Initializes MongoDB connection and starts persistent background reconnect loop.
- */
 function startMongoManager(inputUri) {
   const uri = resolveMongoUri(inputUri);
+  const isConfigured = isDatabaseConfigured();
+
+  if (!isConfigured && process.env.NODE_ENV !== 'test') {
+    console.log('\n========================================================================');
+    console.log('ℹ️  NOTIVEXA DATABASE SETUP: Cloned Instance / No Database Configured');
+    console.log('========================================================================');
+    console.log('Notice: MONGODB_URI is not configured in backend environment variables.');
+    console.log('To isolate data and prevent unauthorized access, this cloned instance');
+    console.log('will NEVER connect to the original developer\'s database.\n');
+    console.log('To configure your own database:');
+    console.log('  1. Local MongoDB (Recommended for local dev):');
+    console.log('     Start mongod on 127.0.0.1:27017 (Auto-detected)');
+    console.log('  2. Dedicated MongoDB Atlas Cluster:');
+    console.log('     Set MONGODB_URI in backend/.env with your own connection string.');
+    console.log('========================================================================\n');
+  }
+
   if (!uri) return;
 
-  // 1. Initial attempt
   attemptMongoConnect(uri);
 
-  // 2. Continuous background reconnect loop (every 12 seconds)
   if (!reconnectTimer) {
     reconnectTimer = setInterval(() => {
       if (mongoose.connection.readyState !== 1) {
         attemptMongoConnect(uri);
       }
-    }, 12000);
+    }, 15000);
     if (reconnectTimer.unref) reconnectTimer.unref();
   }
 }
 
 module.exports = {
+  isDatabaseConfigured,
   resolveMongoUri,
   ensureDbState,
   syncLocalDataToMongo,

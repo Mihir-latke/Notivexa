@@ -187,7 +187,8 @@ class OcrWorkerPool {
           langPath: LANG_DATA_PATH,
           cachePath: LANG_DATA_PATH,
           gzip: false,
-          logger: () => {} // quiet mode in production
+          logger: () => {}, // quiet mode in production
+          errorHandler: (err) => console.warn('[Tesseract Worker Error]', err?.message || err)
         });
         this.workers.push({
           worker,
@@ -276,8 +277,23 @@ class OcrWorkerPool {
     try {
       workerSlot = await this.acquireWorker(resolvedLang);
       const startTime = Date.now();
-      const result = await workerSlot.worker.recognize(image);
-      const data = result.data || {};
+      let result;
+      try {
+        result = await workerSlot.worker.recognize(image);
+      } catch (recErr) {
+        console.warn(`[OCR Pool ⚠️] Worker recognize error: ${recErr.message}. Gracefully returning empty result.`);
+        return {
+          text: '',
+          confidence: 0,
+          words: 0,
+          lang: resolvedLang,
+          engine: 'tesseract',
+          status: 'failed',
+          processingTimeMs: Date.now() - startTime,
+          error: recErr.message
+        };
+      }
+      const data = result?.data || {};
       
       // Normalize Unicode to NFC to prevent Devanagari/CJK/Arabic conjunct corruption
       const rawText = (data.text || '').normalize('NFC').trim();

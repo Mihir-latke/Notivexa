@@ -85,7 +85,7 @@ const documentSchema = new mongoose.Schema({
   wordCount:     { type: Number, default: 0 },
   subject:       { type: String, default: 'General' },
   contentHash:      { type: String, index: true },
-  extractionMethod: { type: String, enum: ['native','ocr','hybrid'], default: 'native' },
+  extractionMethod: { type: String, enum: ['native','ocr','hybrid','gemini_vision'], default: 'native' },
   ocrConfidence:    { type: Number, default: 100 },
   primaryLanguage:   { type: String, default: 'en' },
   detectedLanguages: [{ type: String }],
@@ -93,7 +93,7 @@ const documentSchema = new mongoose.Schema({
   pageResults: [{
     pageNumber: { type: Number },
     text:       { type: String },
-    method:     { type: String, enum: ['native','ocr'] },
+    method:     { type: String, enum: ['native','ocr','gemini_vision'] },
     status:     { type: String, enum: ['queued','processing','ready','partial','success','warning','failed'] },
     confidence: { type: Number, default: 100 },
     wordCount:  { type: Number, default: 0 }
@@ -178,6 +178,19 @@ const videoJobSchema = new mongoose.Schema({
   title:          { type: String, required: true },
   subject:        { type: String, default: 'General' },
   language:       { type: String, default: 'English' },
+  contentHash:    { type: String, index: true, default: '' },
+  mode:           { type: String, enum: ['explainer', 'presenter'], default: 'explainer' },
+  voice:          { type: String, default: 'auto' },
+  narrationSpeed: { type: Number, default: 1.0 },
+  presenterId:    { type: String, default: 'teacher_1' },
+  sceneData:      { type: mongoose.Schema.Types.Mixed, default: null },
+  qualityChecks:  {
+    mp4Exists:        { type: Boolean, default: false },
+    audioPresent:     { type: Boolean, default: false },
+    durationVerified: { type: Boolean, default: false },
+    lipSyncVerified:  { type: Boolean, default: false },
+    verifiedAt:       { type: Date }
+  },
   style:          { type: String, default: 'realistic_cinematic' },
   audienceLevel:  { type: String, default: 'intermediate' },
   aspectRatio:    { type: String, enum: ['16:9', '9:16'], default: '16:9' },

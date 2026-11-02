@@ -9,6 +9,17 @@ export default function Library() {
   const[search,setSearch]=useState('')
   const[tab,setTab]=useState('docs')
   const navigate=useNavigate()
+
+  const getAuthedMediaUrl = (url) => {
+    if (!url) return '';
+    const token = localStorage.getItem('ntv_token');
+    let cleanUrl = url;
+    if (cleanUrl.includes('token=')) {
+      cleanUrl = cleanUrl.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
+    }
+    if (!token) return cleanUrl;
+    return `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
+  };
   useEffect(()=>{
     api.get('/library').then(r=>setDocs(r.data.documents||[])).catch(()=>{})
     api.get('/library/outputs').then(r=>setOutputs(r.data.outputs||[])).catch(()=>{})
@@ -71,7 +82,7 @@ export default function Library() {
                 <td><span className="chip" style={{fontSize:11}}>{o.type}</span></td>
                 <td>{o.language||'English'}</td>
                 <td>{new Date(o.createdAt).toLocaleDateString('en-IN')}</td>
-                <td>{o.fileName?<a href={`/uploads/generated/${o.fileName}`} download className="btn btn-s btn-sm" style={{textDecoration:'none'}}>⬇️ Download</a>:<span style={{fontSize:12,color:'var(--ink3)'}}>Text only</span>}</td>
+                <td>{o.fileName?<a href={getAuthedMediaUrl(`/uploads/generated/${o.fileName}`)} download className="btn btn-s btn-sm" style={{textDecoration:'none'}}>⬇️ Download</a>:<span style={{fontSize:12,color:'var(--ink3)'}}>Text only</span>}</td>
               </tr>
             ))}
             {outputs.length===0&&<tr><td colSpan={5} style={{textAlign:'center',padding:30,color:'var(--ink3)'}}>No generated files yet. Use AI Notebook to create content from your PDFs.</td></tr>}

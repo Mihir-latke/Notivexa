@@ -226,7 +226,7 @@ describe('Notivexa API Audit & Security Test Suite', () => {
 
     it('Path traversal in static video route is blocked', async () => {
       const res = await request(app).get('/uploads/video/../../server.js');
-      expect([400, 404]).toContain(res.status);
+      expect([400, 403, 404]).toContain(res.status);
     });
 
     it('Direct unauthenticated access to /uploads/docs and /uploads/pdfs is blocked with 403 Forbidden', async () => {

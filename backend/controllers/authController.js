@@ -130,14 +130,7 @@ exports.login = async (req, res, next) => {
     if (isDbConnected()) {
       const user = await User.findOne({ email: normEmail }).select('+password');
       if (user) {
-        let isMatch = await user.comparePassword(password);
-
-        // Support demo aliases ONLY if demo mode is explicitly enabled
-        if (allowDemoMode && !isMatch && (normEmail === 'student@demo.com' || normEmail === 'teacher@demo.com')) {
-          if (password === 'demo1234' || password === 'student123' || password === 'teacher123') {
-            isMatch = true;
-          }
-        }
+        const isMatch = await user.comparePassword(password);
 
         if (isMatch) {
           if (!user.isActive) {

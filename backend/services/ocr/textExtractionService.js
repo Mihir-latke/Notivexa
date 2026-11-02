@@ -19,6 +19,7 @@ const { inspectAndExtractPdf } = require('./pdfService');
 const { recognizeImage } = require('./ocrService');
 const { chunkPageResults } = require('./chunkingService');
 const { detectTextLanguage, resolveOutputLanguage } = require('./languageDetectionService');
+const { extractWithGeminiVision } = require('./geminiVisionService');
 
 const CACHE_DIR = path.resolve(__dirname, '../../data/ocr-cache');
 
@@ -214,36 +215,86 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
   if (isImage) {
     console.log(`[Text Extraction] Processing standalone image file: ${path.basename(filePath)}`);
     let ocrLang = (targetLangSet !== 'auto') ? targetLangSet : 'eng';
+    let text = '';
+    let words = 0;
+    let confidence = 0;
+    let method = 'ocr';
+    let ocrStatus = 'failed';
+    let localOcrSucceeded = false;
 
-    // First OCR recognition pass
-    let ocrResult = await recognizeImage(filePath, { lang: ocrLang, retryOnLowConfidence: true });
-    let text = (ocrResult.text || '').trim();
+    // 1. Attempt local OCR first (unless forced to use Gemini Vision)
+    if (!options.forceGeminiVision) {
+      try {
+        let ocrResult = await recognizeImage(filePath, { lang: ocrLang, retryOnLowConfidence: true });
+        text = (ocrResult.text || '').trim();
+        confidence = ocrResult.confidence || 0;
+        words = ocrResult.words || text.split(/\s+/).filter(Boolean).length;
 
-    // If auto mode and text has non-Latin script or very low confidence, check script detection
-    if (targetLangSet === 'auto') {
-      const detected = detectTextLanguage(text);
-      if (detected.primaryLanguage !== 'eng' && detected.tesseractLangSet !== ocrLang) {
-        console.log(`[Text Extraction 🌐] Detected script for image: ${detected.primaryLanguage} (${detected.tesseractLangSet}). Re-running OCR with optimized model...`);
-        const refinedResult = await recognizeImage(filePath, {
-          lang: detected.tesseractLangSet,
-          script: Object.keys(detected.scripts)[0],
-          retryOnLowConfidence: true
-        });
-        if ((refinedResult.words || 0) >= (ocrResult.words || 0) || (refinedResult.confidence || 0) > (ocrResult.confidence || 0)) {
-          ocrResult = refinedResult;
-          text = (ocrResult.text || '').trim();
-          targetLangSet = detected.tesseractLangSet;
+        // If auto mode and text has non-Latin script, refine with script model
+        if (targetLangSet === 'auto' && text.length > 0) {
+          const detected = detectTextLanguage(text);
+          if (detected.primaryLanguage !== 'eng' && detected.tesseractLangSet !== ocrLang) {
+            console.log(`[Text Extraction 🌐] Detected script for image: ${detected.primaryLanguage} (${detected.tesseractLangSet}). Re-running OCR with optimized model...`);
+            const refinedResult = await recognizeImage(filePath, {
+              lang: detected.tesseractLangSet,
+              script: Object.keys(detected.scripts)[0],
+              retryOnLowConfidence: true
+            });
+            if ((refinedResult.words || 0) >= words || (refinedResult.confidence || 0) > confidence) {
+              ocrResult = refinedResult;
+              text = (ocrResult.text || '').trim();
+              words = ocrResult.words || text.split(/\s+/).filter(Boolean).length;
+              confidence = ocrResult.confidence || 0;
+              targetLangSet = detected.tesseractLangSet;
+            }
+          }
         }
+
+        if (words >= 15 && confidence >= 45) {
+          localOcrSucceeded = true;
+          ocrStatus = 'success';
+        }
+      } catch (localOcrErr) {
+        console.warn(`[Text Extraction ⚠️] Local OCR failed on image: ${localOcrErr.message}. Falling back to AI Vision...`);
       }
     }
 
-    const words = ocrResult.words || text.split(/\s+/).filter(Boolean).length;
+    // 2. Fallback to Google Gemini Vision if local OCR did not get the content or was insufficient
+    const isInsufficient = options.forceGeminiVision || !localOcrSucceeded || !text || words < 20 || confidence < 50;
+
+    if (isInsufficient) {
+      console.log(`[Text Extraction 👁️] Local OCR yielded insufficient text (${words} words, ${confidence}% confidence). Activating Google Gemini Vision fallback...`);
+      try {
+        const visionResult = await extractWithGeminiVision(filePath, mimeType, {
+          filename: path.basename(filePath),
+          language: manualLang,
+          subject: options.subject
+        });
+
+        if (visionResult && visionResult.text && visionResult.text.length > 20) {
+          console.log(`[Text Extraction ✨] Google Gemini Vision succeeded: transcribed ${visionResult.words} words!`);
+          text = visionResult.text;
+          words = visionResult.words;
+          confidence = visionResult.confidence || 98;
+          method = 'gemini_vision';
+          ocrStatus = 'success';
+          if (visionResult.primaryLanguage) {
+            targetLangSet = visionResult.primaryLanguage;
+          }
+        } else {
+          console.warn('[Text Extraction ⚠️] Google Gemini Vision returned empty or was unavailable.');
+        }
+      } catch (visionErr) {
+        console.error('[Text Extraction ❌] Gemini Vision fallback failed:', visionErr.message);
+      }
+    }
+
     pageResults.push({
       pageNumber: 1,
       text,
-      method: 'ocr',
-      status: ocrResult.status || (words > 0 ? 'success' : 'failed'),
-      confidence: ocrResult.confidence || 0,
+      method,
+      status: (words > 0 && text.length > 0) ? 'success' : 'failed',
+      confidence,
       wordCount: words
     });
   } else {
@@ -313,9 +364,30 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
           console.warn(`[Text Extraction ⚠️] Page ${pageItem.pageNumber} OCR error:`, pageErr.message);
           pageItem.status = 'failed';
           pageItem.confidence = 0;
-        } finally {
-          pageItem.imageBuffer = null;
         }
+
+        // If local OCR produced minimal or no text on this scanned page, attempt Gemini Vision
+        if ((!pageItem.text || pageItem.wordCount < 10) && pageItem.imageBuffer) {
+          try {
+            console.log(`[Text Extraction 👁️] Scanned page ${pageItem.pageNumber} OCR yielded minimal content. Invoking Gemini Vision fallback...`);
+            const pVision = await extractWithGeminiVision(pageItem.imageBuffer, 'image/png', {
+              filename: `page-${pageItem.pageNumber}`,
+              language: manualLang
+            });
+            if (pVision && pVision.text && pVision.words >= 10) {
+              console.log(`[Text Extraction ✨] Page ${pageItem.pageNumber} successfully digitized with Gemini Vision (${pVision.words} words)!`);
+              pageItem.text = pVision.text;
+              pageItem.confidence = 98;
+              pageItem.wordCount = pVision.words;
+              pageItem.method = 'gemini_vision';
+              pageItem.status = 'success';
+            }
+          } catch (pVErr) {
+            console.warn(`[Text Extraction] Page ${pageItem.pageNumber} vision fallback error:`, pVErr.message);
+          }
+        }
+
+        pageItem.imageBuffer = null;
       }
     }
   }
@@ -323,7 +395,7 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
   // 2. Validate that readable text exists
   const validPages = pageResults.filter(p => (p.text || '').trim().length > 0);
   if (validPages.length === 0) {
-    throw new Error('No readable text could be extracted from this document or scanned images.');
+    throw new Error('No readable educational content could be extracted from this image or document.');
   }
 
   // 3. Chunk into structured sections
@@ -338,13 +410,18 @@ async function extractDocumentText(filePath, mimeType = 'application/pdf', optio
   // 5. Determine overall extraction method & confidence
   const methods = new Set(pageResults.map(p => p.method));
   let overallMethod = 'native';
-  if (methods.has('native') && methods.has('ocr')) overallMethod = 'hybrid';
+  if (methods.has('gemini_vision') && methods.has('native')) overallMethod = 'hybrid';
+  else if (methods.has('gemini_vision')) overallMethod = 'gemini_vision';
+  else if (methods.has('native') && methods.has('ocr')) overallMethod = 'hybrid';
   else if (methods.has('ocr')) overallMethod = 'ocr';
 
   const confidences = pageResults.map(p => p.confidence || 0);
-  const avgConfidence = confidences.length > 0
+  let avgConfidence = confidences.length > 0
     ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length)
     : 100;
+  if (methods.has('gemini_vision')) {
+    avgConfidence = Math.max(avgConfidence, 96);
+  }
 
   const finalResult = {
     text: chunked.text,

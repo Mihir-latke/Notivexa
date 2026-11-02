@@ -9,6 +9,7 @@ r.get('/', c.list);
 r.get('/stats', c.stats);
 r.get('/:id', c.get);
 r.get('/:id/extracted-text', c.getExtractedText);
+r.post('/:id/enhance-vision', c.enhanceWithVision);
 r.patch('/:id/type', c.updateDocumentType);
 r.get('/:id/file', c.getFile);
 r.get('/:id/download', c.downloadFile);

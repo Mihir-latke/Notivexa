@@ -195,7 +195,12 @@ export default function VideoStudio() {
       if (res.data?.success && res.data.job) {
         setActiveJob(res.data.job)
         toast.success('🚀 Video rendering job initiated!')
-        startPollingJob(res.data.job.jobId)
+        const targetJobId = res.data.jobId || res.data.job?.jobId || res.data.job?._id || res.data.job?.id;
+        if (targetJobId) {
+          startPollingJob(targetJobId)
+        } else {
+          fetchJobs()
+        }
       } else {
         toast.error('Could not initiate video generation.')
         setIsGenerating(false)
@@ -208,11 +213,17 @@ export default function VideoStudio() {
 
   // Poll Job Status every 2 seconds
   const startPollingJob = (jobId) => {
+    if (!jobId || jobId === 'undefined' || jobId === 'null') {
+      setIsGenerating(false)
+      return
+    }
     if (pollTimerRef.current) clearInterval(pollTimerRef.current)
 
+    let errorCount = 0
     pollTimerRef.current = setInterval(async () => {
       try {
         const res = await api.get(`/video-studio/jobs/${jobId}`)
+        errorCount = 0
         if (res.data?.job) {
           const job = res.data.job
           setActiveJob(job)
@@ -229,7 +240,13 @@ export default function VideoStudio() {
           }
         }
       } catch (err) {
+        errorCount++
         console.warn('Polling error:', err.message)
+        if (errorCount >= 4) {
+          clearInterval(pollTimerRef.current)
+          setIsGenerating(false)
+          fetchJobs()
+        }
       }
     }, 2000)
   }
@@ -237,26 +254,27 @@ export default function VideoStudio() {
   // Delete Job
   const handleDeleteJob = async (jobId, e) => {
     e.stopPropagation()
+    if (!jobId || jobId === 'undefined' || jobId === 'null') return
     if (!window.confirm('Delete this video job?')) return
     try {
       await api.delete(`/video-studio/jobs/${jobId}`)
       toast.success('Video job deleted.')
-      if (activeJob?.jobId === jobId) setActiveJob(null)
+      const currentId = activeJob?.jobId || activeJob?._id || activeJob?.id
+      if (currentId === jobId) setActiveJob(null)
       fetchJobs()
     } catch (err) {
       toast.error('Could not delete video job.')
     }
   }
 
-  const getMediaUrlWithToken = (url) => {
+    const getMediaUrlWithToken = (url) => {
     if (!url) return ''
     const token = localStorage.getItem('ntv_token')
-    let clean = url
-    if (clean.includes('token=')) {
-      clean = clean.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '')
+    if (token) {
+      const clean = url.includes('token=') ? url.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '') : url
+      return `${clean}${clean.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
     }
-    if (!token) return clean
-    return `${clean}${clean.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
+    return url
   }
 
   return (
@@ -625,11 +643,10 @@ export default function VideoStudio() {
               </div>
               <div className="cb">
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 16 }}>
-                  <video
+                                    <video
                     controls
                     playsInline
-                    preload="auto"
-                    src={getMediaUrlWithToken(activeJob.finalVideoUrl)}
+                    preload="metadata"
                     key={activeJob.finalVideoUrl}
                     style={{
                       maxWidth: '100%',
@@ -790,51 +807,55 @@ export default function VideoStudio() {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {historyJobs.map(j => (
-                    <div
-                      key={j.jobId}
-                      style={{
-                        padding: 12,
-                        borderRadius: 10,
-                        border: '1px solid var(--bdr)',
-                        background: activeJob?.jobId === j.jobId ? 'rgba(79,70,229,0.05)' : 'transparent',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => setActiveJob(j)}
-                    >
-                      <div>
-                        <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--ink1)' }}>
-                          {j.topic || j.docTitle || 'Educational Video'}
+                  {historyJobs.map(j => {
+                    const jId = j.jobId || j._id || j.id;
+                    const isSelected = (activeJob?.jobId || activeJob?._id || activeJob?.id) === jId;
+                    return (
+                      <div
+                        key={jId}
+                        style={{
+                          padding: 12,
+                          borderRadius: 10,
+                          border: '1px solid var(--bdr)',
+                          background: isSelected ? 'rgba(79,70,229,0.05)' : 'transparent',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => setActiveJob(j)}
+                      >
+                        <div>
+                          <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--ink1)' }}>
+                            {j.topic || j.docTitle || 'Educational Video'}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--ink3)', marginTop: 2 }}>
+                            {j.duration || 18}s • {j.language || 'English'} • {j.visualStyle?.replace('_', ' ')} • {new Date(j.createdAt).toLocaleDateString()}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--ink3)', marginTop: 2 }}>
-                          {j.duration || 18}s • {j.language || 'English'} • {j.visualStyle?.replace('_', ' ')} • {new Date(j.createdAt).toLocaleDateString()}
+                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                          <span
+                            className="chip"
+                            style={{
+                              background: j.status === 'completed' ? '#10B981' : j.status === 'failed' ? '#EF4444' : '#F59E0B',
+                              color: '#fff',
+                              fontSize: 10
+                            }}
+                          >
+                            {j.status}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn btn-s btn-sm"
+                            style={{ color: '#EF4444', padding: '4px 8px' }}
+                            onClick={(e) => handleDeleteJob(jId, e)}
+                          >
+                            ✕
+                          </button>
                         </div>
                       </div>
-                      <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                        <span
-                          className="chip"
-                          style={{
-                            background: j.status === 'completed' ? '#10B981' : j.status === 'failed' ? '#EF4444' : '#F59E0B',
-                            color: '#fff',
-                            fontSize: 10
-                          }}
-                        >
-                          {j.status}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn btn-s btn-sm"
-                          style={{ color: '#EF4444', padding: '4px 8px' }}
-                          onClick={(e) => handleDeleteJob(j.jobId, e)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

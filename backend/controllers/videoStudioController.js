@@ -210,12 +210,16 @@ exports.createVideoJob = async (req, res, next) => {
         .catch(err => console.error('[VideoStudio Controller Background Err]', err));
     });
 
+    const jobObj = typeof createdJob.toObject === 'function' ? createdJob.toObject() : { ...createdJob };
+    jobObj.jobId = jobId;
+    jobObj.id = jobId;
+
     res.json({
       success: true,
       message: 'Video generation job started.',
       jobId,
       status: createdJob.status,
-      job: createdJob
+      job: jobObj
     });
   } catch (err) {
     next(err);
@@ -226,6 +230,9 @@ exports.createVideoJob = async (req, res, next) => {
 exports.getJobStatus = async (req, res, next) => {
   try {
     const { jobId } = req.params;
+    if (!jobId || jobId === 'undefined' || jobId === 'null') {
+      return res.status(400).json({ error: 'Valid Job ID is required.' });
+    }
     const userId = req.user?.id;
 
     let job = null;
@@ -244,6 +251,9 @@ exports.getJobStatus = async (req, res, next) => {
     const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
 
     const formattedJob = typeof job.toObject === 'function' ? job.toObject() : { ...job };
+    const validJobId = (formattedJob._id || formattedJob.id || jobId).toString();
+    formattedJob.jobId = validJobId;
+    formattedJob.id = validJobId;
     if (formattedJob.finalVideoUrl) {
       formattedJob.finalVideoUrl = `${formattedJob.finalVideoUrl}${tokenParam}`;
     }
@@ -281,6 +291,9 @@ exports.listUserJobs = async (req, res, next) => {
 
     const withTokens = jobs.map(j => {
       const obj = { ...j };
+      const idStr = (obj._id || obj.id || '').toString();
+      obj.jobId = obj.jobId || idStr;
+      obj.id = obj.id || idStr;
       if (obj.finalVideoUrl) obj.finalVideoUrl = `${obj.finalVideoUrl}${tokenParam}`;
       if (obj.audioUrl) obj.audioUrl = `${obj.audioUrl}${tokenParam}`;
       return obj;
@@ -299,6 +312,9 @@ exports.listUserJobs = async (req, res, next) => {
 exports.deleteJob = async (req, res, next) => {
   try {
     const { jobId } = req.params;
+    if (!jobId || jobId === 'undefined' || jobId === 'null') {
+      return res.status(400).json({ error: 'Valid Job ID is required.' });
+    }
     const userId = req.user?.id;
 
     let job = null;

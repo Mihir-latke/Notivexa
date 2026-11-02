@@ -51,7 +51,7 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
-const MAX = parseInt(process.env.MAX_FILE_SIZE) || 52428800; // 50MB
+const MAX = parseInt(process.env.MAX_FILE_SIZE) || 1073741824; // 1 GB (1,073,741,824 bytes)
 
 module.exports = {
   upload: multer({

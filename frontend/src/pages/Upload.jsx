@@ -77,11 +77,37 @@ export default function Upload() {
     }
   }
 
+  const MAX_FILE_SIZE_BYTES = 1073741824 // 1 GB limit
+
   const addFiles = fs => {
     const isDocx = f => f.name.toLowerCase().endsWith('.docx') || (f.type && (f.type.includes('wordprocessingml') || f.type.includes('officedocument')))
-    const arr = Array.from(fs).filter(f => f.type === 'application/pdf' || f.type.startsWith('image/') || isDocx(f))
-    if (arr.length < Array.from(fs).length) toast.error('Only PDF, image, and DOCX files are accepted')
-    const mapped = arr.map(f => ({ file:f, id:Date.now()+Math.random(), name:f.name, size:(f.size/1024/1024).toFixed(2)+' MB', progress:0, done:false, error:null }))
+    const rawArr = Array.from(fs)
+    const validExt = rawArr.filter(f => f.type === 'application/pdf' || f.type.startsWith('image/') || isDocx(f))
+    if (validExt.length < rawArr.length) toast.error('Only PDF, image, and DOCX files are accepted')
+
+    const withinLimit = []
+    for (const f of validExt) {
+      if (f.size > MAX_FILE_SIZE_BYTES) {
+        toast.error(`"${f.name}" exceeds the 1 GB file size limit.`)
+      } else {
+        withinLimit.push(f)
+      }
+    }
+
+    const formatSize = bytes => {
+      if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB'
+      return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
+    }
+
+    const mapped = withinLimit.map(f => ({
+      file: f,
+      id: Date.now() + Math.random(),
+      name: f.name,
+      size: formatSize(f.size),
+      progress: 0,
+      done: false,
+      error: null
+    }))
     setFiles(prev => [...prev, ...mapped])
   }
 
@@ -97,6 +123,7 @@ export default function Upload() {
       setFiles(prev => prev.map(f => ({ ...f, progress: 20 })))
       const res = await api.post('/documents/upload', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 600000, // 10 minutes timeout for large file uploads up to 1 GB
         onUploadProgress: e => {
           const pct = Math.round(e.loaded / e.total * 90)
           setFiles(prev => prev.map(f => ({ ...f, progress: pct })))
@@ -245,7 +272,7 @@ export default function Upload() {
                 onClick={() => ref.current?.click()}>
                 <div style={{ fontSize:36, marginBottom:10 }}>📂</div>
                 <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, marginBottom:5 }}>Drop PDF/Image files here or click to browse</div>
-                <div style={{ fontSize:12, color:'var(--ink3)' }}>PDF or Images · Up to 10 files · 50MB each</div>
+                <div style={{ fontSize:12, color:'var(--ink3)' }}>PDF, Images or DOCX · Up to 10 files · Up to 1 GB each</div>
               </div>
               <input ref={ref} type="file" multiple accept=".pdf,application/pdf,image/*,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }} onChange={e => addFiles(e.target.files)} />
@@ -640,8 +667,13 @@ export default function Upload() {
                     <>
                       <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:8 }}>
                         <span style={{ background:'#ECFDF5', color:'#065F46', border:'1px solid #A7F3D0', padding:'2px 8px', borderRadius:10, fontSize:11, fontWeight:600 }}>
-                          🌐 {doc.primaryLanguage ? doc.primaryLanguage.toUpperCase() : 'ENG'} ({doc.extractionMethod === 'ocr' ? `${doc.ocrConfidence || 95}% OCR` : 'Native Text'})
+                          🌐 {doc.primaryLanguage ? doc.primaryLanguage.toUpperCase() : 'ENG'} ({doc.extractionMethod === 'gemini_vision' ? '✨ Gemini Vision AI' : (doc.extractionMethod === 'ocr' ? `${doc.ocrConfidence || 95}% OCR` : 'Native Text')})
                         </span>
+                        {doc.extractionMethod === 'gemini_vision' && (
+                          <span style={{ background:'#F3E8FF', color:'#6B21A8', border:'1px solid #D8B4FE', padding:'2px 8px', borderRadius:10, fontSize:11, fontWeight:700 }}>
+                            ✨ AI Vision
+                          </span>
+                        )}
                         {doc.isRTL && (
                           <span style={{ background:'#FEF3C7', color:'#92400E', border:'1px solid #FDE68A', padding:'2px 8px', borderRadius:10, fontSize:11, fontWeight:600 }}>
                             RTL

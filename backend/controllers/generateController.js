@@ -478,41 +478,59 @@ exports.ppt = async (req, res, next) => {
   } catch(e) { next(e); }
 };
 
-const { createVideoFromAudio } = require('../services/videoEngine');
+const { generateAnimatedVideoLecture } = require('../services/videoGenerationService');
 
 exports.video = async (req, res, next) => {
   try {
-    if (req.setTimeout) req.setTimeout(180000); // 3 minutes timeout for video rendering
+    if (req.setTimeout) req.setTimeout(240000); // 4 minutes timeout for video rendering
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const { sectionIndex } = req.body;
+    const { sectionIndex, mode = 'explainer', voice = 'auto', voiceGender = 'male', speedMultiplier = 1.0, sceneCount = 3 } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
 
-    // 1. Generate strictly document-grounded classroom dialogue script
-    const script = await ai.generateVideoScript(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
+    const result = await generateAnimatedVideoLecture({
+      content: text,
+      title: doc.title,
+      subject: doc.subject || doc.title,
+      language,
+      docPrimaryLang: doc.primaryLanguage || 'eng',
+      difficulty: req.body.difficulty || 'intermediate',
+      sceneCount: Number(sceneCount) || 3,
+      mode: ['explainer', 'presenter'].includes(mode) ? mode : 'explainer',
+      voice,
+      voiceGender,
+      speedMultiplier: Number(speedMultiplier) || 1.0,
+      userId: req.user?.id,
+      docId: doc._id || doc.id,
+      sectionIndex
+    });
 
-    // 2. Generate Audio via Edge TTS
-    const audio = await ai.generateAudio(script, { language: langInfo.code, outputLanguage: language, voiceStyle: 'male' });
-
-    // 3. Render realistic animated educational video (with Veo AI motion or Motion Video Engine)
-    const videoResult = await createVideoFromAudio(audio.filePath, script, audio.duration);
-    
     if (!doc.outputs) doc.outputs = [];
-    doc.outputs.push({ type:'video', language, fileName:videoResult.fileName, filePath:videoResult.videoPath, fileSize: videoResult.fileSize || 0 });
+    doc.outputs.push({
+      type: 'video',
+      language,
+      fileName: result.fileName,
+      filePath: result.videoPath,
+      fileSize: result.fileSize || 0
+    });
     await safeDocSave(doc);
+
     const userToken = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
     const tokenQuery = userToken ? `?token=${encodeURIComponent(userToken)}` : '';
+
     res.json({
       success: true,
-      script,
-      audioUrl: `/uploads/audio/${audio.fileName}`,
-      videoUrl: `${videoResult.videoUrl}${tokenQuery}`,
-      audioProvider: audio.provider,
-      audioDuration: audio.duration,
-      audioNote: audio.note,
-      isVeo: videoResult.isVeo || false,
-      message: 'Video generation complete: script + audio + motion video'
+      script: result.script,
+      audioUrl: result.audioUrl,
+      videoUrl: `${result.videoUrl}${tokenQuery}`,
+      subtitlesUrl: result.subtitlesUrl,
+      duration: result.duration,
+      fileSize: result.fileSize,
+      mode: result.mode,
+      qualityChecks: result.qualityChecks,
+      cached: result.cached,
+      message: result.message || 'Educational Video Lecture generated!'
     });
   } catch(e) { next(e); }
 };

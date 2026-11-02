@@ -51,6 +51,30 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Cloned Repository Database Setup Notice */}
+      {setup?.database?.setupRequired && (
+        <div style={{
+          background: 'rgba(234, 179, 8, 0.08)',
+          border: '1px solid rgba(234, 179, 8, 0.3)',
+          borderRadius: 12,
+          padding: '14px 18px',
+          marginBottom: 18,
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12
+        }}>
+          <span style={{ fontSize: 20 }}>🛡️</span>
+          <div style={{ flex: 1, fontSize: 12.5, color: 'var(--ink)' }}>
+            <div style={{ fontWeight: 700, marginBottom: 2 }}>
+              Cloned Project Security Notice: Isolated Local Storage Mode
+            </div>
+            <div style={{ color: 'var(--ink2)', lineHeight: 1.5 }}>
+              This cloned instance is strictly isolated from the original developer's database. Your data is currently stored in local JSON storage. To connect a permanent database, configure <code>MONGODB_URI</code> in <code>backend/.env</code> with your own MongoDB Atlas connection string or run a local MongoDB instance.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="g4" style={{ marginBottom:18 }}>
         {[

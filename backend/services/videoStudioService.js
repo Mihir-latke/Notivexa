@@ -337,42 +337,24 @@ async function generateDynamicSceneClip({ scene, style, title, subject, language
   ];
   const motionFilter = motions[(scene.sceneNumber - 1) % motions.length];
 
-  // Check if real presenter/classroom motion video is available as background base
-  const stockMotion = [
-    path.join(__dirname, '../assets/videos/classroom_motion.mp4'),
-    path.join(__dirname, '../assets/videos/presenter_motion.mp4')
-  ].find(p => fs.existsSync(p));
-
+    // Procedural animated educational canvas with topic diagram nodes & cards (NO STATIC LOOPS)
   return new Promise((resolve, reject) => {
     let cmd = ffmpeg();
 
-    if (stockMotion) {
-      // Loop stock motion video
-      cmd = cmd
-        .input(stockMotion)
-        .inputOptions(['-stream_loop', '-1', '-t', String(duration)]);
+    cmd = cmd
+      .input(`color=c=${pal.bg}:s=${width}x${height}:d=${duration}:r=25`)
+      .inputFormat('lavfi');
 
-      const filtergraph = [
-        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=increase,crop=${width}:${height}[base]`,
-        `[base]drawbox=x=0:y=0:w=${width}:h=${height}:color=${pal.bg}@0.45:t=fill[tinted]`,
-        `[tinted]drawbox=x=20:y=20:w=${width - 40}:h=50:color=#000000@0.75:t=fill[top_bar]`,
-        `[top_bar]drawbox=x=20:y=20:w=${width - 40}:h=50:color=${pal.accent}@0.8:t=2[framed]`,
-        `[framed]format=yuv420p[out_v]`
-      ];
-      cmd = cmd.complexFilter(filtergraph.join(';'));
-    } else {
-      // Procedural animated gradient with dynamic camera motion
-      cmd = cmd
-        .input(`color=c=${pal.bg}:s=${width}x${height}:d=${duration}:r=24`)
-        .inputFormat('lavfi');
-
-      const filtergraph = [
-        `[0:v]drawbox=x=40:y=40:w=${width - 80}:h=${height - 80}:color=${pal.accent}@0.15:t=fill[box]`,
-        `[box]drawbox=x=40:y=40:w=${width - 80}:h=${height - 80}:color=${pal.accent}@0.6:t=2[framed]`,
-        `[framed]format=yuv420p[out_v]`
-      ];
-      cmd = cmd.complexFilter(filtergraph.join(';'));
-    }
+    const filtergraph = [
+      `[0:v]drawbox=x=40:y=75:w=${width - 80}:h=${height - 150}:color=#0f1e2e@0.95:t=fill[card_bg]`,
+      `[card_bg]drawbox=x=40:y=75:w=${width - 80}:h=${height - 150}:color=${pal.accent}@0.85:t=2[card_framed]`,
+      `[card_framed]drawbox=x=0:y=0:w=${width}:h=58:color=#05101a@0.96:t=fill[top_bar]`,
+      `[top_bar]drawbox=x=0:y=56:w=${width}:h=2:color=${pal.accent}@0.7:t=fill[stage_base]`,
+      `[stage_base]drawbox=x=90:y=180:w=${width - 180}:h=140:color=#132438@0.9:t=fill[concept_box]`,
+      `[concept_box]drawbox=x=90:y=180:w=${width - 180}:h=140:color=${pal.accent}@0.8:t=2[concept_framed]`,
+      `[concept_framed]format=yuv420p[out_v]`
+    ];
+        cmd = cmd.complexFilter(filtergraph.join(';'));
 
     cmd
       .outputOptions([

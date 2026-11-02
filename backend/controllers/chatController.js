@@ -16,8 +16,8 @@ exports.message = async (req, res, next) => {
     // Get document text with strict multi-tenant ownership check
     let docText = '';
     let docTitle = '';
+    let doc = null;
     if (documentId) {
-      let doc = null;
       if (isDbConnected() && mongoose.Types.ObjectId.isValid(documentId)) {
         try {
           doc = await Document.findOne({ _id: documentId, user: userId });

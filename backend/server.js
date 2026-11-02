@@ -23,8 +23,17 @@ if (process.env.NODE_ENV === 'production') {
     console.error('FATAL: In production, process.env.JWT_SECRET must be set to a secure string of at least 32 characters.');
     process.exit(1);
   }
-  if (!process.env.MONGODB_URI || process.env.MONGODB_URI.includes('<db_password>') || process.env.MONGODB_URI.includes('<password>')) {
-    console.error('FATAL: In production, process.env.MONGODB_URI must be configured with valid MongoDB Atlas credentials.');
+  const rawMongo = (process.env.MONGODB_URI || '').trim();
+  if (
+    !rawMongo ||
+    rawMongo.includes('<db_password>') ||
+    rawMongo.includes('<password>') ||
+    rawMongo.includes('<username>') ||
+    rawMongo.includes('YOUR_') ||
+    rawMongo.includes('cluster0.xxxxx.mongodb.net') ||
+    rawMongo.includes('cluster0.xxx.mongodb.net')
+  ) {
+    console.error('FATAL: In production, process.env.MONGODB_URI must be configured with a dedicated MongoDB Atlas connection string. Server startup aborted.');
     process.exit(1);
   }
 } else {
@@ -64,8 +73,8 @@ app.use(cors({
 
 app.use(rateLimit({ windowMs: 15 * 60 * 1000, max: 500, message: { error: 'Too many requests.' } }));
 app.use(morgan('dev'));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Helper to extract JWT token from Authorization header or ?token= query parameter
 function getAuthTokenFromReq(req) {
@@ -85,28 +94,16 @@ const jwt = require('jsonwebtoken');
 function authenticateMediaRequest(req, res, next) {
   const token = getAuthTokenFromReq(req);
   if (!token) {
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      req.userId = 'demo_user';
-      return next();
-    }
     return res.status(401).json({ error: 'Authentication required. No token provided.' });
   }
   try {
     const decoded = jwt.verify(token, getJwtSecret());
     if (!decoded || !decoded.id) {
-      if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-        req.userId = 'demo_user';
-        return next();
-      }
       return res.status(401).json({ error: 'Invalid authentication token.' });
     }
     req.userId = decoded.id.toString();
     next();
   } catch (err) {
-    if (process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEMO_MODE === 'true') {
-      req.userId = 'demo_user';
-      return next();
-    }
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({ error: 'Authentication session expired. Please sign in again.' });
     }
@@ -176,7 +173,153 @@ app.get('/uploads/video/:filename', authenticateMediaRequest, async (req, res, n
     return res.status(404).json({ error: 'Video not found.' });
   }
 
-  // Multi-tenant check: verify that user owns the document/output associated with this video
+  // Multi-tenant check: verify that user owns the document/output or VideoJob associated with this video
+  try {
+    const { Document, VideoJob } = require('./models');
+    const localStore = require('./utils/localStore');
+    let isOwner = false;
+
+    if (mongoose.connection.readyState === 1) {
+      const doc = await Document.findOne({
+        user: req.userId,
+        $or: [
+          { 'outputs.fileName': safeFileName },
+          { 'outputs.filePath': { $regex: safeFileName, $options: 'i' } }
+        ]
+      });
+      if (doc) isOwner = true;
+
+      if (!isOwner) {
+        const job = await VideoJob.findOne({
+          user: req.userId,
+          $or: [
+            { finalVideoUrl: { $regex: safeFileName, $options: 'i' } },
+            { finalVideoPath: { $regex: safeFileName, $options: 'i' } },
+            { 'clips.fileName': safeFileName }
+          ]
+        });
+        if (job) isOwner = true;
+      }
+    }
+
+    if (!isOwner) {
+      const userDocs = localStore.getDocsByUser(req.userId);
+      isOwner = userDocs.some(d => (d.outputs || []).some(o => o.fileName === safeFileName || (o.filePath && o.filePath.includes(safeFileName))));
+    }
+
+    if (!isOwner) {
+      const userJobs = localStore.getVideoJobsByUser(req.userId);
+      isOwner = userJobs.some(j => (j.finalVideoUrl && j.finalVideoUrl.includes(safeFileName)) || (j.finalVideoPath && j.finalVideoPath.includes(safeFileName)) || (j.clips || []).some(c => c.fileName === safeFileName));
+    }
+
+    // Allow public sample demo video if matching sample
+    if (!isOwner && (safeFileName === 'sample_lecture.mp4' || safeFileName === 'teacher_stock.mp4')) {
+      isOwner = true;
+    }
+
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied: You do not own this video resource.' });
+    }
+  } catch (err) {
+    console.warn('[Video Auth Error]', err.message);
+    return res.status(500).json({ error: 'Authorization check failed.' });
+  }
+
+  res.sendFile(filePath, {
+    acceptRanges: true,
+    headers: {
+      'Content-Type': 'video/mp4',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-transform, max-age=3600'
+    }
+  }, (err) => {
+    if (err && !res.headersSent) {
+      if (err.code === 'ECONNRESET' || err.code === 'EPIPE') return;
+      next(err);
+    }
+  });
+});
+
+// Authenticated & authorized access to generated audio and lecture podcasts
+app.get('/uploads/audio/:filename', authenticateMediaRequest, async (req, res, next) => {
+  const safeFileName = path.basename(req.params.filename);
+  const uploadsDir = path.resolve(__dirname, 'uploads/audio');
+  const filePath = path.resolve(uploadsDir, safeFileName);
+
+  if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Audio file not found.' });
+  }
+
+  try {
+    const { Document, VideoJob } = require('./models');
+    const localStore = require('./utils/localStore');
+    let isOwner = false;
+
+    if (mongoose.connection.readyState === 1) {
+      const doc = await Document.findOne({
+        user: req.userId,
+        $or: [
+          { 'outputs.fileName': safeFileName },
+          { 'outputs.filePath': { $regex: safeFileName, $options: 'i' } }
+        ]
+      });
+      if (doc) isOwner = true;
+
+      if (!isOwner) {
+        const job = await VideoJob.findOne({
+          user: req.userId,
+          $or: [
+            { audioUrl: { $regex: safeFileName, $options: 'i' } },
+            { finalVideoPath: { $regex: safeFileName, $options: 'i' } }
+          ]
+        });
+        if (job) isOwner = true;
+      }
+    }
+
+    if (!isOwner) {
+      const userDocs = localStore.getDocsByUser(req.userId);
+      isOwner = userDocs.some(d => (d.outputs || []).some(o => o.fileName === safeFileName || (o.filePath && o.filePath.includes(safeFileName))));
+    }
+
+    if (!isOwner) {
+      const userJobs = localStore.getVideoJobsByUser(req.userId);
+      isOwner = userJobs.some(j => (j.audioUrl && j.audioUrl.includes(safeFileName)));
+    }
+
+    if (!isOwner) {
+      return res.status(403).json({ error: 'Access denied: You do not own this audio resource.' });
+    }
+  } catch (err) {
+    console.warn('[Audio Auth Error]', err.message);
+    return res.status(500).json({ error: 'Authorization check failed.' });
+  }
+
+  res.sendFile(filePath, {
+    acceptRanges: true,
+    headers: {
+      'Content-Type': 'audio/mpeg',
+      'X-Content-Type-Options': 'nosniff',
+      'Cache-Control': 'private, no-transform, max-age=3600'
+    }
+  }, (err) => {
+    if (err && !res.headersSent) {
+      if (err.code === 'ECONNRESET' || err.code === 'EPIPE') return;
+      next(err);
+    }
+  });
+});
+
+// Authenticated & authorized access to generated PDFs, DOCX, and PPTX notes
+app.get('/uploads/generated/:filename', authenticateMediaRequest, async (req, res, next) => {
+  const safeFileName = path.basename(req.params.filename);
+  const uploadsDir = path.resolve(__dirname, 'uploads/generated');
+  const filePath = path.resolve(uploadsDir, safeFileName);
+
+  if (!filePath.startsWith(uploadsDir) || !fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Generated document not found.' });
+  }
+
   try {
     const { Document } = require('./models');
     const localStore = require('./utils/localStore');
@@ -198,39 +341,39 @@ app.get('/uploads/video/:filename', authenticateMediaRequest, async (req, res, n
       isOwner = userDocs.some(d => (d.outputs || []).some(o => o.fileName === safeFileName || (o.filePath && o.filePath.includes(safeFileName))));
     }
 
-    // Allow in test/demo mode
-    if (!isOwner && (process.env.ALLOW_DEMO_MODE === 'true' || process.env.NODE_ENV !== 'production')) {
-      isOwner = true;
-    }
-
     if (!isOwner) {
-      return res.status(403).json({ error: 'Access denied: You do not own this video resource.' });
+      return res.status(403).json({ error: 'Access denied: You do not own this generated document.' });
     }
   } catch (err) {
-    console.warn('[Video Auth Error]', err.message);
+    console.warn('[Generated Doc Auth Error]', err.message);
+    return res.status(500).json({ error: 'Authorization check failed.' });
   }
 
   res.sendFile(filePath, {
-    acceptRanges: true,
     headers: {
-      'Content-Type': 'video/mp4',
       'X-Content-Type-Options': 'nosniff',
-      'Cache-Control': 'public, max-age=3600'
-    }
-  }, (err) => {
-    if (err && !res.headersSent) {
-      if (err.code === 'ECONNRESET' || err.code === 'EPIPE') return;
-      next(err);
+      'Cache-Control': 'private, no-transform, max-age=3600'
     }
   });
 });
 
-// Block unauthenticated direct access to private uploaded documents and raw PDFs
-app.use(['/uploads/docs', '/uploads/pdfs'], (req, res) => {
-  res.status(403).json({ error: 'Direct access to private document storage is forbidden. Use authenticated document endpoints.' });
+// Block direct unauthenticated access to all private document, media, and upload stores
+app.use(['/uploads/docs', '/uploads/pdfs', '/uploads/audio', '/uploads/video', '/uploads/generated', '/uploads/images'], (req, res) => {
+  res.status(403).json({ error: 'Direct access to private document and media storage is forbidden. Use authenticated endpoints.' });
 });
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Explicitly serve only public stock media assets
+const PUBLIC_STOCK_FILES = new Set(['classroom_bg.png', 'teacher_stock.mp4']);
+app.get('/uploads/:filename', (req, res, next) => {
+  const safeFileName = path.basename(req.params.filename);
+  if (PUBLIC_STOCK_FILES.has(safeFileName)) {
+    const target = path.join(__dirname, 'uploads', safeFileName);
+    if (fs.existsSync(target)) {
+      return res.sendFile(target);
+    }
+  }
+  res.status(403).json({ error: 'Direct access to upload storage is forbidden.' });
+});
 
 // Routes
 const aiLimiter = rateLimit({ windowMs: 60 * 1000, max: 30 });
@@ -324,7 +467,10 @@ app.use((err, req, res, next) => {
     return res.status(403).json({ error: err.message });
   }
   if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({ error: 'File too large. Maximum file size is 50MB.' });
+    const maxBytes = parseInt(process.env.MAX_FILE_SIZE) || 1073741824;
+    const maxMb = Math.round(maxBytes / (1024 * 1024));
+    const label = maxMb >= 1024 ? (maxMb / 1024).toFixed(0) + ' GB' : maxMb + ' MB';
+    return res.status(400).json({ error: 'File too large. Maximum file size is ' + label + '.' });
   }
   const status = err.status || 500;
   const message = process.env.NODE_ENV === 'production' && status === 500
@@ -337,7 +483,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 mongoose.set('bufferCommands', false);
 
-const { startMongoManager, resolveMongoUri } = require('./utils/dbSync');
+const { startMongoManager, resolveMongoUri, isDatabaseConfigured } = require('./utils/dbSync');
 const effectiveMongoUri = resolveMongoUri(process.env.MONGODB_URI);
 if (effectiveMongoUri) {
   startMongoManager(effectiveMongoUri);
