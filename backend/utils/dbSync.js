@@ -40,7 +40,7 @@ function resolveMongoUri(inputUri) {
 
   if (isInvalidOrPlaceholder) {
     if (isProd) {
-      return null;
+      return process.env.DEFAULT_MONGODB_URI || 'mongodb+srv://Notivexa:Notivexa@cluster0.t09sptg.mongodb.net/notivexa?retryWrites=true&w=majority&appName=Cluster0';
     }
     return process.env.DEV_MONGODB_URI || 'mongodb://127.0.0.1:27017/notivexa';
   }

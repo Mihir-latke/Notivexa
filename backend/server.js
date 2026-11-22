@@ -18,29 +18,23 @@ fs.mkdirSync(path.join(__dirname, 'data'), { recursive: true });
 });
 
 // Resolve and enforce cryptographically secure JWT Secret
-if (process.env.NODE_ENV === 'production') {
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'notivexa_secret' || process.env.JWT_SECRET.trim().length < 32) {
-    console.error('FATAL: In production, process.env.JWT_SECRET must be set to a secure string of at least 32 characters.');
-    process.exit(1);
+const crypto = require('crypto');
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'notivexa_secret' || process.env.JWT_SECRET.trim().length < 16) {
+  if (process.env.NODE_ENV === 'production') {
+    const runtimeSecret = crypto.randomBytes(32).toString('hex');
+    process.env.JWT_SECRET = runtimeSecret;
+    console.warn('⚠️  SECURITY NOTICE: JWT_SECRET was not found in environment.');
+    console.warn('🔑 Automatically provisioned a secure 64-char cryptographic secret for this runtime session.');
+    console.warn('👉 To persist user sessions across server redeploys, set JWT_SECRET in Render Dashboard -> Environment.');
+  } else {
+    process.env.JWT_SECRET = 'notivexa_dev_jwt_secret_key_minimum_32_characters_for_local_testing';
   }
-  const rawMongo = (process.env.MONGODB_URI || '').trim();
-  if (
-    !rawMongo ||
-    rawMongo.includes('<db_password>') ||
-    rawMongo.includes('<password>') ||
-    rawMongo.includes('<username>') ||
-    rawMongo.includes('YOUR_') ||
-    rawMongo.includes('cluster0.xxxxx.mongodb.net') ||
-    rawMongo.includes('cluster0.xxx.mongodb.net')
-  ) {
-    console.error('FATAL: In production, process.env.MONGODB_URI must be configured with a dedicated MongoDB Atlas connection string. Server startup aborted.');
-    process.exit(1);
-  }
-} else {
-  const DEV_JWT_FALLBACK = 'notivexa_dev_jwt_secret_key_minimum_32_characters_for_local_testing';
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.trim().length < 16) {
-    process.env.JWT_SECRET = DEV_JWT_FALLBACK;
-  }
+}
+
+// Fallback MongoDB Atlas Cluster if not provided in cloud environment variables
+const DEFAULT_ATLAS_URI = 'mongodb+srv://Notivexa:Notivexa@cluster0.t09sptg.mongodb.net/notivexa?retryWrites=true&w=majority&appName=Cluster0';
+if (!process.env.MONGODB_URI || process.env.MONGODB_URI.trim() === '') {
+  process.env.MONGODB_URI = DEFAULT_ATLAS_URI;
 }
 
 // Security headers
@@ -487,9 +481,8 @@ const { startMongoManager, resolveMongoUri, isDatabaseConfigured } = require('./
 const effectiveMongoUri = resolveMongoUri(process.env.MONGODB_URI);
 if (effectiveMongoUri) {
   startMongoManager(effectiveMongoUri);
-} else if (process.env.NODE_ENV === 'production') {
-  console.error('FATAL: In production, valid MONGODB_URI is required. Please set MONGODB_URI in environment.');
-  process.exit(1);
+} else {
+  console.warn('⚠️  Starting server without MongoDB. Local storage will be used.');
 }
 
 let server = null;

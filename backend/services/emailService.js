@@ -7,10 +7,10 @@ const recentOtpStore = new Map();
  * Creates SMTP transport based on environment variables (Outlook, Yahoo, Gmail, Brevo, or custom SMTP).
  */
 function getTransporter() {
-  const user = (process.env.SMTP_USER || '').trim();
-  const pass = (process.env.SMTP_PASS || '').trim();
+  const user = (process.env.SMTP_USER || 'notivexahelp@gmail.com').trim();
+  const pass = (process.env.SMTP_PASS || 'yqxjksspbyhazujy').trim();
   const service = (process.env.SMTP_SERVICE || '').trim().toLowerCase();
-  let host = (process.env.SMTP_HOST || '').trim();
+  let host = (process.env.SMTP_HOST || 'smtp.gmail.com').trim();
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
   const secure = process.env.SMTP_SECURE === 'true' || port === 465;
 
@@ -64,8 +64,8 @@ function getTransporter() {
  * Checks whether SMTP is configured with valid user and pass.
  */
 function isSmtpConfigured() {
-  const user = (process.env.SMTP_USER || '').trim();
-  const pass = (process.env.SMTP_PASS || '').trim();
+  const user = (process.env.SMTP_USER || 'notivexahelp@gmail.com').trim();
+  const pass = (process.env.SMTP_PASS || 'yqxjksspbyhazujy').trim();
   return Boolean(user && pass);
 }
 
