@@ -94,7 +94,8 @@ async function sendEmail({ to, subject, text, html, otp, type = 'general' }) {
     };
   }
 
-  const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || `"Notivexa Security" <${process.env.SMTP_USER}>`;
+  const senderUser = (process.env.SMTP_USER || 'notivexahelp@gmail.com').trim();
+  const from = process.env.EMAIL_FROM || process.env.SMTP_FROM || `"Notivexa Security" <${senderUser}>`;
 
   try {
     const info = await transporter.sendMail({
