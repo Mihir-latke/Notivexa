@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import Shell from './components/Layout/Shell'
 import Login from './pages/Login'
 import Register from './pages/Register'
+import ForgotPassword from './pages/ForgotPassword'
 import Dashboard from './pages/Dashboard'
 import Upload from './pages/Upload'
 import Notebook from './pages/Notebook'
@@ -30,8 +31,9 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/login"    element={<Public><Login/></Public>}/>
-        <Route path="/register" element={<Public><Register/></Public>}/>
+        <Route path="/login"           element={<Public><Login/></Public>}/>
+        <Route path="/register"        element={<Public><Register/></Public>}/>
+        <Route path="/forgot-password" element={<Public><ForgotPassword/></Public>}/>
         <Route path="/" element={<Protected><Shell/></Protected>}>
           <Route index element={<Navigate to="/dashboard" replace/>}/>
           <Route path="dashboard"  element={<Dashboard/>}/>

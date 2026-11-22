@@ -35,6 +35,7 @@ const DEFAULT_USERS = [
     institution: 'Demo College, Mumbai',
     preferredLanguage: 'English',
     isActive: true,
+    mfaEnabled: false,
     studyStats: { documentsUploaded: 1, notesGenerated: 4, flashcardsCreated: 12 },
     createdAt: new Date().toISOString()
   },
@@ -49,6 +50,7 @@ const DEFAULT_USERS = [
     institution: 'Demo College, Mumbai',
     preferredLanguage: 'English',
     isActive: true,
+    mfaEnabled: false,
     studyStats: { documentsUploaded: 5, notesGenerated: 16, flashcardsCreated: 36 },
     createdAt: new Date().toISOString()
   }
@@ -156,6 +158,7 @@ exports.createUser = async ({ name, email, password, role = 'student', instituti
     institution: institution.trim(),
     preferredLanguage: preferredLanguage || 'English',
     isActive: true,
+    mfaEnabled: false,
     studyStats: { documentsUploaded: 0, notesGenerated: 0, flashcardsCreated: 0 },
     createdAt: new Date().toISOString()
   };
@@ -186,6 +189,52 @@ exports.updateUser = (id, updates) => {
   delete safe.role;
 
   Object.assign(user, safe);
+  writeJson(USERS_FILE, memoryUsers);
+  const sanitized = { ...user };
+  delete sanitized.passwordHash;
+  delete sanitized.resetPasswordOtp;
+  delete sanitized.resetPasswordExpires;
+  delete sanitized.mfaOtp;
+  delete sanitized.mfaOtpExpires;
+  return sanitized;
+};
+
+exports.setUserPassword = (id, newPasswordHash) => {
+  const user = exports.findUserById(id);
+  if (!user) return false;
+  user.passwordHash = newPasswordHash;
+  delete user.resetPasswordOtp;
+  delete user.resetPasswordExpires;
+  delete user.resetPasswordAttempts;
+  writeJson(USERS_FILE, memoryUsers);
+  return true;
+};
+
+exports.setResetPasswordOtp = (email, otpHash, expiresAt) => {
+  const user = exports.findUserByEmail(email);
+  if (!user) return false;
+  user.resetPasswordOtp = otpHash;
+  user.resetPasswordExpires = expiresAt;
+  user.resetPasswordAttempts = 0;
+  writeJson(USERS_FILE, memoryUsers);
+  return true;
+};
+
+exports.setMfaOtp = (id, otpHash, expiresAt) => {
+  const user = exports.findUserById(id);
+  if (!user) return false;
+  user.mfaOtp = otpHash;
+  user.mfaOtpExpires = expiresAt;
+  writeJson(USERS_FILE, memoryUsers);
+  return true;
+};
+
+exports.toggleMfa = (id, enabled) => {
+  const user = exports.findUserById(id);
+  if (!user) return null;
+  user.mfaEnabled = Boolean(enabled);
+  delete user.mfaOtp;
+  delete user.mfaOtpExpires;
   writeJson(USERS_FILE, memoryUsers);
   const sanitized = { ...user };
   delete sanitized.passwordHash;

@@ -75,7 +75,7 @@ describe('Notivexa API Audit & Security Test Suite', () => {
         .send({
           name: 'Hacker Attempt',
           email: user1Email,
-          password: 'securepassword123',
+          password: 'securePassword123!',
           role: 'admin' // Attempting to register as admin!
         });
 
@@ -94,7 +94,7 @@ describe('Notivexa API Audit & Security Test Suite', () => {
         .send({
           name: 'Duplicate Student',
           email: user1Email,
-          password: 'securepassword123'
+          password: 'securePassword123!'
         });
       expect(res.status).toBe(409);
       expect(res.body.error).toMatch(/already registered/i);
@@ -106,7 +106,7 @@ describe('Notivexa API Audit & Security Test Suite', () => {
         .send({
           name: 'Student Two',
           email: user2Email,
-          password: 'securepassword123',
+          password: 'securePassword123!',
           role: 'teacher' // Attempting teacher role
         });
 
@@ -119,7 +119,7 @@ describe('Notivexa API Audit & Security Test Suite', () => {
     it('Login succeeds with valid credentials', async () => {
       const res = await request(app)
         .post('/api/auth/login')
-        .send({ email: user1Email, password: 'securepassword123' });
+        .send({ email: user1Email, password: 'securePassword123!' });
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body).toHaveProperty('token');

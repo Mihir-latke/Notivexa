@@ -18,6 +18,24 @@ function signToken(userId) {
   return jwt.sign({ id: userId.toString() }, secret, { expiresIn: '7d' });
 }
 
+function signMfaToken(userId) {
+  const secret = getJwtSecret();
+  return jwt.sign({ id: userId.toString(), purpose: 'mfa_verification' }, secret, { expiresIn: '5m' });
+}
+
+function verifyMfaToken(token) {
+  try {
+    const secret = getJwtSecret();
+    const decoded = jwt.verify(token, secret);
+    if (decoded && decoded.id && decoded.purpose === 'mfa_verification') {
+      return decoded;
+    }
+  } catch (err) {
+    return null;
+  }
+  return null;
+}
+
 const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -32,6 +50,10 @@ const authenticate = async (req, res, next) => {
 
     const secret = getJwtSecret();
     const decoded = jwt.verify(token, secret);
+
+    if (decoded && decoded.purpose === 'mfa_verification') {
+      return res.status(401).json({ error: 'Two-factor authentication required. Incomplete authentication.' });
+    }
 
     if (!decoded || !decoded.id) {
       return res.status(401).json({ error: 'Invalid token payload.' });
@@ -108,5 +130,7 @@ module.exports = {
   requireAdmin,
   requireTeacher,
   getJwtSecret,
-  signToken
+  signToken,
+  signMfaToken,
+  verifyMfaToken
 };

@@ -10,6 +10,12 @@ const userSchema = new mongoose.Schema({
   preferredLanguage: { type: String, default: 'English' },
   defaultOutputLanguage: { type: String, default: 'english' },
   isActive:    { type: Boolean, default: true },
+  mfaEnabled:  { type: Boolean, default: false },
+  mfaOtp:      { type: String, select: false },
+  mfaOtpExpires: { type: Date, select: false },
+  resetPasswordOtp: { type: String, select: false },
+  resetPasswordExpires: { type: Date, select: false },
+  resetPasswordAttempts: { type: Number, default: 0, select: false },
   studyStats:  {
     documentsUploaded: { type: Number, default: 0 },
     notesGenerated:    { type: Number, default: 0 },
@@ -30,6 +36,11 @@ userSchema.methods.comparePassword = function(p) {
 userSchema.methods.toJSON = function() {
   const o = this.toObject();
   delete o.password;
+  delete o.mfaOtp;
+  delete o.mfaOtpExpires;
+  delete o.resetPasswordOtp;
+  delete o.resetPasswordExpires;
+  delete o.resetPasswordAttempts;
   return o;
 };
 

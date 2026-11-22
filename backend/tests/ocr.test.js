@@ -330,7 +330,7 @@ describe('Notivexa Production Offline OCR Pipeline', () => {
       const res1 = await request(app).post('/api/auth/register').send({
         name: 'OCR Owner',
         email: `ocr_user1_${Date.now()}@notivexa.test`,
-        password: 'password123'
+        password: 'Password123!'
       });
       u1Token = res1.body.token;
 
@@ -338,7 +338,7 @@ describe('Notivexa Production Offline OCR Pipeline', () => {
       const res2 = await request(app).post('/api/auth/register').send({
         name: 'OCR Attacker',
         email: `ocr_user2_${Date.now()}@notivexa.test`,
-        password: 'password123'
+        password: 'Password123!'
       });
       u2Token = res2.body.token;
 

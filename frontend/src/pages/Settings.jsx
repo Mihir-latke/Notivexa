@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import toast from 'react-hot-toast'
 import api from '../utils/api'
+import PasswordStrengthIndicator, { checkPasswordStrength } from '../components/PasswordStrengthIndicator'
 
 const THEMES = [
   { id: 'default', label: 'Default', icon: '🌈', desc: 'Purple-tinted' },
@@ -22,6 +23,7 @@ export default function Settings() {
   const [pw, setPw] = useState({ currentPassword:'', newPassword:'', confirmPassword:'' })
   const [saving, setSaving] = useState(false)
   const [savingPw, setSavingPw] = useState(false)
+  const [togglingMfa, setTogglingMfa] = useState(false)
   const inits = user?.name ? user.name.split(' ').map(n=>n[0]).join('').toUpperCase().slice(0,2) : 'U'
 
   const saveProfile = async e => {
@@ -29,13 +31,42 @@ export default function Settings() {
     try { const r = await api.put('/auth/profile', form); updateUser(r.data.user); toast.success('Profile updated!') }
     catch { toast.error('Failed') } finally { setSaving(false) }
   }
+
   const changePw = async e => {
     e.preventDefault()
     if (pw.newPassword !== pw.confirmPassword) { toast.error('Passwords do not match'); return }
-    if (pw.newPassword.length < 6) { toast.error('Min 6 characters'); return }
+    
+    const pwCheck = checkPasswordStrength(pw.newPassword)
+    if (!pwCheck.isValid) {
+      if (!pwCheck.rules.length.valid) toast.error('Password must be at least 7 characters long')
+      else if (!pwCheck.rules.letters.valid) toast.error('Password must contain at least 4 letters')
+      else if (!pwCheck.rules.numbers.valid) toast.error('Password must contain at least 2 numbers')
+      else if (!pwCheck.rules.special.valid) toast.error('Password must contain at least 1 special character (!@#$%)')
+      return
+    }
+
     setSavingPw(true)
-    try { await api.put('/auth/change-password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword }); toast.success('Password changed!'); setPw({ currentPassword:'', newPassword:'', confirmPassword:'' }) }
-    catch(err) { toast.error(err.response?.data?.error||'Failed') } finally { setSavingPw(false) }
+    try {
+      await api.put('/auth/change-password', { currentPassword: pw.currentPassword, newPassword: pw.newPassword })
+      toast.success('Password changed successfully!')
+      setPw({ currentPassword:'', newPassword:'', confirmPassword:'' })
+    }
+    catch(err) { toast.error(err.response?.data?.error||'Failed to change password') }
+    finally { setSavingPw(false) }
+  }
+
+  const handleToggleMfa = async () => {
+    setTogglingMfa(true)
+    try {
+      const nextState = !user?.mfaEnabled
+      const r = await api.post('/auth/mfa/toggle', { enabled: nextState })
+      updateUser({ ...user, mfaEnabled: r.data.mfaEnabled })
+      toast.success(r.data.message || (nextState ? '2FA enabled!' : '2FA disabled!'))
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to update 2FA settings')
+    } finally {
+      setTogglingMfa(false)
+    }
   }
 
   return (
@@ -112,13 +143,54 @@ export default function Settings() {
       </div>
 
       <div>
+        {/* Two-Factor Authentication (MFA) */}
+        <div className="card" style={{ marginBottom:16 }}>
+          <div className="ch"><div className="ct">🛡️ Two-Factor Authentication (2FA / MFA)</div></div>
+          <div className="cb">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>Security Status:</span>
+                <span
+                  style={{
+                    background: user?.mfaEnabled ? '#D1FAE5' : '#FEE2E2',
+                    color: user?.mfaEnabled ? '#065F46' : '#991B1B',
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    fontSize: 11,
+                    fontWeight: 700
+                  }}
+                >
+                  {user?.mfaEnabled ? '✓ Active & Protected' : 'Disabled'}
+                </span>
+              </div>
+            </div>
+            <p style={{ fontSize: 12.5, color: 'var(--ink3)', lineHeight: 1.5, marginBottom: 16 }}>
+              When enabled, a one-time 6-digit security code will be sent to your registered email (<strong>{user?.email}</strong>) each time you sign in.
+            </p>
+            <button
+              type="button"
+              className={user?.mfaEnabled ? 'btn btn-s' : 'btn btn-p'}
+              onClick={handleToggleMfa}
+              disabled={togglingMfa}
+              style={{ width: '100%' }}
+            >
+              {togglingMfa ? 'Updating...' : (user?.mfaEnabled ? 'Turn Off Two-Factor Authentication' : '🛡️ Enable Two-Factor Authentication')}
+            </button>
+          </div>
+        </div>
+
+        {/* Change Password */}
         <div className="card" style={{ marginBottom:16 }}>
           <div className="ch"><div className="ct">🔒 Change Password</div></div>
           <div className="cb">
             <form onSubmit={changePw}>
               <div className="fg"><label className="fl">Current Password</label><input className="fi" type="password" value={pw.currentPassword} onChange={e=>setPw(p=>({...p,currentPassword:e.target.value}))} required/></div>
-              <div className="fg"><label className="fl">New Password</label><input className="fi" type="password" value={pw.newPassword} onChange={e=>setPw(p=>({...p,newPassword:e.target.value}))} required/></div>
-              <div className="fg"><label className="fl">Confirm Password</label><input className="fi" type="password" value={pw.confirmPassword} onChange={e=>setPw(p=>({...p,confirmPassword:e.target.value}))} required/></div>
+              <div className="fg">
+                <label className="fl">New Password (4+ letters, 2+ numbers, 1+ special key)</label>
+                <input className="fi" type="password" value={pw.newPassword} onChange={e=>setPw(p=>({...p,newPassword:e.target.value}))} required/>
+                <PasswordStrengthIndicator password={pw.newPassword} />
+              </div>
+              <div className="fg" style={{ marginTop: 8 }}><label className="fl">Confirm Password</label><input className="fi" type="password" value={pw.confirmPassword} onChange={e=>setPw(p=>({...p,confirmPassword:e.target.value}))} required/></div>
               <button type="submit" className="btn btn-p" disabled={savingPw}>{savingPw?'Changing...':'🔒 Change Password'}</button>
             </form>
           </div>

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import toast from 'react-hot-toast'
 import SEOHead from '../components/SEOHead'
+import PasswordStrengthIndicator, { checkPasswordStrength } from '../components/PasswordStrengthIndicator'
 
 export default function Register() {
   const [form, setForm] = useState({ name:'', email:'', password:'', role:'student', institution:'' })
@@ -16,7 +17,15 @@ export default function Register() {
     e.preventDefault()
     if (!form.name.trim()) { toast.error('Please enter your full name'); return }
     if (!form.email.trim()) { toast.error('Please enter your email address'); return }
-    if (form.password.length < 6) { toast.error('Password must be at least 6 characters long'); return }
+    
+    const pwCheck = checkPasswordStrength(form.password)
+    if (!pwCheck.isValid) {
+      if (!pwCheck.rules.length.valid) toast.error('Password must be at least 7 characters long')
+      else if (!pwCheck.rules.letters.valid) toast.error('Password must contain at least 4 letters')
+      else if (!pwCheck.rules.numbers.valid) toast.error('Password must contain at least 2 numbers')
+      else if (!pwCheck.rules.special.valid) toast.error('Password must contain at least 1 special character (!@#$%)')
+      return
+    }
     
     setLoading(true)
     try {
@@ -108,7 +117,7 @@ export default function Register() {
 
           <div className="fg">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <label className="fl">Password * (min 6 characters)</label>
+              <label className="fl">Password *</label>
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
@@ -120,19 +129,20 @@ export default function Register() {
             <input
               className="fi"
               type={showPassword ? 'text' : 'password'}
-              placeholder="Choose a strong password"
+              placeholder="Create a strong password"
               value={form.password}
               onChange={e => set('password',e.target.value)}
               autoComplete="new-password"
               required
             />
+            <PasswordStrengthIndicator password={form.password} />
           </div>
 
           <button
             type="submit"
             className="btn btn-p btn-lg wf"
             disabled={loading}
-            style={{ marginTop: 6 }}
+            style={{ marginTop: 10 }}
           >
             {loading ? '⏳ Creating Account...' : '📖 Create Free Account'}
           </button>
