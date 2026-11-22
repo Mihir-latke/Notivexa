@@ -101,6 +101,13 @@ function cleanRunningHeadersAndNoise(text) {
       if (/^ISBN(-1[03])?:\s*[0-9-Xx]+$/i.test(trimmed)) return false;
       if (/^ISBN\s+for\s+(printed|e-?book)/i.test(trimmed)) return false;
 
+      // Filter publisher imprint, copyright, and cataloging lines
+      if (/^(elsevier|pearson|mcgraw-hill|springer|wiley|oxford|cambridge|oreilly|o'reilly|campus\b|editora\b|copidesque|revis[ãa]o|diagrama[çc][ãa]o|capa\b|projeto gr[áa]fico|supervis[ãa]o editorial|desenvolvimento de e-?book|todos os direitos reservados|all rights reserved|printed in|impresso no|depósito legal|catalogação na publicação|cip-brasil|ficha catalogr[áa]fica)\b/i.test(trimmed)) {
+        return false;
+      }
+      if (/^[A-Z]\d{2,4}\b/i.test(trimmed)) return false; // Cataloging codes like A385, QA76
+      if (/^(https?:\/\/)?(www\.)?(elsevier|campus|springer|pearson)\.[a-z.]+/i.test(trimmed)) return false;
+
       return true;
     })
     .join('\n');
@@ -147,13 +154,13 @@ function classifyDocument(text, metadata = {}) {
   scores.research_paper += researchMatches * 8;
   if (/^abstract\b/im.test(sample)) scores.research_paper += 25;
 
-  // 2. Computer Science / Technical Indicators
-  const csTerms = /\b(algorithm|data structure|complexity|runtime|database|sql|nosql|api|endpoint|backend|frontend|framework|compiler|source code|function|class|object-oriented|variable|memory allocation|cpu|cache|thread|concurrency|networking|protocol|tcp\/ip)\b/gi;
+  // 2. Computer Science / Technical Indicators (Multilingual: English, Portuguese, Spanish, Indic)
+  const csTerms = /\b(algorithm|algorithms|algoritmo|algoritmos|data structure|data structures|estrutura de dados|estruturas de dados|estructura de datos|complexity|complexidade|complejidad|runtime|tempo de execu[çc][ãa]o|pseudocode|pseudoc[óo]digo|asymptotic|assint[óo]tica|recurrence|recorr[êe]ncia|sorting|ordena[çc][ãa]o|ordenamiento|quicksort|mergesort|heapsort|insertion sort|binary search|busca bin[áa]ria|graph|graphs|grafo|grafos|tree|trees|[áa]rvore|[áa]rvores|[áa]rbol|[áa]rboles|hash table|tabela hash|tabelas hash|dynamic programming|programa[çc][ãa]o din[âa]mica|programaci[óo]n din[áa]mica|greedy|guloso|computational|computa[çc][ãa]o|computaci[óo]n|database|banco de dados|base de datos|sql|nosql|api|endpoint|backend|frontend|framework|compiler|compilador|source code|c[óo]digo|fun[çc][ãa]o|function|class|classe|object-oriented|variable|vari[áa]vel|memory allocation|cpu|cache|thread|threads|concurrency|concorr[êe]ncia|networking|protocol|tcp\/ip|कलनविधी|संगणक)\b/gi;
   const csMatches = (sample.match(csTerms) || []).length;
   scores.computer_science += csMatches * 6;
 
-  // 3. Science & Mathematics Indicators
-  const sciMathTerms = /\b(theorem|lemma|corollary|proof|formula|equation|derivative|integral|matrix|vector|chemical|molecule|reaction|thermodynamics|velocity|acceleration|dna|rna|cellular|organism|chromosome|gravity|quantum)\b/gi;
+  // 3. Science & Mathematics Indicators (Multilingual: English, Portuguese, Spanish, Indic)
+  const sciMathTerms = /\b(theorem|lemma|corollary|proof|teorema|lema|corol[áa]rio|demonstra[çc][ãa]o|prova|f[óo]rmula|formula|equation|equa[çc][ãa]o|ecuaci[óo]n|derivative|integral|derivada|matriz|matrix|matrices|matrizes|vector|vetor|chemical|qu[íi]mica|molecule|mol[ée]cula|reaction|rea[çc][ãa]o|thermodynamics|termodin[âa]mica|velocity|velocidade|acceleration|acelera[çc][ãa]o|dna|rna|cellular|organism|chromosome|cromossomo|gravity|gravidade|quantum|qu[âa]ntica|प्रमेय|सूत्र|समीकरण)\b/gi;
   const sciMathMatches = (sample.match(sciMathTerms) || []).length;
   scores.science_mathematics += sciMathMatches * 6;
 
@@ -164,12 +171,17 @@ function classifyDocument(text, metadata = {}) {
   scores.history_biography += historyMatches * 8;
 
   // 5. Novel & Fiction Indicators
-  // Dialogue quotes, narrative storytelling, emotion, character interaction
-  const dialogueQuotes = (sample.match(/["'“][^"'”\n]{5,100}["'”]/g) || []).length;
-  scores.novel_fiction += Math.min(dialogueQuotes * 3, 40);
+  // Technical / CS / scientific documents often contain quoted strings or operators ("==", "NIL", "key").
+  // Gate dialogue quotes so code snippets do not falsely inflate novel scores.
+  const isTechnicalDoc = (csMatches >= 3 || sciMathMatches >= 3 || researchMatches >= 3);
+  let dialogueQuotes = 0;
+  if (!isTechnicalDoc) {
+    dialogueQuotes = (sample.match(/["'“][^"'”\n]{5,100}["'”]/g) || []).length;
+    scores.novel_fiction += Math.min(dialogueQuotes * 3, 40);
+  }
 
-  // Literary terms in English, Marathi, Hindi
-  const fictionTerms = /\b(novel|chapter|story|scene|character|protagonist|narrator|dialogue|whispered|screamed|glanced|smiled|tears|कादंबरी|कथा|प्रकरण|पात्रे|संवाद|उद्गार|दृश्य|मनोगत|वेदना|हसू|अश्रू|उपन्यास|कहानी|पात्र|नायक|नायिका)\b/gi;
+  // Literary terms in English, Marathi, Hindi, Portuguese/Spanish (exclude generic "chapter")
+  const fictionTerms = /\b(novel|story|scene|character|protagonist|narrator|dialogue|whispered|screamed|glanced|smiled|tears|personagem|personagens|enredo|romance|narrativa|कादंबरी|कथा|पात्रे|संवाद|उद्गार|दृश्य|मनोगत|वेदना|हसू|अश्रू|उपन्यास|कहानी|पात्र|नायक|नायिका)\b/gi;
   const fictionMatches = (sample.match(fictionTerms) || []).length;
   scores.novel_fiction += fictionMatches * 7;
 
@@ -184,18 +196,22 @@ function classifyDocument(text, metadata = {}) {
   scores.study_guide += studyGuideMatches * 10;
 
   // 8. Academic Textbook (Syllabus, Learning Objectives, Exercises)
-  const textbookTerms = /\b(syllabus|learning objectives|chapter summary|review questions|exercise|case study|problems|unit\s+\d+|module\s+\d+|पाठ्यपुस्तक|अभ्यासक्रम|उद्दिष्टे|स्वाध्याय|प्रकरण)\b/gi;
+  const textbookTerms = /\b(syllabus|learning objectives|chapter summary|review questions|exercise|exercises|exerc[íi]cios|case study|problems|problemas|unit\s+\d+|module\s+\d+|m[óo]dulo\s+\d+|पाठ्यपुस्तक|अभ्यासक्रम|उद्दिष्टे|स्वाध्याय)\b/gi;
   const textbookMatches = (sample.match(textbookTerms) || []).length;
   scores.academic_textbook += textbookMatches * 6;
 
   // Contextual Title / Metadata Boost
   if (titleHint) {
+    if (/(algorithm|algoritmo|algoritmos|cormen|leiserson|rivest|stein|data structure|estrutura de dados|estruturas de dados|software|program|comput|database|banco de dados|compiler|operating system|sistemas operacionais|computer science|ciência da computação)/i.test(titleHint)) {
+      scores.computer_science += 45;
+      scores.academic_textbook += 15;
+    }
     if (/(chhava|chhaava|panipat|yayati|mrityunjay|radheya|novel|fiction|story)/i.test(titleHint)) {
       scores.novel_fiction += 30;
       if (/(chhava|panipat|mrityunjay)/i.test(titleHint)) scores.history_biography += 25;
     }
     if (/(history|dynasty|empire|biography|life of|shivaji|sambhaji|peshwa)/i.test(titleHint)) scores.history_biography += 25;
-    if (/(textbook|course|introduction to|principles of|fundamentals of|grade|standard|class\s+\d+)/i.test(titleHint)) scores.academic_textbook += 20;
+    if (/(textbook|course|introduction to|principles of|fundamentals of|grade|standard|class\s+\d+|teoria e pr[áa]tica)/i.test(titleHint)) scores.academic_textbook += 20;
     if (/(paper|proceedings|journal|conference|ieee|acm|arxiv)/i.test(titleHint)) scores.research_paper += 30;
     if (/(poem|poetry|verses|geet|kavita)/i.test(titleHint)) scores.poetry_literature += 35;
     if (/(guide|handbook|manual|reference)/i.test(titleHint)) scores.reference_manual += 20;
@@ -272,10 +288,11 @@ function detectBookStructure(rawText, docType = 'academic_textbook', metadata = 
   for (let i = 0; i < first50.length; i++) {
     const l = first50[i];
     // Exclude noise from title candidates
-    if (/^(page|isbn|copyright|all rights|published|edition|printed|price|rs\.|cover)/i.test(l)) continue;
+    if (/^(page|isbn|copyright|all rights|published|edition|printed|price|rs\.|cover|elsevier|copidesque|editora|campus|springer|pearson|catalog|ficha|desenvolvimento)/i.test(l)) continue;
+    if (/^[A-Z]\d{2,4}\b/i.test(l)) continue;
 
     // Detect Author line: "By [Author]", "लेखक : [Author]", "[Name] Sawant"
-    const authorMatch = l.match(/(?:by|written by|author|लेखक|रचयिता|कवी)\s*[:–-]?\s*([A-Za-z\u0900-\u097F\s.]+)/i);
+    const authorMatch = l.match(/(?:by|written by|author|autor|autores|लेखक|रचयिता|कवी)\s*[:–-]?\s*([A-Za-z\u0900-\u097F\s.]+)/i);
     if (authorMatch && authorMatch[1].length > 3) {
       extractedAuthor = authorMatch[1].trim();
       continue;
@@ -287,14 +304,14 @@ function detectBookStructure(rawText, docType = 'academic_textbook', metadata = 
     }
   }
 
-  // 3. Chapter Heading Regex covering Multilingual patterns
+  // 3. Chapter Heading Regex covering Multilingual patterns (English, Indic, Portuguese, Spanish, French, German)
   const chapterRegexes = [
     // Marathi & Hindi Chapter Patterns: प्रकरण १, अध्याय २, भाग ३, अंक १
     /^(प्रकरण|अध्याय|भाग|अंक|सत्र|पाठ)\s*([०-९\d]+|एक|दोन|तीन|चार|पाच|सहा|सात|आठ|नऊ|दहा)[\s:–-]*(.*)$/i,
-    // English Chapter Patterns: Chapter 1, Part I, Module 2, Act 3
-    /^(chapter|part|module|unit|act|scene)\s*([0-9]+|[ivxlcdm]+)[\s:–-]*(.*)$/i,
+    // English & International (Portuguese, Spanish, French, German) Chapter Patterns: Chapter 1, Capítulo 2, Parte I
+    /^(chapter|part|module|unit|act|scene|cap[íi]tulo|capitulo|parte|m[óo]dulo|modulo|se[çc][ãa]o|secci[óo]n|chapitre|kapitel|abschnitt)\s*([0-9]+|[ivxlcdm]+)[\s:–-]*(.*)$/i,
     // Markdown Level 1/2 headings that resemble chapters
-    /^#{1,2}\s+(chapter|part|module|unit|प्रकरण|अध्याय|भाग)\s*([0-9\u0966-\u096F]+)[\s:–-]*(.*)$/i
+    /^#{1,2}\s+(chapter|part|module|unit|cap[íi]tulo|capitulo|parte|m[óo]dulo|modulo|se[çc][ãa]o|secci[óo]n|chapitre|kapitel|प्रकरण|अध्याय|भाग)\s*([0-9\u0966-\u096F]+|[ivxlcdm]+)[\s:–-]*(.*)$/i
   ];
 
   const chapters = [];
@@ -474,7 +491,7 @@ function extractEntitiesAndThemes(text, docType = 'academic_textbook') {
     // English names: Two capitalized words (e.g., "Shivaji Sawant", "Chhatrapati Sambhaji")
     const engNames = text.match(/\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b/g) || [];
     engNames.forEach(n => {
-      if (!/^(University Exam|Page \d+|Key Takeaway|Real-world Application|Academic Notes)/i.test(n)) {
+      if (!/^(University Exam|Page \d+|Key Takeaway|Real-world Application|Academic Notes|Elsevier|Editora|Pearson|McGraw|Springer|Wiley|Campus|Copidesque|Todos Os|All Rights|Desenvolvimento De|Ficha|Catalogação|Algoritmos|Data Structure)/i.test(n)) {
         entities.add(n);
       }
     });

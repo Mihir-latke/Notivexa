@@ -15,6 +15,7 @@ const {
   getSentences,
   getTopics,
   makeHandwrittenChapterNotes,
+  makeComputerScienceHandwrittenNotes,
   makeNovelHandwrittenNotes,
   makeHistoryHandwrittenNotes,
   makeResearchHandwrittenNotes,
@@ -58,6 +59,28 @@ describe('Universal Book Understanding & Multilingual Notes Generation', () => {
       `;
       const result = classifyDocument(csExcerpt, { title: 'DBMS Architecture', filename: 'database_textbook.pdf' });
       expect(result.type).toBe('computer_science');
+    });
+
+    test('Correctly classifies Cormen Algorithms textbook (Portuguese/Multilingual) as computer_science and NOT novel_fiction', () => {
+      const cormenExcerpt = `
+        Algoritmos - Teoria e Prática
+        Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest, Clifford Stein
+        ELSEVIER Editora Ltda. Campus.
+        Capítulo 1: O Papel dos Algoritmos na Computação
+        O que são algoritmos? Informalmente, um algoritmo é qualquer procedimento computacional bem definido
+        que toma algum valor ou conjunto de valores como entrada e produz algum valor ou conjunto de valores como saída.
+        Ordenação por inserção. A complexidade de tempo de execução no pior caso é O(n^2).
+        O algoritmo Merge Sort divide a sequência e alcança complexidade O(n lg n).
+        Estruturas de dados avançadas: árvores binárias de busca, tabelas hash e grafos com busca em largura.
+      `;
+      const result = classifyDocument(cormenExcerpt, {
+        title: 'Algoritmos - Teoria e Prática - Autor (Thomas Cormen)',
+        filename: 'Algoritmos - Teoria e Prática - Autor (Thomas Cormen).pdf',
+        subject: 'General'
+      });
+      expect(result.type).toBe('computer_science');
+      expect(result.type).not.toBe('novel_fiction');
+      expect(result.confidence).toBeGreaterThanOrEqual(0.75);
     });
 
     test('Correctly classifies Academic Research Paper', () => {
@@ -164,6 +187,22 @@ describe('Universal Book Understanding & Multilingual Notes Generation', () => {
       expect(structure.chapters.length).toBeGreaterThan(0);
       expect(structure.chapters[0].isInferred).toBe(true);
     });
+
+    test('Detects Portuguese & International chapter headings (Capítulo, Parte) while pruning publisher noise', () => {
+      const book = `
+        ELSEVIER Editora Ltda
+        Copidesque : Ivone Teixeira
+        Capítulo 1 : O Papel dos Algoritmos na Computação
+        Um algoritmo é qualquer procedimento computacional bem definido que toma entrada e produz saída.
+        Capítulo 2 : Começando
+        Para ordenar uma sequência de números com ordenação por inserção.
+      `;
+      const structure = detectBookStructure(book, 'computer_science');
+      expect(structure.chapters.length).toBe(2);
+      expect(structure.chapters[0].title).toContain('Capítulo 1');
+      expect(structure.chapters[1].title).toContain('Capítulo 2');
+      expect(structure.frontMatter).not.toContain('Capítulo 1');
+    });
   });
 
   describe('4. Sentence Segmentation with Multilingual Indic Punctuation', () => {
@@ -213,6 +252,50 @@ describe('Universal Book Understanding & Multilingual Notes Generation', () => {
       const notes = makeHandwrittenChapterNotes(sample, 'Maratha Empire', 'History', 1, 1, 'history_biography');
       expect(notes).not.toContain('Core enterprise deployment');
       expect(notes).toContain('Historical Analysis & Chronology');
+    });
+
+    test('makeComputerScienceHandwrittenNotes outputs algorithmic steps and complexity table with NO fiction or Marathi boilerplate', () => {
+      const csText = `
+        Capítulo 1: O Papel dos Algoritmos na Computação
+        Informalmente, um algoritmo é qualquer procedimento computacional bem definido que toma entrada e produz saída.
+        O algoritmo de ordenação por inserção resolve este problema com complexidade O(n^2) no pior caso e O(n) no melhor caso.
+        O Merge Sort divide a sequência e alcança tempo O(n lg n).
+        Na prática, estruturas como árvores binárias e tabelas hash garantem consultas eficientes em bancos de dados.
+      `;
+      const notes = makeComputerScienceHandwrittenNotes(csText, 'Algoritmos - Cormen', 'Algoritmos na Computação', 1, 1);
+      
+      // Ensure CS structure
+      expect(notes).toContain('Computational Logic & Algorithmic Analysis');
+      expect(notes).toContain('Algorithmic Mechanics & Step-by-Step Logic');
+      expect(notes).toContain('Algorithmic Complexity & Performance Analysis');
+      expect(notes).toContain('| Best-Case Time |');
+      expect(notes).toContain('| Worst-Case Time |');
+      expect(notes).toContain('| Auxiliary Space |');
+
+      // CRITICAL: Ensure NO fiction drama or Marathi strings leak into CS notes
+      expect(notes).not.toContain('पात्र / व्यक्ती');
+      expect(notes).not.toContain('भावनिक');
+      expect(notes).not.toContain('नाट्यमय');
+      expect(notes).not.toContain('कथानकातील');
+      expect(notes).not.toContain('Protagonist');
+      expect(notes).not.toContain('Dramatic Significance');
+    });
+
+    test('makeHandwrittenChapterNotes dispatches to CS structure when docType is computer_science', () => {
+      const sample = 'Um algoritmo de ordenacao por insercao tem custo O(n^2). Tabelas hash fornecem busca em tempo O(1).';
+      const notes = makeHandwrittenChapterNotes(sample, 'Algoritmos', 'General', 1, 1, 'computer_science');
+      expect(notes).toContain('Computational Logic & Algorithmic Analysis');
+      expect(notes).toContain('Algorithmic Complexity & Performance Analysis');
+      expect(notes).not.toContain('पात्र / व्यक्ती');
+    });
+
+    test('makeNovelHandwrittenNotes on English/Western text does not leak Marathi strings', () => {
+      const englishNovel = 'Hamlet stood on the ramparts of Elsinore. Horatio warned him that the ghost might lead him toward catastrophe.';
+      const notes = makeNovelHandwrittenNotes(englishNovel, 'Hamlet', 'Drama', 1, 1);
+      expect(notes).not.toContain('पात्र / व्यक्ती');
+      expect(notes).not.toContain('कथानकातील');
+      expect(notes).toContain('Character / Figure');
+      expect(notes).toContain('Literary Narrative & Themes');
     });
   });
 

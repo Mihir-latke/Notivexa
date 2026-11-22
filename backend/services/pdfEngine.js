@@ -128,6 +128,8 @@ function getTopics(text) {
     if (/^copyright/i.test(str)) return true;
     if (/^all rights reserved/i.test(str)) return true;
     if (/^(published|printed|e-?book|publisher|edition|price|mrp)/i.test(str)) return true;
+    if (/^(elsevier|pearson|springer|wiley|mcgraw|oxford|cambridge|oreilly|campus\b|editora\b|copidesque|revis[ãa]o|diagrama[çc][ãa]o|capa\b|projeto gr[áa]fico|supervis[ãa]o editorial|desenvolvimento de e-?book|todos os direitos reservados|all rights reserved|printed in|depósito legal|catalogação na publicação|cip-brasil|ficha catalogr[áa]fica)/i.test(str)) return true;
+    if (/^[A-Z]\d{2,4}\b/i.test(str)) return true;
     if (/^[•|–—]\s*/.test(str)) return true;
     return false;
   };
@@ -169,19 +171,103 @@ function firstN(text, n = 3) {
 // CONTENT GENERATORS — all use actual PDF text
 // ═══════════════════════════════════════════════════════════
 
+function makeComputerScienceHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
+  const topics = getTopics(text);
+  const sentences = getSentences(text);
+  const defs = getDefinitions(text, 15);
+  const facts = getKeyFacts(text, 30);
+  const numModules = Math.min(6, Math.max(2, Math.ceil(sentences.length / 8)));
+  const textChunks = getChunks(text, numModules);
+
+  // Determine chapter title
+  const cleanSubject = (subject && !/^(general|document|notes)$/i.test(subject)) ? subject : (topics[0] || title || 'Algorithmic Foundations');
+  let out = `# Chapter ${idx}: ${cleanSubject} — Computational Logic & Algorithmic Analysis\n\n`;
+
+  for (let m = 0; m < numModules; m++) {
+    const chunkText = textChunks[m] || text;
+    const chunkSentences = getSentences(chunkText);
+    const chunkDefs = getDefinitions(chunkText, 4);
+
+    // Filter out noisy topic names
+    const headingCandidate = topics[m] || (chunkDefs[0]?.term) || `Module ${idx}.${m + 1}`;
+    const heading = headingCandidate.replace(/^[#*\s]+/, '').trim();
+
+    // Technical definition
+    let defText = '';
+    if (chunkDefs[0]) {
+      defText = `${chunkDefs[0].term}: ${chunkDefs[0].definition}`;
+    } else if (defs[m]) {
+      defText = `${defs[m].term}: ${defs[m].definition}`;
+    } else {
+      defText = chunkSentences[0] || `Fundamental theoretical and algorithmic formulation governing ${heading}.`;
+    }
+
+    // High-level summary of computational mechanism
+    const summary = chunkSentences.slice(1, 5).join(' ') || firstN(chunkText, 3);
+
+    out += `## Topic ${idx}.${m + 1}: ${heading}\n\n`;
+    out += `DEFINITION: ${defText}\n\n`;
+    out += `SUMMARY: ${summary}\n\n`;
+
+    // 1. Algorithmic Mechanics & Step-by-Step Logic
+    out += `### Subtopic: Algorithmic Mechanics & Step-by-Step Logic\n\n`;
+    out += `EXPLANATION:\n`;
+    const stepCandidates = chunkSentences.slice(2, 9);
+    if (stepCandidates.length > 0) {
+      stepCandidates.forEach((s, sIdx) => {
+        out += `- Procedural Step ${sIdx + 1}: ${s.replace(/^[-•*\d.]+\s*/, '')}\n`;
+      });
+    } else {
+      out += `- Procedural Step 1: Initialize data structure, loop boundaries, and base conditions.\n`;
+      out += `- Procedural Step 2: Iterate through inputs maintaining the invariant across state transitions.\n`;
+      out += `- Procedural Step 3: Terminate upon meeting convergence criteria and return verified output.\n`;
+    }
+    out += '\n';
+
+    // 2. Complexity Table
+    out += `### Subtopic: Algorithmic Complexity & Performance Analysis\n\n`;
+    out += `| Operational Case / Metric | Complexity Bound | Algorithmic Behavior & Invariants |\n`;
+    out += `|---|---|---|\n`;
+
+    // Check if chunk has complexity notations (O(n), O(log n), Theta, etc.)
+    const timeMatch = chunkText.match(/O\([^\)]+\)|Θ\([^\)]+\)|Omega\([^\)]+\)|O\s*lg\s*n/i);
+    const timeVal = timeMatch ? timeMatch[0] : 'O(n log n)';
+
+    out += `| Best-Case Time | ${timeVal} | Optimal execution under sorted or balanced conditions |\n`;
+    out += `| Worst-Case Time | O(n^2) / Upper Bound | Adversarial input distribution requiring complete scan |\n`;
+    out += `| Auxiliary Space | O(1) / In-place | Minimum memory footprint without additional buffers |\n\n`;
+
+    // 3. Implementation Insights & Practical Applications
+    out += `### Subtopic: Implementation Insights & Real-World Applications\n\n`;
+    out += `EXAMPLE:\n`;
+    const exSentence = chunkSentences.find(s => /exemplo|example|aplica[çc][ãa]o|pr[áa]tica|sistema|dados/i.test(s)) || chunkSentences[chunkSentences.length - 2] || chunkSentences[1];
+    if (exSentence) {
+      out += `- Practical Application: ${exSentence.slice(0, 180)}\n`;
+    } else {
+      out += `- Practical Application: Core building block in distributed systems, search indices, and database query engines.\n`;
+    }
+    out += `- Optimization Rule: Minimize auxiliary space and eliminate redundant recursive branching.\n`;
+    out += `- Key Takeaway: Ensure loop invariants hold before, during, and after each algorithmic pass.\n\n`;
+    out += `---\n\n`;
+  }
+
+  return out;
+}
+
 function makeNovelHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
   const topics = getTopics(text);
   const sentences = getSentences(text);
   const entitiesAndThemes = extractEntitiesAndThemes(text, 'novel_fiction');
   const numModules = Math.min(6, Math.max(2, Math.ceil(sentences.length / 8)));
   const textChunks = getChunks(text, numModules);
+  const isDevanagari = /[\u0900-\u097F]/.test(text) || /[\u0900-\u097F]/.test(title);
 
   let out = `# Chapter ${idx}: ${subject || title} — Literary Narrative & Themes\n\n`;
 
   for (let m = 0; m < numModules; m++) {
     const chunkText = textChunks[m] || text;
     const chunkSentences = getSentences(chunkText);
-    const heading = topics[m] || `प्रकरण / Scene ${idx}.${m + 1}`;
+    const heading = topics[m] || (isDevanagari ? `प्रकरण / Scene ${idx}.${m + 1}` : `Scene ${idx}.${m + 1}`);
     const settingContext = chunkSentences.slice(0, 3).join(' ') || firstN(chunkText, 2);
     const summary = chunkSentences.slice(3, 7).join(' ') || firstN(chunkText, 3);
 
@@ -199,18 +285,34 @@ function makeNovelHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
 
     // Character and thematic interaction table
     out += `### Subtopic: Characters & Narrative Significance\n\n`;
-    out += `| पात्र / व्यक्ती (Character) | संदर्भ व भूमिका (Narrative Role) | कृती व भावनिक महत्त्व (Action & Significance) |\n`;
-    out += `|---|---|---|\n`;
-    const chars = entitiesAndThemes.entities.slice(m * 2, m * 2 + 2);
-    if (chars.length >= 2) {
-      out += `| ${chars[0].slice(0, 25)} | मध्यवर्ती पात्र / मुख्य भूमिका | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'प्रसंगातील महत्त्वाचा निर्णय व संघर्ष'} |\n`;
-      out += `| ${chars[1].slice(0, 25)} | सहपात्र / ऐतिहासिक व्यक्ती | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'नाट्यमय संवाद व नातेसंबंधांचे प्रकटीकरण'} |\n`;
-    } else if (chars.length === 1) {
-      out += `| ${chars[0].slice(0, 25)} | मुख्य व्यक्तिरेखा | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'भावनिक आणि वैचारिक संघर्ष'} |\n`;
-      out += `| प्रसंग / दृश्य | कथाप्रवाहातील वळण | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'घटनांची गुंफण आणि नाट्यमय प्रसंग'} |\n`;
+    if (isDevanagari) {
+      out += `| पात्र / व्यक्ती (Character) | संदर्भ व भूमिका (Narrative Role) | कृती व भावनिक महत्त्व (Action & Significance) |\n`;
+      out += `|---|---|---|\n`;
+      const chars = entitiesAndThemes.entities.slice(m * 2, m * 2 + 2);
+      if (chars.length >= 2) {
+        out += `| ${chars[0].slice(0, 25)} | मध्यवर्ती पात्र / मुख्य भूमिका | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'प्रसंगातील महत्त्वाचा निर्णय व संघर्ष'} |\n`;
+        out += `| ${chars[1].slice(0, 25)} | सहपात्र / ऐतिहासिक व्यक्ती | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'नाट्यमय संवाद व नातेसंबंधांचे प्रकटीकरण'} |\n`;
+      } else if (chars.length === 1) {
+        out += `| ${chars[0].slice(0, 25)} | मुख्य व्यक्तिरेखा | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'भावनिक आणि वैचारिक संघर्ष'} |\n`;
+        out += `| प्रसंग / दृश्य | कथाप्रवाहातील वळण | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'घटनांची गुंफण आणि नाट्यमय प्रसंग'} |\n`;
+      } else {
+        out += `| मुख्य व्यक्तिरेखा | कथाप्रवाहाचे केंद्र | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'कथानकातील भावनिक व वैचारिक मंथन'} |\n`;
+        out += `| कथानकाचा प्रसंग | नाट्यमय संघर्ष | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'पात्रांमधील परस्पर संबंध आणि संवाद'} |\n`;
+      }
     } else {
-      out += `| मुख्य व्यक्तिरेखा | कथाप्रवाहाचे केंद्र | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'कथानकातील भावनिक व वैचारिक मंथन'} |\n`;
-      out += `| कथानकाचा प्रसंग | नाट्यमय संघर्ष | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'पात्रांमधील परस्पर संबंध आणि संवाद'} |\n`;
+      out += `| Character / Figure | Narrative Role | Action & Dramatic Significance |\n`;
+      out += `|---|---|---|\n`;
+      const chars = entitiesAndThemes.entities.slice(m * 2, m * 2 + 2);
+      if (chars.length >= 2) {
+        out += `| ${chars[0].slice(0, 25)} | Central Protagonist | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'Crucial decision and internal dilemma'} |\n`;
+        out += `| ${chars[1].slice(0, 25)} | Key Supporting Figure | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'Dramatic interaction and dialogue'} |\n`;
+      } else if (chars.length === 1) {
+        out += `| ${chars[0].slice(0, 25)} | Central Character | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'Emotional and ideological struggle'} |\n`;
+        out += `| Dramatic Turning Point | Plot Progression | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'Narrative development and consequence'} |\n`;
+      } else {
+        out += `| Protagonist | Narrative Focus | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'Emotional core and internal conflict'} |\n`;
+        out += `| Narrative Scene | Dramatic Tension | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'Character relationships and interaction'} |\n`;
+      }
     }
     out += '\n';
 
@@ -220,9 +322,10 @@ function makeNovelHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
     if (dialogueOrExcerpt) {
       out += `- Excerpt / Dialogue: ${dialogueOrExcerpt.slice(0, 180)}\n`;
     }
-    const themeFound = entitiesAndThemes.themes[m % Math.max(1, entitiesAndThemes.themes.length)] || 'कथानकातील नैतिक आणि भावनिक संघर्ष (Moral & Emotional Conflict)';
+    const defaultTheme = isDevanagari ? 'कथानकातील नैतिक आणि भावनिक संघर्ष (Moral & Emotional Conflict)' : 'Moral and emotional conflict, character agency, and ethical dilemmas.';
+    const themeFound = entitiesAndThemes.themes[m % Math.max(1, entitiesAndThemes.themes.length)] || defaultTheme;
     out += `- Thematic Analysis: ${themeFound}\n`;
-    out += `- Literary Reflection: पात्रांचे मनोविश्लेषण, भाषिक सौंदर्य आणि ऐतिहासिक संदर्भांची सखोल मांडणी.\n\n`;
+    out += `- Literary Reflection: ${isDevanagari ? 'पात्रांचे मनोविश्लेषण, भाषिक सौंदर्य आणि ऐतिहासिक संदर्भांची सखोल मांडणी.' : 'Deep psychological characterization, narrative structure, and thematic depth.'}\n\n`;
     out += `---\n\n`;
   }
 
@@ -235,6 +338,7 @@ function makeHistoryHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
   const entities = extractEntitiesAndThemes(text, 'history_biography');
   const numModules = Math.min(6, Math.max(2, Math.ceil(sentences.length / 8)));
   const textChunks = getChunks(text, numModules);
+  const isDevanagari = /[\u0900-\u097F]/.test(text) || /[\u0900-\u097F]/.test(title);
 
   let out = `# Chapter ${idx}: ${subject || title} — Historical Analysis & Chronology\n\n`;
 
@@ -258,23 +362,42 @@ function makeHistoryHandwrittenNotes(text, title, subject, idx = 1, total = 1) {
     out += '\n';
 
     out += `### Subtopic: Key Historical Figures & Leadership\n\n`;
-    out += `| ऐतिहासिक व्यक्ती / नेतृत्व | भूमिका व अधिकार | योगदान व ऐतिहासिक निर्णय |\n`;
-    out += `|---|---|---|\n`;
-    const leaders = entities.entities.slice(m * 2, m * 2 + 2);
-    if (leaders.length >= 2) {
-      out += `| ${leaders[0].slice(0, 25)} | प्रमुख नेतृत्व व रणनीती | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'राजकीय व लष्करी नेतृत्व'} |\n`;
-      out += `| ${leaders[1].slice(0, 25)} | सरदार / मुत्सद्दी | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'रणसंग्राम व राज्यकारभारातील सहभाग'} |\n`;
+    if (isDevanagari) {
+      out += `| ऐतिहासिक व्यक्ती / नेतृत्व | भूमिका व अधिकार | योगदान व ऐतिहासिक निर्णय |\n`;
+      out += `|---|---|---|\n`;
+      const leaders = entities.entities.slice(m * 2, m * 2 + 2);
+      if (leaders.length >= 2) {
+        out += `| ${leaders[0].slice(0, 25)} | प्रमुख नेतृत्व व रणनीती | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'राजकीय व लष्करी नेतृत्व'} |\n`;
+        out += `| ${leaders[1].slice(0, 25)} | सरदार / मुत्सद्दी | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'रणसंग्राम व राज्यकारभारातील सहभाग'} |\n`;
+      } else {
+        out += `| प्रमुख सत्ताधीश / सेनापती | स्वराज्य रक्षण व रणनीती | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'साम्राज्य विस्तार व लढा'} |\n`;
+        out += `| ऐतिहासिक निर्णय | प्रशासकीय व युद्धनीती | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'तत्कालीन परिस्थितीवरील दूरगामी प्रभाव'} |\n`;
+      }
     } else {
-      out += `| प्रमुख सत्ताधीश / सेनापती | स्वराज्य रक्षण व रणनीती | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'साम्राज्य विस्तार व लढा'} |\n`;
-      out += `| ऐतिहासिक निर्णय | प्रशासकीय व युद्धनीती | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'तत्कालीन परिस्थितीवरील दूरगामी प्रभाव'} |\n`;
+      out += `| Historical Figure / Leadership | Role & Office | Contribution & Strategic Decision |\n`;
+      out += `|---|---|---|\n`;
+      const leaders = entities.entities.slice(m * 2, m * 2 + 2);
+      if (leaders.length >= 2) {
+        out += `| ${leaders[0].slice(0, 25)} | Strategic Commander / Sovereign | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'Executive and military leadership'} |\n`;
+        out += `| ${leaders[1].slice(0, 25)} | Diplomat / Statesman | ${chunkSentences[2] ? chunkSentences[2].slice(0, 50) : 'Diplomatic treaties and campaign execution'} |\n`;
+      } else {
+        out += `| Sovereign / Ruler | State Governance & Defense | ${chunkSentences[0] ? chunkSentences[0].slice(0, 50) : 'Territorial expansion and sovereignty'} |\n`;
+        out += `| Strategic Decision | Administrative & Military Doctrine | ${chunkSentences[1] ? chunkSentences[1].slice(0, 50) : 'Decisive influence on the historical epoch'} |\n`;
+      }
     }
     out += '\n';
 
     out += `### Subtopic: Causes, Outcomes & Strategic Legacy\n\n`;
     out += `EXAMPLE:\n`;
-    out += `- Strategic Cause & Action: ${chunkSentences[2] ? chunkSentences[2].slice(0, 160) : 'साम्राज्यावरील आक्रमणे व त्याला दिलेले चोख प्रत्युत्तर.'}\n`;
-    out += `- Geopolitical Outcome: ${chunkSentences[3] ? chunkSentences[3].slice(0, 160) : 'प्रादेशिक सुरक्षितता, स्वाभिमान व स्वराज्याचे सार्वभौमत्व.'}\n`;
-    out += `- Historical Legacy: इतिहासातील अतुलनीय पराक्रम, त्याग आणि लोककल्याणकारी राज्यकारभार.\n\n`;
+    if (isDevanagari) {
+      out += `- Strategic Cause & Action: ${chunkSentences[2] ? chunkSentences[2].slice(0, 160) : 'साम्राज्यावरील आक्रमणे व त्याला दिलेले चोख प्रत्युत्तर.'}\n`;
+      out += `- Geopolitical Outcome: ${chunkSentences[3] ? chunkSentences[3].slice(0, 160) : 'प्रादेशिक सुरक्षितता, स्वाभिमान व स्वराज्याचे सार्वभौमत्व.'}\n`;
+      out += `- Historical Legacy: इतिहासातील अतुलनीय पराक्रम, त्याग आणि लोककल्याणकारी राज्यकारभार.\n\n`;
+    } else {
+      out += `- Strategic Cause & Action: ${chunkSentences[2] ? chunkSentences[2].slice(0, 160) : 'Major geopolitical tensions and defensive mobilization.'}\n`;
+      out += `- Geopolitical Outcome: ${chunkSentences[3] ? chunkSentences[3].slice(0, 160) : 'Long-term influence on regional sovereignty, alliances, and borders.'}\n`;
+      out += `- Historical Legacy: Enduring strategic leadership, civilizational impact, and historical precedent.\n\n`;
+    }
     out += `---\n\n`;
   }
 
@@ -396,6 +519,9 @@ function makeAcademicHandwrittenNotes(text, title, subject, idx = 1, total = 1) 
 }
 
 function makeHandwrittenChapterNotes(text, title, subject, idx = 1, total = 1, docType = 'academic_textbook') {
+  if (docType === 'computer_science') {
+    return makeComputerScienceHandwrittenNotes(text, title, subject, idx, total);
+  }
   if (docType === 'novel_fiction' || docType === 'poetry_literature') {
     return makeNovelHandwrittenNotes(text, title, subject, idx, total);
   }
@@ -1103,6 +1229,7 @@ function answerQuestion(question, text) {
 module.exports = {
   extractFromPDF,
   makeNotes, makeDetailedChapterNotes, makeHandwrittenChapterNotes,
+  makeComputerScienceHandwrittenNotes,
   makeNovelHandwrittenNotes, makeHistoryHandwrittenNotes, makeResearchHandwrittenNotes, makeAcademicHandwrittenNotes,
   makeSummary, makeFlashcards, makeQuestions, makeQuestionPaper,
   makePodcastScript, makeVideoScript, makePPT, makeMindmap, makeVocabulary,

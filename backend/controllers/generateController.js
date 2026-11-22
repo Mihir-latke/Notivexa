@@ -8,6 +8,7 @@ const { notesPDF, handwrittenPDF, questionPaperPDF, slidePDF } = require('../ser
 const { SAMPLE_DEMO_DOCS } = require('./documentController');
 const localStore = require('../utils/localStore');
 const { getExtractedImages, extractImagesFromPDF } = require('../services/pdfImageExtractor');
+const { classifyDocument } = require('../services/bookUnderstandingService');
 
 const isDbConnected = () => mongoose.connection.readyState === 1;
 
@@ -237,6 +238,21 @@ function injectDiagramsIntoMarkdown(content, docId, imagePaths) {
   return updatedContent;
 }
 
+function resolveEffectiveDocType(req, doc, text) {
+  let docType = req.body.documentType || doc?.documentType;
+  if (!req.body.documentType && text) {
+    const freshClass = classifyDocument(text, { title: doc?.title, filename: doc?.originalName, subject: doc?.subject });
+    if (freshClass && freshClass.confidence >= 0.70 && (!docType || (docType === 'novel_fiction' && freshClass.type === 'computer_science') || (docType === 'academic_textbook' && freshClass.type === 'computer_science'))) {
+      docType = freshClass.type;
+      if (doc && doc.documentType !== docType) {
+        doc.documentType = docType;
+        safeDocSave(doc).catch(() => {});
+      }
+    }
+  }
+  return docType || 'academic_textbook';
+}
+
 exports.notes = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
@@ -245,7 +261,7 @@ exports.notes = async (req, res, next) => {
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
     const subj = doc.subject || doc.title;
-    const docType = req.body.documentType || doc.documentType || 'academic_textbook';
+    const docType = resolveEffectiveDocType(req, doc, text);
     console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language} docType=${docType} (source=${doc.primaryLanguage})`);
     const content = await ai.generateNotes(text, doc.title, subj, language, doc.primaryLanguage, docType);
     const imagePaths = await resolveDocImages(doc);
@@ -394,7 +410,7 @@ exports.handwritten = async (req, res, next) => {
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
-    const docType = req.body.documentType || doc.documentType || 'academic_textbook';
+    const docType = resolveEffectiveDocType(req, doc, text);
     const content = await ai.generateHandwrittenNotes(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage, docType);
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();

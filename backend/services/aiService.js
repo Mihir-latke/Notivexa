@@ -313,7 +313,9 @@ async function generateNotes(text, title, subject, lang = 'English', docPrimaryL
 
   const langRule = getLanguageInstruction(lang, docPrimaryLang);
   let domainInstruction = 'You are an expert academic note-writer for university students.\nYour job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.';
-  if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+  if (docType === 'computer_science') {
+    domainInstruction = 'You are a distinguished Professor of Computer Science and master technical note-writer.\nYour job: produce comprehensive, mathematically and algorithmically rigorous study notes detailing data structures, algorithmic steps, time/space complexity, and software architecture from each part of the document.';
+  } else if (docType === 'novel_fiction' || docType === 'poetry_literature') {
     domainInstruction = 'You are an expert literary scholar and master note-taker specializing in novels, literature, and narrative drama.\nYour job: produce rich, narrative-driven study notes capturing plot milestones, character arcs, dialogues, and literary themes from each part of the book.';
   } else if (docType === 'history_biography') {
     domainInstruction = 'You are an expert historian and master biographer.\nYour job: produce detailed chronological notes detailing historical milestones, leadership figures, strategic causes, and geopolitical outcomes from each part of the work.';
@@ -751,7 +753,39 @@ EXAMPLE:
 - Practical Application 2: Industry or scientific case study
 - Key Takeaway: High-scoring advice and essential principles`;
 
-  if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+  if (docType === 'computer_science') {
+    domainPrompt = `You are a distinguished Professor of Computer Science and master technical note-taker.
+You MUST format EVERY algorithmic concept, data structure, or software engineering topic found in the text using this EXACT computer science hierarchy:
+
+# Chapter [Number]: [Chapter Title / Computational Topic]
+
+## Topic: [Algorithm, Data Structure, or Technical Concept]
+
+DEFINITION: One rigorous, complete formal definition of the algorithm, data structure, or computational problem.
+
+SUMMARY: 4-5 sentences detailing the problem formulation, input/output specifications, algorithmic strategy (e.g., divide-and-conquer, greedy, dynamic programming, amortization), and core invariants.
+
+### Subtopic: Algorithmic Mechanics & Step-by-Step Logic
+EXPLANATION:
+- Step 1: Initialization and base case handling
+- Step 2: Invariant maintenance and recursive/iterative state transition
+- Step 3: Termination condition and correctness proof or convergence
+- Step 4: Edge cases, constraint boundaries, and data transformations
+- Provide 6-10 bullet points per topic detailing the exact mechanics.
+
+### Subtopic: Complexity & Performance Specifications
+| Metric / Case | Time / Space Bound | Operational Behavior & Conditions |
+|---|---|---|
+| Best-Case Time | O(...) | Conditions under which optimal runtime occurs |
+| Worst-Case Time | O(...) | Adversarial input conditions or worst-case bounds |
+| Auxiliary Space | O(...) | Memory overhead, in-place vs extra storage required |
+
+### Subtopic: Implementation Insights & Real-World Applications
+EXAMPLE:
+- Practical Application: Real-world systems, database, networking, or software application
+- Implementation Pitfall: Common algorithmic bug, recursion depth, or performance bottleneck
+- Key Takeaway: Essential design pattern, invariant, or interview/exam insight`;
+  } else if (docType === 'novel_fiction' || docType === 'poetry_literature') {
     domainPrompt = `You are an expert literary scholar and master note-taker who creates rich, narrative study notes for literature, novels, and drama.
 You MUST format EVERY chapter, scene, or act found in the text using this EXACT literary hierarchy:
 
