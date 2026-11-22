@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Fragment } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import api from '../utils/api'
+import api, { getAuthedMediaUrl } from '../utils/api'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -321,12 +321,15 @@ function HandwrittenPage({ content, pageNum, total, fontId = 'caveat', paperStyl
               }
               return <p style={{ margin: '8px 0' }} {...props}>{children}</p>;
             },
-            img: ({ node, ...props }) => (
-              <figure style={{ margin: '16px auto', textAlign: 'center' }}>
-                <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.15)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
-                {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
-              </figure>
-            )
+            img: ({ node, src, ...props }) => {
+              const authedSrc = getAuthedMediaUrl(src || props.src);
+              return (
+                <figure style={{ margin: '16px auto', textAlign: 'center' }}>
+                  <img {...props} src={authedSrc} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid rgba(0,0,0,0.15)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
+                  {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
+                </figure>
+              );
+            }
           }}
         >
           {content}
@@ -842,8 +845,9 @@ export default function Notebook() {
   }
 
   const triggerDownload = (url, name) => {
+    const authedUrl = getAuthedMediaUrl(url)
     const link = document.createElement('a')
-    link.href = url
+    link.href = authedUrl
     link.download = name || 'document'
     document.body.appendChild(link)
     link.click()
@@ -2156,7 +2160,7 @@ export default function Notebook() {
                         {s.image && (
                           <div style={{ marginBottom: 14, textAlign: 'center', background: 'rgba(0,0,0,0.18)', borderRadius: 10, padding: 12, border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}` }}>
                             <img
-                              src={s.image.startsWith('http') || s.image.startsWith('/') ? s.image : `/uploads/${s.image}`}
+                              src={getAuthedMediaUrl(s.image.startsWith('http') || s.image.startsWith('/') ? s.image : `/uploads/${s.image}`)}
                               alt={s.title}
                               style={{ maxHeight: 240, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }}
                               onError={(e) => { e.target.style.display = 'none'; }}
@@ -2618,7 +2622,7 @@ export default function Notebook() {
                       {currSlide.image && (
                         <div style={{ marginBottom: 16, textAlign: 'center', background: 'rgba(0,0,0,0.18)', borderRadius: 10, padding: 12, border: `1.5px solid ${activeThemeObj.cardBorder || activeThemeObj.border}` }}>
                           <img
-                            src={currSlide.image.startsWith('http') || currSlide.image.startsWith('/') ? currSlide.image : `/uploads/${currSlide.image}`}
+                            src={getAuthedMediaUrl(currSlide.image.startsWith('http') || currSlide.image.startsWith('/') ? currSlide.image : `/uploads/${currSlide.image}`)}
                             alt={currSlide.title}
                             style={{ maxHeight: 220, maxWidth: '100%', objectFit: 'contain', borderRadius: 6 }}
                             onError={(e) => { e.target.style.display = 'none'; }}
@@ -2807,16 +2811,6 @@ export default function Notebook() {
     }
 
     if (t === 'video') {
-      const getAuthedMediaUrl = (url) => {
-        if (!url) return '';
-        const token = localStorage.getItem('ntv_token');
-        let cleanUrl = url;
-        if (cleanUrl.includes('token=')) {
-          cleanUrl = cleanUrl.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
-        }
-        if (!token) return cleanUrl;
-        return `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
-      };
       const finalVideoUrl = getAuthedMediaUrl(data.videoUrl);
       const finalAudioUrl = getAuthedMediaUrl(data.audioUrl);
 
@@ -2862,7 +2856,7 @@ export default function Notebook() {
                 ↗️ Open Video in New Tab
               </a>
             )}
-            {data.slidesUrl && <a href={data.slidesUrl} download className="btn btn-s btn-sm" style={{ textDecoration:'none' }}>⬇️ Slides PDF</a>}
+            {data.slidesUrl && <a href={getAuthedMediaUrl(data.slidesUrl)} download className="btn btn-s btn-sm" style={{ textDecoration:'none' }}>⬇️ Slides PDF</a>}
             {data.audioUrl && <a href={finalAudioUrl} download="lecture_audio.mp3" className="btn btn-s btn-sm" style={{ textDecoration:'none', background:'transparent', color:'var(--ink2)', border:'1px solid var(--bdr)' }}>⬇️ Audio Only</a>}
             <a
               href="/video-studio"
@@ -3113,12 +3107,15 @@ export default function Notebook() {
                       }
                       return <p {...props}>{children}</p>;
                     },
-                    img: ({ node, ...props }) => (
-                      <figure style={{ margin: '18px auto', textAlign: 'center' }}>
-                        <img {...props} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid var(--bdr2)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
-                        {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
-                      </figure>
-                    )
+                    img: ({ node, src, ...props }) => {
+                      const authedSrc = getAuthedMediaUrl(src || props.src);
+                      return (
+                        <figure style={{ margin: '18px auto', textAlign: 'center' }}>
+                          <img {...props} src={authedSrc} style={{ maxWidth: '95%', maxHeight: '420px', objectFit: 'contain', height: 'auto', borderRadius: 8, border: '1.5px solid var(--bdr2)', boxShadow: '0 4px 14px rgba(0,0,0,0.08)', background: '#fff' }} />
+                          {props.alt && <figcaption style={{ fontSize: '12px', color: 'var(--ink3)', marginTop: 6, fontStyle: 'italic', fontFamily: 'Inter, sans-serif' }}>{props.alt}</figcaption>}
+                        </figure>
+                      );
+                    }
                   }}
                 >
                   {currentText}

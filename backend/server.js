@@ -335,7 +335,11 @@ app.get('/uploads/generated/:filename', authenticateMediaRequest, async (req, re
       isOwner = userDocs.some(d => (d.outputs || []).some(o => o.fileName === safeFileName || (o.filePath && o.filePath.includes(safeFileName))));
     }
 
-    if (!isOwner) {
+    // Allow transient export files with cryptographically random UUIDs generated for authenticated users
+    // (e.g. hw_uuid.pdf, notes_uuid.pdf, paper_uuid.pdf, ppt_uuid.pdf, ppt_uuid.pptx, doc_uuid.docx)
+    const isExportFile = /^(hw|notes|paper|ppt|doc|export)_[0-9a-fA-F-]{36}\.(pdf|docx|pptx)$/.test(safeFileName);
+
+    if (!isOwner && !isExportFile) {
       return res.status(403).json({ error: 'Access denied: You do not own this generated document.' });
     }
   } catch (err) {

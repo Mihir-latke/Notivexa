@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import api from '../utils/api'
+import api, { getAuthedMediaUrl } from '../utils/api'
 const fmt=b=>b>1048576?(b/1048576).toFixed(1)+' MB':(b/1024).toFixed(0)+' KB'
 export default function Library() {
   const[docs,setDocs]=useState([])
@@ -10,16 +10,6 @@ export default function Library() {
   const[tab,setTab]=useState('docs')
   const navigate=useNavigate()
 
-  const getAuthedMediaUrl = (url) => {
-    if (!url) return '';
-    const token = localStorage.getItem('ntv_token');
-    let cleanUrl = url;
-    if (cleanUrl.includes('token=')) {
-      cleanUrl = cleanUrl.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
-    }
-    if (!token) return cleanUrl;
-    return `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
-  };
   useEffect(()=>{
     api.get('/library').then(r=>setDocs(r.data.documents||[])).catch(()=>{})
     api.get('/library/outputs').then(r=>setOutputs(r.data.outputs||[])).catch(()=>{})

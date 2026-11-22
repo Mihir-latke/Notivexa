@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import api from '../utils/api'
+import api, { getMediaUrlWithToken } from '../utils/api'
 import toast from 'react-hot-toast'
 
 const STYLES = [
@@ -265,16 +265,6 @@ export default function VideoStudio() {
     } catch (err) {
       toast.error('Could not delete video job.')
     }
-  }
-
-    const getMediaUrlWithToken = (url) => {
-    if (!url) return ''
-    const token = localStorage.getItem('ntv_token')
-    if (token) {
-      const clean = url.includes('token=') ? url.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '') : url
-      return `${clean}${clean.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`
-    }
-    return url
   }
 
   return (

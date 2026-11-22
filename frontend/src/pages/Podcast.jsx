@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import api from '../utils/api'
+import api, { getAuthedMediaUrl } from '../utils/api'
 
 export default function Podcast() {
   const[docs,setDocs]=useState([])
@@ -17,17 +17,6 @@ export default function Podcast() {
   const[dur,setDur]=useState(0)
   const ref=useRef()
   const navigate=useNavigate()
-
-  const getAuthedMediaUrl = (url) => {
-    if (!url) return '';
-    const token = localStorage.getItem('ntv_token');
-    let cleanUrl = url;
-    if (cleanUrl.includes('token=')) {
-      cleanUrl = cleanUrl.replace(/([?&])token=[^&]+(&|$)/, '$1').replace(/[?&]$/, '');
-    }
-    if (!token) return cleanUrl;
-    return `${cleanUrl}${cleanUrl.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`;
-  };
 
   useEffect(()=>{api.get('/documents?status=ready').then(r=>setDocs(r.data.documents||[])).catch(()=>{})},[])
   useEffect(()=>{if(docId)api.get(`/documents/${docId}`).then(r=>setDoc(r.data.document)).catch(()=>{})},[docId])

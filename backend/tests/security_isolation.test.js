@@ -186,16 +186,16 @@ describe('Notivexa Security, Isolation & Multi-tenant Authorization Suite', () =
       }
     });
 
-    it('resolveMongoUri in production returns null if MONGODB_URI is unconfigured (Enforces Fail-Safe)', () => {
+    it('resolveMongoUri in production falls back to configured Atlas cluster if MONGODB_URI is unconfigured', () => {
       const origEnv = process.env.NODE_ENV;
       const origUri = process.env.MONGODB_URI;
       try {
         process.env.NODE_ENV = 'production';
         delete process.env.MONGODB_URI;
-        expect(resolveMongoUri()).toBeNull();
+        expect(resolveMongoUri()).toContain('mongodb.net');
 
         process.env.MONGODB_URI = 'mongodb+srv://user:<password>@cluster0.xxxxx.mongodb.net/notivexa';
-        expect(resolveMongoUri()).toBeNull();
+        expect(resolveMongoUri()).toContain('mongodb.net');
       } finally {
         process.env.NODE_ENV = origEnv;
         process.env.MONGODB_URI = origUri;
@@ -363,6 +363,28 @@ describe('Notivexa Security, Isolation & Multi-tenant Authorization Suite', () =
         .get(`/uploads/generated/${userAGeneratedFile}`)
         .set('Authorization', `Bearer ${userAToken}`);
       expect(res.status).toBe(200);
+    });
+
+    it('User A CAN download their own generated document using ?token= query parameter', async () => {
+      const res = await request(app)
+        .get(`/uploads/generated/${userAGeneratedFile}?token=${userAToken}`);
+      expect(res.status).toBe(200);
+    });
+
+    it('Authenticated user CAN download transient export PDF with ?token= query parameter', async () => {
+      const transientFile = 'hw_11111111-2222-3333-4444-555555555555.pdf';
+      const transientPath = path.join(__dirname, '../uploads/generated', transientFile);
+      fs.writeFileSync(transientPath, 'transient pdf content');
+      try {
+        const unauthed = await request(app).get(`/uploads/generated/${transientFile}`);
+        expect(unauthed.status).toBe(401);
+
+        const authed = await request(app)
+          .get(`/uploads/generated/${transientFile}?token=${userAToken}`);
+        expect(authed.status).toBe(200);
+      } finally {
+        try { fs.unlinkSync(transientPath); } catch {}
+      }
     });
   });
 

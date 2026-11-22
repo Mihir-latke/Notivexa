@@ -578,6 +578,16 @@ exports.exportDocx = async (req, res, next) => {
     const langInfo = getResolvedLanguage(req, doc);
     const isRTL = langInfo.isRTL;
     const result = await generateDocx(content, { title, subject, language: langInfo.name, isRTL });
+    if (doc && doc.outputs) {
+      doc.outputs.push({
+        type: 'docx',
+        language: langInfo.name || 'English',
+        fileName: result.fileName,
+        filePath: result.filePath,
+        fileSize: result.fileSize
+      });
+      await safeDocSave(doc);
+    }
     res.json({ success: true, downloadUrl: `/uploads/generated/${result.fileName}`, fileName: result.fileName, fileSize: result.fileSize });
   } catch(e) { next(e); }
 };
@@ -602,6 +612,16 @@ exports.exportPptx = async (req, res, next) => {
     const langInfo = getResolvedLanguage(req, doc);
     const isRTL = langInfo.isRTL;
     const result = await generatePPTX(slidesData, { title, subject, theme, imagePaths, language: langInfo.name, isRTL });
+    if (doc && doc.outputs) {
+      doc.outputs.push({
+        type: 'pptx',
+        language: langInfo.name || 'English',
+        fileName: result.fileName,
+        filePath: result.filePath,
+        fileSize: result.fileSize
+      });
+      await safeDocSave(doc);
+    }
     res.json({ success: true, downloadUrl: `/uploads/generated/${result.fileName}`, fileName: result.fileName, fileSize: result.fileSize });
   } catch(e) { next(e); }
 };
@@ -627,10 +647,20 @@ exports.exportPdf = async (req, res, next) => {
     } else if (type === 'paper') {
       pdf = await questionPaperPDF(content, { title, subject, totalMarks, timeHours });
     } else if (type === 'academic' || format === 'academic') {
-      pdf = await notesPDF(finalContent, { title, subject, imagePaths });
+      pdf = await notesPDF(finalContent, { title, subject, imagePaths }); 
     } else {
       // Default: authentic handwritten notebook PDF (for 'handwritten', 'notes', and 'summary')
       pdf = await handwrittenPDF(finalContent, { title, subject, style, fontName: font, imagePaths });
+    }
+    if (doc && doc.outputs) {
+      doc.outputs.push({
+        type: (type === 'academic' || format === 'academic') ? 'notes' : (type || 'handwritten'),
+        language: doc.primaryLanguage || 'English',
+        fileName: pdf.fileName,
+        filePath: pdf.filePath,
+        fileSize: pdf.fileSize
+      });
+      await safeDocSave(doc);
     }
     res.json({ success: true, downloadUrl: `/uploads/generated/${pdf.fileName}`, fileName: pdf.fileName, fileSize: pdf.fileSize });
   } catch(e) { next(e); }
