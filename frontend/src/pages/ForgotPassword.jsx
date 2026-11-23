@@ -98,14 +98,14 @@ export default function ForgotPassword() {
         description="Reset your Notivexa account password securely using email OTP verification."
         canonical="/forgot-password"
       />
-      <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#4F46E5', opacity:.07, top:-200, left:-150 }} />
-      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#7C3AED', opacity:.06, bottom:-150, right:-100 }} />
+      <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#78A2D2', opacity:.07, top:-200, left:-150 }} />
+      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#FEFFAF', opacity:.06, bottom:-150, right:-100 }} />
 
       <div className="auth-c">
         {step === 1 && (
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
-              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#4F46E5,#7C3AED)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>🔑</div>
+              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#78A2D2,#FEFFAF)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>🔑</div>
               <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'var(--ink)', margin: 0, padding: 0 }}>Forgot Password?</h1>
               <div style={{ fontSize:12.5, color:'var(--ink3)', marginTop:4, lineHeight:1.5 }}>
                 Enter your registered email address and we'll send you a 6-digit verification code to reset your password.
@@ -149,7 +149,7 @@ export default function ForgotPassword() {
         {step === 2 && (
           <>
             <div style={{ textAlign:'center', marginBottom:18 }}>
-              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#10B981,#059669)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>🛡️</div>
+              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#78A2D2,#5885BA)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>🛡️</div>
               <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'var(--ink)', margin: 0, padding: 0 }}>Reset Password</h1>
               <div style={{ fontSize:12.5, color:'var(--ink3)', marginTop:4, lineHeight:1.5 }}>
                 We sent a 6-digit verification code to <strong>{maskedEmail}</strong>. Please check your Gmail inbox (and spam folder), then enter the code below.
@@ -240,7 +240,7 @@ export default function ForgotPassword() {
 
         {step === 3 && (
           <div style={{ textAlign: 'center', padding: '12px 0' }}>
-            <div style={{ width: 64, height: 64, background: 'linear-gradient(135deg,#10B981,#059669)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 16px', color: '#fff' }}>✓</div>
+            <div style={{ width: 64, height: 64, background: 'linear-gradient(135deg,#78A2D2,#5885BA)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, margin: '0 auto 16px', color: '#fff' }}>✓</div>
             <h2 style={{ fontFamily: 'Sora,sans-serif', fontSize: 22, fontWeight: 800, color: 'var(--ink)', marginBottom: 8 }}>Password Reset!</h2>
             <p style={{ fontSize: 13, color: 'var(--ink3)', lineHeight: 1.6, marginBottom: 24 }}>
               Your password has been securely updated. You can now sign in to Notivexa using your new credentials.

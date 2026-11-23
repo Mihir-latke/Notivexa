@@ -101,15 +101,15 @@ export default function Login() {
         description="Sign in to your Notivexa student or teacher account to access your AI notes, flashcards, question papers, and study materials."
         canonical="/login"
       />
-      <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#4F46E5', opacity:.07, top:-200, left:-150 }} />
-      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#7C3AED', opacity:.06, bottom:-150, right:-100 }} />
+      <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#78A2D2', opacity:.07, top:-200, left:-150 }} />
+      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#FEFFAF', opacity:.06, bottom:-150, right:-100 }} />
 
       <div className="auth-c">
         {mfaSession ? (
           // MFA 2FA Challenge View
           <>
             <div style={{ textAlign:'center', marginBottom:20 }}>
-              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#10B981,#059669)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>🛡️</div>
+              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#78A2D2,#5885BA)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>🛡️</div>
               <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'var(--ink)', margin: 0, padding: 0 }}>Two-Factor Authentication</h1>
               <div style={{ fontSize:12.5, color:'var(--ink3)', marginTop:5, lineHeight:1.5 }}>
                 Enter the 6-digit security code sent to <strong>{mfaSession.email}</strong>. Please check your Gmail inbox and spam folder.
@@ -164,7 +164,7 @@ export default function Login() {
           // Regular Login View
           <>
             <div style={{ textAlign:'center', marginBottom:24 }}>
-              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#4F46E5,#7C3AED)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>📖</div>
+              <div style={{ width:54, height:54, background:'linear-gradient(135deg,#78A2D2,#FEFFAF)', borderRadius:15, display:'flex', alignItems:'center', justifyContent:'center', fontSize:26, margin:'0 auto 12px' }}>📖</div>
               <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:22, fontWeight:800, color:'var(--ink)', margin: 0, padding: 0 }}>Sign In</h1>
               <div style={{ fontSize:12.5, color:'var(--ink3)', marginTop:4 }}>Enter your credentials to access your academic dashboard</div>
             </div>

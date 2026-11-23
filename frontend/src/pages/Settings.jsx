@@ -6,9 +6,9 @@ import api from '../utils/api'
 import PasswordStrengthIndicator, { checkPasswordStrength } from '../components/PasswordStrengthIndicator'
 
 const THEMES = [
-  { id: 'default', label: 'Default', icon: '🌈', desc: 'Purple-tinted' },
-  { id: 'light',   label: 'Light',   icon: '☀️', desc: 'Clean white' },
-  { id: 'dark',    label: 'Dark',    icon: '🌙', desc: 'Night mode' },
+  { id: 'default', label: 'Vista Blue', icon: '💎', desc: 'Vista Blue & Mindaro' },
+  { id: 'light',   label: 'Daylight',   icon: '☀️', desc: 'Clean luminous academic' },
+  { id: 'dark',    label: 'Midnight',    icon: '🌙', desc: 'Deep study mode' },
 ]
 
 export default function Settings() {
@@ -82,7 +82,7 @@ export default function Settings() {
                   style={{
                     border: '2px solid '+(theme===t.id?'var(--brand)':'var(--bdr2)'),
                     borderRadius:11, padding:'14px 12px', cursor:'pointer',
-                    background: theme===t.id?'rgba(79,70,229,0.08)':'var(--bg)',
+                    background: theme===t.id?'rgba(120, 162, 210, 0.15)':'var(--bg)',
                     textAlign:'center', transition:'.15s'
                   }}>
                   <div style={{ fontSize:26, marginBottom:6 }}>{t.icon}</div>
@@ -103,7 +103,7 @@ export default function Settings() {
               <div>
                 <div style={{ fontFamily:'Sora,sans-serif', fontSize:16, fontWeight:700 }}>{user?.name}</div>
                 <div style={{ fontSize:12.5, color:'var(--ink3)' }}>{user?.email}</div>
-                <span style={{ background:'#EDE9FE', color:'#5B21B6', padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:600, textTransform:'capitalize' }}>{user?.role}</span>
+                <span style={{ background:'#FEFFAF', color:'#242D00', padding:'2px 9px', borderRadius:20, fontSize:11, fontWeight:600, textTransform:'capitalize' }}>{user?.role}</span>
               </div>
             </div>
             <form onSubmit={saveProfile}>

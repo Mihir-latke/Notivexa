@@ -219,9 +219,9 @@ export const PPT_THEMES_LIST = [
     analogyText: '#E0F2FE',
     badgeBg: '#064E3B',
     badge: '#10B981',
-    header: '#059669',
+    header: '#78A2D2',
     border: '#14532D',
-    numColor: '#059669',
+    numColor: '#78A2D2',
     isDark: true
   },
   {
@@ -1522,14 +1522,14 @@ export default function Notebook() {
           <button
             className="btn btn-sm"
             style={{
-              background: 'linear-gradient(135deg, #059669, #047857)',
-              color: '#fff',
+              background: 'linear-gradient(135deg, #4A76AC, #78A2D2)',
+              color: '#FFFFFF',
               border: 'none',
               fontWeight: 700,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              boxShadow: '0 2px 8px rgba(5,150,105,0.25)'
+              boxShadow: '0 2px 10px rgba(120,162,210,0.35)'
             }}
             onClick={handleGenerateAnswerKey}
             disabled={generatingAnswerKey}
@@ -1547,7 +1547,7 @@ export default function Notebook() {
               left: 0,
               right: 0,
               bottom: 0,
-              background: 'rgba(6, 28, 20, 0.75)',
+              background: 'rgba(8, 18, 30, 0.78)',
               backdropFilter: 'blur(6px)',
               display: 'flex',
               alignItems: 'center',
@@ -1576,7 +1576,7 @@ export default function Notebook() {
               <div
                 style={{
                   padding: '18px 24px',
-                  background: 'linear-gradient(135deg, #059669, #047857)',
+                  background: 'linear-gradient(135deg, #1C3554, #3B6496 60%, #78A2D2)',
                   color: '#fff',
                   display: 'flex',
                   alignItems: 'center',
@@ -1967,7 +1967,7 @@ export default function Notebook() {
 
                 <button
                   className="btn btn-sm"
-                  style={{ background: quizSubmitted ? '#059669' : 'var(--brand)', color:'#fff', fontWeight:700 }}
+                  style={{ background: quizSubmitted ? '#78A2D2' : 'var(--brand)', color:'#0E1B2D', fontWeight:800 }}
                   onClick={() => {
                     setQuizSubmitted(true)
                     setQuizActive(false)
@@ -1984,7 +1984,7 @@ export default function Notebook() {
               <div
                 style={{
                   height: '100%',
-                  background: 'linear-gradient(90deg, var(--brand), var(--brand2))',
+                  background: 'linear-gradient(90deg, #78A2D2, #FEFFAF)',
                   width: `${((currentQIndex + 1) / totalQ) * 100}%`,
                   transition: 'width 0.3s ease'
                 }}
@@ -1995,7 +1995,7 @@ export default function Notebook() {
           {/* Question Card */}
           <div style={{ background:'var(--card)', border:'1.5px solid var(--bdr)', borderRadius:14, padding:22, marginBottom:16, boxShadow:'var(--sh)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10, marginBottom:14 }}>
-              <span style={{ background:'rgba(5,150,105,0.1)', color:'var(--brand)', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>
+              <span style={{ background:'#FEFFAF', color:'#202B00', border:'1px solid #78A2D2', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:800 }}>
                 Q{currentQIndex + 1} · {currentQ.bloomsTaxonomy || 'Understand'}
               </span>
               <span style={{ fontSize:11.5, color:'var(--ink3)', fontWeight:600 }}>
@@ -2019,16 +2019,16 @@ export default function Notebook() {
                 let optColor = 'var(--ink)'
 
                 if (isSelected) {
-                  optBorder = '2px solid var(--brand)'
-                  optBg = 'rgba(5,150,105,0.08)'
-                  optColor = 'var(--brand)'
+                  optBorder = '2px solid #78A2D2'
+                  optBg = 'rgba(120, 162, 210, 0.14)'
+                  optColor = '#153259'
                 }
 
                 if (quizSubmitted || isExplanationRevealed) {
                   if (isCorrect) {
-                    optBorder = '2px solid #059669'
-                    optBg = '#ECFDF5'
-                    optColor = '#065F46'
+                    optBorder = '2px solid #78A2D2'
+                    optBg = '#FEFFAF'
+                    optColor = '#202B00'
                   } else if (isSelected && !isCorrect) {
                     optBorder = '2px solid #E11D48'
                     optBg = '#FFF1F2'
@@ -2061,7 +2061,7 @@ export default function Notebook() {
                   >
                     <span>{opt}</span>
                     {(quizSubmitted || isExplanationRevealed) && isCorrect && (
-                      <span style={{ fontSize:12, fontWeight:700, color:'#059669' }}>✓ Correct Answer</span>
+                      <span style={{ fontSize:12, fontWeight:700, color:'#78A2D2' }}>✓ Correct Answer</span>
                     )}
                     {(quizSubmitted || isExplanationRevealed) && isSelected && !isCorrect && (
                       <span style={{ fontSize:12, fontWeight:700, color:'#E11D48' }}>✗ Your Choice</span>
@@ -2138,7 +2138,7 @@ export default function Notebook() {
                       fontSize: 11,
                       fontWeight: 700,
                       border: isCurrent ? '2px solid var(--brand)' : '1px solid var(--bdr2)',
-                      background: isCurrent ? 'var(--brand)' : isAns ? 'rgba(5,150,105,0.15)' : 'var(--bg2)',
+                      background: isCurrent ? 'var(--brand)' : isAns ? 'rgba(120, 162, 210, 0.22)' : 'var(--bg2)',
                       color: isCurrent ? '#fff' : isAns ? 'var(--brand)' : 'var(--ink2)',
                       cursor: 'pointer'
                     }}
@@ -2192,14 +2192,14 @@ export default function Notebook() {
 
                 <div
                   style={{
-                    background: percentScore >= 70 ? 'rgba(5,150,105,0.08)' : 'rgba(217,119,6,0.08)',
-                    border: `1.5px solid ${percentScore >= 70 ? '#059669' : '#D97706'}`,
+                    background: percentScore >= 70 ? 'rgba(120, 162, 210, 0.14)' : 'rgba(217,119,6,0.08)',
+                    border: `1.5px solid ${percentScore >= 70 ? '#78A2D2' : '#D97706'}`,
                     borderRadius: 14,
                     padding: '18px 20px',
                     marginBottom: 20
                   }}
                 >
-                  <div style={{ fontSize: 36, fontWeight: 800, color: percentScore >= 70 ? '#059669' : '#D97706', lineHeight: 1 }}>
+                  <div style={{ fontSize: 36, fontWeight: 800, color: percentScore >= 70 ? '#78A2D2' : '#D97706', lineHeight: 1 }}>
                     {score} / {totalQ}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 6 }}>
@@ -2210,7 +2210,7 @@ export default function Notebook() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20, textAlign: 'left', fontSize: 12 }}>
                   <div style={{ background: 'var(--bg2)', padding: 10, borderRadius: 8 }}>
                     <div style={{ color: 'var(--ink3)' }}>Correct Answers:</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: '#059669' }}>{score}</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#78A2D2' }}>{score}</div>
                   </div>
                   <div style={{ background: 'var(--bg2)', padding: 10, borderRadius: 8 }}>
                     <div style={{ color: 'var(--ink3)' }}>Mistakes / Skipped:</div>
@@ -2268,7 +2268,7 @@ export default function Notebook() {
                 <span style={{ fontFamily:'Sora,sans-serif', fontSize:13.5, fontWeight:700, color:'var(--ink)' }}>
                   Interactive Hierarchical Mind Map
                 </span>
-                <span style={{ fontSize:11, background:'rgba(5,150,105,0.1)', color:'var(--brand)', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>
+                <span style={{ fontSize:11, background:'rgba(120, 162, 210, 0.18)', color:'var(--brand)', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>
                   {branches.length} Primary Branches
                 </span>
               </div>
@@ -2348,10 +2348,10 @@ export default function Notebook() {
                     width="280"
                     height="48"
                     rx="24"
-                    fill="#059669"
-                    stroke="#047857"
+                    fill="#78A2D2"
+                    stroke="#5885BA"
                     strokeWidth="3"
-                    filter="drop-shadow(0 4px 10px rgba(5,150,105,0.25))"
+                    filter="drop-shadow(0 4px 10px rgba(120, 162, 210, 0.32))"
                   />
                   <text
                     x="0"
@@ -2371,7 +2371,7 @@ export default function Notebook() {
                   const isLeft = idx % 2 === 0
                   const yPos = 140 + Math.floor(idx / 2) * 110
                   const xTarget = isLeft ? 190 : 690
-                  const branchColor = b.color || '#059669'
+                  const branchColor = b.color || '#78A2D2'
 
                   // Connecting bezier curve
                   const pathD = `M 440 60 C 440 ${yPos}, ${xTarget} 60, ${xTarget} ${yPos}`
@@ -2579,7 +2579,7 @@ export default function Notebook() {
                 style={{
                   minHeight: 280,
                   background: 'var(--card)',
-                  border: `2px solid ${isCurMastered ? '#059669' : 'var(--bdr2)'}`,
+                  border: `2px solid ${isCurMastered ? '#78A2D2' : 'var(--bdr2)'}`,
                   borderRadius: 16,
                   padding: 28,
                   cursor: 'pointer',
@@ -2600,7 +2600,7 @@ export default function Notebook() {
 
                 {!vocabFlipped ? (
                   <div>
-                    <span style={{ fontSize: 11, background: 'rgba(5,150,105,0.1)', color: 'var(--brand)', padding: '3px 10px', borderRadius: 12, fontWeight: 700, textTransform: 'uppercase' }}>
+                    <span style={{ fontSize: 11, background: 'rgba(120, 162, 210, 0.18)', color: 'var(--brand)', padding: '3px 10px', borderRadius: 12, fontWeight: 700, textTransform: 'uppercase' }}>
                       {curCard.chapter || 'Academic Term'}
                     </span>
                     <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: 26, fontWeight: 800, color: 'var(--ink)', margin: '14px 0 8px' }}>
@@ -4308,7 +4308,7 @@ export default function Notebook() {
                         borderRadius: 10,
                         padding: '10px 8px',
                         cursor: 'pointer',
-                        background: notesMode === m.id ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                        background: notesMode === m.id ? 'rgba(120, 162, 210, 0.14)' : 'var(--bg)',
                         textAlign: 'center'
                       }}
                     >
@@ -4359,7 +4359,7 @@ export default function Notebook() {
                       borderRadius: 10,
                       padding: 10,
                       cursor: 'pointer',
-                      background: summaryMode === 'academic' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      background: summaryMode === 'academic' ? 'rgba(120, 162, 210, 0.14)' : 'var(--bg)',
                       textAlign: 'center'
                     }}
                   >
@@ -4379,7 +4379,7 @@ export default function Notebook() {
                       borderRadius: 10,
                       padding: 10,
                       cursor: 'pointer',
-                      background: summaryMode === 'concise' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      background: summaryMode === 'concise' ? 'rgba(120, 162, 210, 0.14)' : 'var(--bg)',
                       textAlign: 'center'
                     }}
                   >
@@ -4435,7 +4435,7 @@ export default function Notebook() {
                       borderRadius: 10,
                       padding: 10,
                       cursor: 'pointer',
-                      background: practiceMode === 'simulator' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      background: practiceMode === 'simulator' ? 'rgba(120, 162, 210, 0.14)' : 'var(--bg)',
                       textAlign: 'center'
                     }}
                   >
@@ -4455,7 +4455,7 @@ export default function Notebook() {
                       borderRadius: 10,
                       padding: 10,
                       cursor: 'pointer',
-                      background: practiceMode === 'list' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      background: practiceMode === 'list' ? 'rgba(120, 162, 210, 0.14)' : 'var(--bg)',
                       textAlign: 'center'
                     }}
                   >
@@ -4544,14 +4544,14 @@ export default function Notebook() {
                 <label className="fl">Exam Blueprint</label>
                 <div className="g2" style={{ marginTop:6 }}>
                   <div onClick={()=>{ setPaperType('20_MARKS'); setCustomMarks(20) }}
-                    style={{ border:'2px solid '+(paperType==='20_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='20_MARKS'?'rgba(5, 150, 105, 0.08)':'var(--bg)', textAlign:'center' }}>
+                    style={{ border:'2px solid '+(paperType==='20_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='20_MARKS'?'rgba(120, 162, 210, 0.14)':'var(--bg)', textAlign:'center' }}>
                     <div style={{ fontSize:20, marginBottom:4 }}>📝</div>
                     <div style={{ fontWeight:700, fontSize:13, color:paperType==='20_MARKS'?'var(--brand)':'var(--ink)' }}>Internal Assessment</div>
                     <div style={{ fontSize:11, color:'var(--ink3)', marginTop:2 }}>Unit Tests · 1 Hour<br/>Compulsory + Short Answers</div>
                     {paperType==='20_MARKS' && <div style={{ fontSize:10, color:'var(--brand)', fontWeight:700, marginTop:4 }}>✓ Selected</div>}
                   </div>
                   <div onClick={()=>{ setPaperType('60_MARKS'); setCustomMarks(60) }}
-                    style={{ border:'2px solid '+(paperType==='60_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='60_MARKS'?'rgba(5, 150, 105, 0.08)':'var(--bg)', textAlign:'center' }}>
+                    style={{ border:'2px solid '+(paperType==='60_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='60_MARKS'?'rgba(120, 162, 210, 0.14)':'var(--bg)', textAlign:'center' }}>
                     <div style={{ fontSize:20, marginBottom:4 }}>📋</div>
                     <div style={{ fontWeight:700, fontSize:13, color:paperType==='60_MARKS'?'var(--brand)':'var(--ink)' }}>End Semester Exam</div>
                     <div style={{ fontSize:11, color:'var(--ink3)', marginTop:2 }}>Autonomous · 2–3 Hours<br/>Q1 + Choice Sections</div>

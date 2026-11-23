@@ -47,11 +47,11 @@ export default function Register() {
         description="Sign up for Notivexa. Convert textbooks and lectures into handwritten notes in 15 fonts, Bloom's Taxonomy exams, flashcards, and audio lectures."
         canonical="/register"
       />
-      <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#4F46E5', opacity:.07, top:-200, left:-150 }} />
-      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#7C3AED', opacity:.06, bottom:-150, right:-100 }} />
+      <div style={{ position:'absolute', width:500, height:500, borderRadius:'50%', background:'#78A2D2', opacity:.07, top:-200, left:-150 }} />
+      <div style={{ position:'absolute', width:400, height:400, borderRadius:'50%', background:'#FEFFAF', opacity:.06, bottom:-150, right:-100 }} />
       <div className="auth-c">
         <div style={{ textAlign:'center', marginBottom:20 }}>
-          <div style={{ width:50, height:50, background:'linear-gradient(135deg,#4F46E5,#7C3AED)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, margin:'0 auto 12px' }}>📖</div>
+          <div style={{ width:50, height:50, background:'linear-gradient(135deg,#78A2D2,#FEFFAF)', borderRadius:14, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, margin:'0 auto 12px' }}>📖</div>
           <h1 style={{ fontFamily:'Sora,sans-serif', fontSize:21, fontWeight:800, margin: 0, padding: 0 }}>Create Account</h1>
           <div style={{ fontSize:12, color:'var(--ink3)', marginTop:3 }}>Sign up to save notes, flashcards, and presentations permanently</div>
         </div>

@@ -132,15 +132,16 @@ export default function Chatbot() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
-              background: strictGrounded ? 'rgba(5, 150, 105, 0.12)' : 'var(--bg)',
-              border: `1.5px solid ${strictGrounded ? 'var(--brand)' : 'var(--bdr)'}`,
+              background: strictGrounded ? '#FEFFAF' : 'var(--bg)',
+              border: `1.5px solid ${strictGrounded ? '#78A2D2' : 'var(--bdr)'}`,
               borderRadius: 8,
               padding: '7px 12px',
               cursor: 'pointer',
               fontSize: 12,
-              fontWeight: 700,
-              color: strictGrounded ? 'var(--brand)' : 'var(--ink3)',
-              userSelect: 'none'
+              fontWeight: 800,
+              color: strictGrounded ? '#202B00' : 'var(--ink3)',
+              userSelect: 'none',
+              boxShadow: strictGrounded ? '0 1px 4px rgba(120,162,210,0.2)' : 'none'
             }}
             title="Toggle whether answers must strictly originate from the document or can leverage general knowledge"
           >
@@ -178,13 +179,13 @@ export default function Chatbot() {
       {selectedDoc && (
         <div
           style={{
-            background: 'rgba(5, 150, 105, 0.06)',
-            border: '1px solid rgba(5, 150, 105, 0.25)',
+            background: 'rgba(120, 162, 210, 0.12)',
+            border: '1px solid rgba(120, 162, 210, 0.35)',
             borderRadius: 10,
             padding: '8px 14px',
             marginBottom: 10,
             fontSize: 12.5,
-            color: 'var(--brand)',
+            color: '#1D3B60',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -248,14 +249,14 @@ export default function Chatbot() {
                     width: 34,
                     height: 34,
                     borderRadius: 10,
-                    background: 'linear-gradient(135deg, #059669, #047857)',
+                    background: 'linear-gradient(135deg, #78A2D2, #5885BA)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontSize: 16,
-                    color: '#fff',
+                    color: '#0E1B2D',
                     flexShrink: 0,
-                    boxShadow: '0 2px 6px rgba(5,150,105,0.2)'
+                    boxShadow: '0 2px 8px rgba(120,162,210,0.35)'
                   }}
                 >
                   🎓
@@ -269,10 +270,11 @@ export default function Chatbot() {
                   borderRadius: 14,
                   fontSize: 14,
                   lineHeight: 1.65,
-                  background: m.role === 'user' ? 'var(--brand)' : 'var(--card)',
-                  color: m.role === 'user' ? '#fff' : 'var(--ink)',
+                  background: m.role === 'user' ? 'linear-gradient(135deg, #5885BA, #78A2D2)' : 'var(--card)',
+                  color: m.role === 'user' ? '#0E1B2D' : 'var(--ink)',
                   border: m.role === 'user' ? 'none' : '1.5px solid var(--bdr)',
-                  boxShadow: m.role === 'user' ? '0 2px 8px rgba(5,150,105,0.25)' : '0 2px 8px rgba(0,0,0,0.03)'
+                  boxShadow: m.role === 'user' ? '0 2px 8px rgba(120,162,210,0.3)' : '0 2px 8px rgba(0,0,0,0.03)',
+                  fontWeight: m.role === 'user' ? 600 : 400
                 }}
               >
                 {m.role === 'user' ? (
@@ -289,7 +291,7 @@ export default function Chatbot() {
                     {/* Citations Badges */}
                     {m.citations && m.citations.length > 0 && (
                       <div style={{ marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--bdr)', display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#3A689D' }}>
                           📍 Verified Source Citations:
                         </span>
                         {m.citations.map((c, ci) => (
@@ -297,12 +299,13 @@ export default function Chatbot() {
                             key={ci}
                             style={{
                               fontSize: 11,
-                              background: 'rgba(5, 150, 105, 0.1)',
-                              border: '1px solid rgba(5, 150, 105, 0.3)',
+                              background: '#FEFFAF',
+                              border: '1px solid #78A2D2',
                               borderRadius: 6,
-                              padding: '2px 7px',
-                              color: 'var(--brand)',
-                              fontWeight: 600
+                              padding: '2px 8px',
+                              color: '#202B00',
+                              fontWeight: 700,
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
                             }}
                           >
                             Page {c.page}{c.chapter ? ` · Ch: ${c.chapter}` : ''}
@@ -398,13 +401,13 @@ export default function Chatbot() {
                 width: 34,
                 height: 34,
                 borderRadius: 10,
-                background: 'linear-gradient(135deg, #059669, #047857)',
+                background: 'linear-gradient(135deg, #78A2D2, #5885BA)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 16,
-                color: '#fff',
-                boxShadow: '0 2px 6px rgba(5,150,105,0.2)'
+                color: '#0E1B2D',
+                boxShadow: '0 2px 8px rgba(120,162,210,0.35)'
               }}
             >
               🎓
