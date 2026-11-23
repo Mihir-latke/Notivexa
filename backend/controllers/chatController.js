@@ -49,20 +49,30 @@ exports.message = async (req, res, next) => {
       }
 
       const docPrimary = doc?.primaryLanguage || 'eng';
-      const reply = await answerChat(message, docText, session.messages || [], targetLang, docPrimary);
+      const aiResponse = await answerChat(message, doc || docText, session.messages || [], targetLang, docPrimary, {
+        allowGeneralKnowledge: req.body.allowGeneralKnowledge === true
+      });
+      const reply = typeof aiResponse === 'object' && aiResponse.reply ? aiResponse.reply : String(aiResponse);
+      const citations = aiResponse?.citations || [];
+      const passages = aiResponse?.passages || [];
 
       session.messages.push({ role: 'user', content: message });
       session.messages.push({ role: 'assistant', content: reply });
       if (session.messages.length > 80) session.messages = session.messages.slice(-80);
       await session.save();
 
-      return res.json({ success: true, reply, sessionId: session._id });
+      return res.json({ success: true, reply, citations, passages, sessionId: session._id });
     }
 
     // Offline / Demo mode
     const docPrimary = doc?.primaryLanguage || 'eng';
-    const reply = await answerChat(message, docText, [], targetLang, docPrimary);
-    res.json({ success: true, reply, sessionId: 'demo_chat_session' });
+    const aiResponse = await answerChat(message, doc || docText, [], targetLang, docPrimary, {
+      allowGeneralKnowledge: req.body.allowGeneralKnowledge === true
+    });
+    const reply = typeof aiResponse === 'object' && aiResponse.reply ? aiResponse.reply : String(aiResponse);
+    const citations = aiResponse?.citations || [];
+    const passages = aiResponse?.passages || [];
+    res.json({ success: true, reply, citations, passages, sessionId: 'demo_chat_session' });
   } catch (e) {
     next(e);
   }

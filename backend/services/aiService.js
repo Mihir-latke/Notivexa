@@ -1,4 +1,5 @@
 const { resolveOutputLanguage, detectTextLanguage, SUPPORTED_LANGUAGES } = require('./ocr/languageDetectionService');
+const { searchDocumentPassages, buildGroundingContext, extractCitationsFromText } = require('./academicRetrievalService');
 /**
  * aiService.js — Notivexa AI Engine v2
  * 
@@ -302,10 +303,19 @@ Be thorough, accurate, structured, and exam-focused.`;
 // CONTENT GENERATORS
 // ═══════════════════════════════════════════════════════════
 
-async function generateNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng', docType = 'academic_textbook') {
+async function generateNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng', docType = 'academic_textbook', options = {}) {
+  if (typeof docType === 'object' && docType !== null) {
+    options = docType;
+    docType = options.docType || 'academic_textbook';
+  }
+  const mode = (options.mode || 'detailed').toLowerCase();
+  const topicFilter = options.topic || '';
+  const isRevision = mode === 'revision';
+  const isExam = mode === 'exam';
+  const isTopic = mode === 'topic' && Boolean(topicFilter);
+
   // ── Chapter-wise, comprehensive notes engine (80-120 pages target) ──
-  // For large books and textbooks (up to 3M+ chars), divide into 20-30 logical modules.
-  // Each module generates 3-5 pages of rich notes → total 80-120 pages.
+  // For large books and textbooks (up to 3M+ chars), divide into logical modules.
   const targetChunks = Math.min(30, Math.max(10, Math.ceil(text.length / 80000)));
   const chunkSize = Math.ceil(text.length / targetChunks);
   const chunks = [];
@@ -313,57 +323,93 @@ async function generateNotes(text, title, subject, lang = 'English', docPrimaryL
 
   const langRule = getLanguageInstruction(lang, docPrimaryLang);
   let domainInstruction = 'You are an expert academic note-writer for university students.\nYour job: produce comprehensive, detailed, exam-ready study notes from each chunk of the document.';
-  if (docType === 'computer_science') {
-    domainInstruction = 'You are a distinguished Professor of Computer Science and master technical note-writer.\nYour job: produce comprehensive, mathematically and algorithmically rigorous study notes detailing data structures, algorithmic steps, time/space complexity, and software architecture from each part of the document.';
-  } else if (docType === 'novel_fiction' || docType === 'poetry_literature') {
-    domainInstruction = 'You are an expert literary scholar and master note-taker specializing in novels, literature, and narrative drama.\nYour job: produce rich, narrative-driven study notes capturing plot milestones, character arcs, dialogues, and literary themes from each part of the book.';
-  } else if (docType === 'history_biography') {
-    domainInstruction = 'You are an expert historian and master biographer.\nYour job: produce detailed chronological notes detailing historical milestones, leadership figures, strategic causes, and geopolitical outcomes from each part of the work.';
-  } else if (docType === 'research_paper') {
-    domainInstruction = 'You are an expert academic research reviewer.\nYour job: produce structured research notes detailing problem statements, theoretical methodologies, experimental findings, and critical analysis from each section.';
+
+  if (isRevision) {
+    domainInstruction = `You are a master academic revision specialist.
+Your job: produce high-yield, exam-cram revision notes from each part of the document.
+Every concept MUST follow this rapid-retention layout:
+## [Topic/Concept Name] (Source: [Page X])
+### ⚡ Core Definition & Memory Anchor
+One concise, crystal-clear definition sentence with exact technical terminology.
+### 📋 High-Yield Fact Sheet & Formulas
+- Key Rule / Formula: (explicit notation, plain text)
+- Critical Parameter / Constant: ...
+- 5-7 punchy bullet points covering non-negotiable syllabus facts.
+### 🎯 Step-by-Step Mechanism / Process
+1. Step 1: ...
+2. Step 2: ...
+3. Step 3: ...
+### ⚠️ Common Pitfalls & High-Risk Exam Mistakes
+- Mistake: What students commonly confuse or miscalculate.
+- Correction: The correct rule to follow.
+### 📌 2-Minute High-Yield Exam Takeaway
+2 sentences summarizing the most tested point.
+---`;
+  } else if (isExam) {
+    domainInstruction = `You are a senior university chief examiner and paper-setter.
+Your job: produce exam-oriented study notes structured around university evaluation patterns.
+Every concept MUST follow this examination-focused layout:
+## [Topic/Concept Name] (Source: [Page X])
+### 1. High-Frequency Exam Questions & Model Answers
+- **[2-Mark Question & Answer]:** Precise 2-3 sentence answer required for full credit.
+- **[5-Mark Analytical Question & Answer]:** Structured explanation with points, working, and core mechanism.
+- **[10-Mark Comprehensive Question & Model Answer]:** Thorough multi-paragraph breakdown with derivations, architecture, and applications.
+### 2. Marking Rubrics & Step Allocation
+- Step breakdown: How marks are awarded (e.g. Definition: 1M, Diagram: 2M, Working: 2M).
+### 3. Key Diagrams to Draw in Exam
+- Text description of exact boxes, labels, and arrows students must draw on their answer paper.
+### 4. High-Yield Comparison Table
+| Metric / Feature | Approach A | Approach B |
+|---|---|---|
+| Key Difference | ... | ... |
+---`;
+  } else if (isTopic) {
+    domainInstruction = `You are an expert university professor giving a deep-dive tutorial on: "${topicFilter}".
+Your job: produce exhaustive, mastery-level study notes covering every theoretical, algorithmic, and applied aspect of this topic from the text.
+Use the 14-point academic structure adapted specifically for "${topicFilter}" with [Page X] citations.`;
+  } else {
+    if (docType === 'computer_science') {
+      domainInstruction = 'You are a distinguished Professor of Computer Science and master technical note-writer.\nYour job: produce comprehensive, mathematically and algorithmically rigorous study notes detailing data structures, algorithmic steps, time/space complexity, and software architecture from each part of the document.';
+    } else if (docType === 'novel_fiction' || docType === 'poetry_literature') {
+      domainInstruction = 'You are an expert literary scholar and master note-taker specializing in novels, literature, and narrative drama.\nYour job: produce rich, narrative-driven study notes capturing plot milestones, character arcs, dialogues, and literary themes from each part of the book.';
+    } else if (docType === 'history_biography') {
+      domainInstruction = 'You are an expert historian and master biographer.\nYour job: produce detailed chronological notes detailing historical milestones, leadership figures, strategic causes, and geopolitical outcomes from each part of the work.';
+    } else if (docType === 'research_paper') {
+      domainInstruction = 'You are an expert academic research reviewer.\nYour job: produce structured research notes detailing problem statements, theoretical methodologies, experimental findings, and critical analysis from each section.';
+    }
   }
+
+  const detailedStructure = `FORMAT — use this EXACT 14-point university academic structure for EVERY topic/chapter found in the chunk:
+
+## [Topic / Chapter Title] [Page X]
+
+1. **Chapter Introduction & Objectives:** (2-3 sentences introducing scope, context, prerequisites, and learning outcomes) [Page X]
+2. **Formal Academic Definition:** (Rigorous, formal academic definition with standard notation) [Page X]
+3. **Detailed In-Depth Explanation:** (3-5 comprehensive paragraphs explaining theoretical foundations, principles, and concepts)
+4. **Key Characteristics & Properties:** (Bulleted analysis of 5-8 essential properties with technical justification)
+5. **Working Mechanism & Step-by-Step Process:** (Numbered sequential phases from initialization to execution and output)
+6. **Important Underlying Concepts:** (Deep-dive into foundational laws, axioms, data structures, or sub-components)
+7. **Algorithms & Mathematical Formulas:** (Formal equations with all variable definitions, or algorithmic steps with time/space complexity)
+8. **Diagrams & Schematic Architecture:** (Textual architectural diagram with labeled components, data flow arrows, and visual layout descriptions)
+9. **Worked Academic Examples / Problem Solutions:** (Step-by-step solved academic numericals, analytical problems, or case instances with detailed calculation steps)
+10. **Advantages & Limitations:** (Objective comparative analysis of strengths and real-world weaknesses/constraints)
+11. **Comparative Analysis:** (Markdown table comparing this concept against alternative methodologies or related concepts)
+12. **Real-World Industrial & Scientific Applications:** (Practical deployment scenarios and industry standards)
+13. **Examination Master Points & High-Frequency Questions:** (Key points examiners look for, expected mark weightage, and critical revision bullets)
+14. **Chapter Summary & Synthesis:** (2-3 sentences synthesizing core takeaways)
+
+STRICT RULES:
+- Ground all content directly in the provided text.
+- Maintain source page references like [Page X] or [Page X, Chapter Y].
+- Cover EVERY concept in the text — do not skip anything.
+- Write at minimum 900 words per chunk.
+- Do NOT use LaTeX, $ signs, or Mermaid diagrams — write clear plain text and markdown tables.
+- Use ## for main topics, ### for sub-sections.`;
 
   const sysPrompt = `${domainInstruction}
 ${langRule}
 
-FORMAT — use this EXACT structure for EVERY topic/concept/chapter found in the chunk:
-
-## [Topic/Chapter/Section Title]
-
-**Definition / Context:** One to two clear sentences defining the concept or setting the narrative/historical context.
-
-**Overview / Summary:** 2-4 sentences giving a high-level explanation of mechanisms or plot/historical progression.
-
-### Key Points
-- Detailed point 1 — explain fully, include sub-details
-- Detailed point 2 — explain fully
-- Detailed point 3 — explain fully
-- Add 5-10 bullet points. Be thorough. Each bullet should be 1-3 sentences.
-
-### In-Depth Explanation
-Write 3-6 paragraphs of clear, detailed explanation covering:
-- Core principles, narrative actions, or experimental methodologies
-- Step-by-step processes or dramatic progression
-- Relationships between characters, entities, or concepts
-- Important quotes, formulas, laws, or historical turning points (plain text, no LaTeX)
-
-### Examples & Applications
-- Real-world Example / Key Excerpt 1: (specific, practical, or textual quote)
-- Real-world Example / Character Action 2: (different context or perspective)
-- Practical / Thematic significance: ...
-
-### Summary
-2-3 sentences summarising the key takeaway or significance.
-
----
-
-STRICT RULES:
-- Ground all content directly in the provided text — do NOT invent unrelated computer science or enterprise corporate jargon
-- Cover EVERY concept, character, turning point, and idea found in the text — do NOT skip anything
-- Be VERBOSE and DETAILED — a reader should gain a deep understanding from your notes alone
-- Write at minimum 800 words per chunk
-- Do NOT use LaTeX, $ signs, or Mermaid diagrams
-- Use ## for main topics, ### for sub-sections`;
+${(!isRevision && !isExam) ? detailedStructure : ''}`;
 
   const CONCURRENCY = 3;
   const parts = [];
@@ -373,10 +419,10 @@ STRICT RULES:
       const idx = i + bIdx;
       const promptChunk = chunk.slice(0, 8000);
       const prompt = `Generate comprehensive notes for PART ${idx + 1} of ${chunks.length}.
-Title: "${title}" | Subject: "${subject}" | Document Type: "${docType}"
+Title: "${title}" | Subject: "${subject}" | Document Type: "${docType}" | Mode: "${mode}"
 Language: ${lang}
 
-For EVERY concept, chapter, or scene found in this text, write the full structured notes.
+For EVERY concept, chapter, or scene found in this text, write the full structured notes with [Page X] citations.
 Never skip a concept. Write at least 800 words for this part.
 
 Document Part ${idx + 1}/${chunks.length}:
@@ -411,7 +457,8 @@ ${promptChunk}`;
     return pdf.makeDetailedChapterNotes(text, title, subject, 1, 1, docType);
   }
 
-  let combined = `# ${title}\n### ${subject} — Complete Study Notes\n\n` + parts.join('\n\n---\n\n');
+  const modeBadge = isRevision ? ' — High-Yield Revision Notes' : isExam ? ' — Examination Master Notes' : isTopic ? ` — Special Topic: ${topicFilter}` : ' — Complete Study Notes';
+  let combined = `# ${title}\n### ${subject}${modeBadge}\n\n` + parts.join('\n\n---\n\n');
 
   if (lang !== 'English' && !containsDevanagari(combined)) {
     combined = await translateFree(combined, lang);
@@ -419,20 +466,75 @@ ${promptChunk}`;
   return combined;
 }
 
-async function generateSummary(text, title, subject, lang = 'English', docPrimaryLang = 'eng') {
-  const prompt = `Write a concise summary (300-400 words) of this document.
-Title: ${title} | Subject: ${subject}
+async function generateSummary(text, title, subject, lang = 'English', docPrimaryLang = 'eng', options = {}) {
+  if (typeof lang === 'object' && lang !== null) {
+    options = lang;
+    lang = options.lang || 'English';
+    docPrimaryLang = options.docPrimaryLang || 'eng';
+  }
+  const mode = (options.mode || 'full').toLowerCase();
+  const lengthMode = (options.length || 'medium').toLowerCase();
 
-Include:
-- Main topics and concepts
-- Key definitions
-- Important formulas/facts
-- What students should focus on for exams
+  const isConcise = mode === 'concise';
+  let targetWordCount = isConcise ? '350-500 words' : '800-1200 words';
+  if (lengthMode === 'short') targetWordCount = isConcise ? '200-300 words' : '400-600 words';
+  if (lengthMode === 'detailed') targetWordCount = isConcise ? '600-800 words' : '1500-2200 words';
+
+  let prompt = '';
+  if (isConcise) {
+    prompt = `Write a high-yield, concise academic executive summary (${targetWordCount}) of this document.
+Title: "${title}" | Subject: "${subject}" | Language: ${lang}
+
+STRUCTURE:
+### 📌 Executive Overview & Core Thesis
+A sharp 2-3 sentence distillation of the document's central thesis and scope. [Page X]
+
+### 💡 High-Yield Core Definitions & Principles
+Bullet points with essential definitions and theoretical foundations. [Page X]
+
+### ⚙️ Key Formulas, Laws & Mechanisms
+Bulleted list of formulas (plain text), laws, or execution sequences.
+
+### 🎯 High-Probability Exam Focus Points
+What university examiners commonly test from this material.
 
 Document:
-${text.slice(0, 10000)}`;
+${text.slice(0, 15000)}`;
+  } else {
+    prompt = `Write a comprehensive, full academic summary (${targetWordCount}) of this document.
+Title: "${title}" | Subject: "${subject}" | Language: ${lang}
 
-  const result = await callAI(sys(lang), prompt, 1000);
+STRUCTURE:
+# ${title} — Comprehensive Academic Summary
+
+### 1. Document Scope & Curriculum Context
+Introduction establishing the syllabus domain, prerequisites, and learning objectives. [Page X]
+
+### 2. Systematic Chapter-by-Chapter Progression
+For every chapter and major section in the document:
+- **Chapter / Module Title:** [Page X]
+  - Core Theoretical Foundations & Principles
+  - Step-by-Step Mechanisms & Processes
+  - Key Findings, Methodologies, or Algorithms
+
+### 3. Formulas, Theorems & Quantitative Specifications
+List all essential formulas, quantitative bounds, and theorems with variable definitions. [Page X]
+
+### 4. Comparative Synthesis Matrix
+A clear Markdown table contrasting the primary models, techniques, or architectures discussed in the document.
+
+### 5. Critical Academic Insights & Exam Synthesis
+Key exam takeaways, common interview questions, and conclusions.
+
+STRICT GROUNDING:
+- Every section must contain verified source page citations [Page X] where available.
+- Do not add conversational fluff. Write in authoritative academic style.
+
+Document:
+${text.slice(0, 20000)}`;
+  }
+
+  const result = await callAI(sys(lang), prompt, isConcise ? 2000 : 4000);
   if (lang !== 'English' && result && !containsDevanagari(result)) {
     return await translateFree(result, lang);
   }
@@ -491,17 +593,112 @@ ${text.slice(0, 10000)}`;
   return result || pdf.makeQuestions(text, subject, title);
 }
 
+// ── Interactive University Practice Q&A / MCQ Simulator ──
+async function generatePracticeQuiz(text, subject, options = {}) {
+  const count = Math.min(50, Math.max(5, parseInt(options.count) || 10));
+  const difficulty = options.difficulty || 'medium';
+  const requestedTypes = Array.isArray(options.types) && options.types.length > 0 ? options.types : ['mcq'];
+  const lang = options.lang || 'English';
+
+  const prompt = `Generate exactly ${count} university-level practice assessment questions based strictly on this document.
+Subject: "${subject}" | Target Difficulty: ${difficulty} | Allowed Types: ${requestedTypes.join(', ')}
+
+REQUIREMENTS:
+1. Every question must be directly grounded in the provided document content.
+2. Return ONLY a valid JSON array of questions matching this exact schema:
+[
+  {
+    "id": "q1",
+    "type": "mcq",
+    "question": "Clear, rigorous question text?",
+    "options": [
+      "A) First plausible option",
+      "B) Second plausible option",
+      "C) Third plausible option",
+      "D) Fourth plausible option"
+    ],
+    "correctAnswer": "B",
+    "explanation": "Detailed explanation of why this answer is correct and why other choices are incorrect.",
+    "chapter": "Relevant Chapter or Topic Name",
+    "pageReference": "Page X",
+    "difficulty": "${difficulty === 'mixed' ? 'medium' : difficulty}",
+    "bloomsTaxonomy": "Understand"
+  }
+]
+
+RULES:
+- For "mcq": provide exactly 4 distinct options with letters A), B), C), D).
+- For "true_false": provide 2 options: ["A) True", "B) False"], correctAnswer is "A" or "B".
+- For "assertion_reason": provide standard assertion-reason format with options A, B, C, D.
+- For "short_answer": provide empty options [], put model answer in explanation.
+- Return ONLY the JSON array, no markdown wrappers.
+
+Document Content:
+${text.slice(0, 15000)}`;
+
+  try {
+    const result = await callAI('Return ONLY a valid JSON array.', prompt, 4000);
+    const parsed = parseJSON(result, null);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return parsed.slice(0, count).map((q, idx) => ({
+        id: q.id || `q_${idx + 1}`,
+        type: q.type || 'mcq',
+        question: q.question || `Question ${idx + 1}`,
+        options: Array.isArray(q.options) && q.options.length > 0 ? q.options : ['A) True', 'B) False'],
+        correctAnswer: q.correctAnswer || 'A',
+        explanation: q.explanation || 'Refer to the document for full details.',
+        chapter: q.chapter || subject || 'General',
+        pageReference: q.pageReference || 'Page 1',
+        difficulty: q.difficulty || (idx % 3 === 0 ? 'hard' : idx % 2 === 0 ? 'medium' : 'easy'),
+        bloomsTaxonomy: q.bloomsTaxonomy || 'Understand'
+      }));
+    }
+  } catch (err) {
+    console.warn('[Practice Quiz] AI parse error, using fallback generator:', err.message);
+  }
+
+  // Fallback generator from text
+  const fallbackQuestions = [];
+  const sentences = text.split(/(?<=[.?!])\s+/).filter(s => s.trim().length > 40 && s.trim().length < 180);
+  for (let i = 0; i < Math.min(count, Math.max(5, sentences.length)); i++) {
+    const s = sentences[i]?.trim() || `Core concept of ${subject} in academic studies.`;
+    const words = s.split(' ');
+    const keyWord = words[Math.floor(words.length / 2)] || 'concept';
+    fallbackQuestions.push({
+      id: `q_${i + 1}`,
+      type: 'mcq',
+      question: `According to the document, which statement regarding "${keyWord}" is accurate?`,
+      options: [
+        `A) ${s}`,
+        `B) It is completely unrelated to ${subject}.`,
+        `C) It is deprecated in modern implementations.`,
+        `D) It operates without any constraints.`
+      ],
+      correctAnswer: 'A',
+      explanation: `The uploaded text directly states: "${s}".`,
+      chapter: subject || 'General',
+      pageReference: `Page ${Math.floor(i / 3) + 1}`,
+      difficulty: 'medium',
+      bloomsTaxonomy: 'Understand'
+    });
+  }
+  return fallbackQuestions;
+}
+
 async function generateQuestionPaper(text, subject, totalMarks = 20, timeHours = 1, institution = "Mahatma Education Society's", lang = 'English', sets = 3, options = {}) {
-  const is60Marks = totalMarks === 60 || options.paperType === '60_MARKS';
+  const marksNum = parseInt(totalMarks) || 20;
+  const is60Marks = marksNum === 60 || options.paperType === '60_MARKS';
+  const isComprehensive = marksNum >= 75; // 75, 80, 100 marks
+  const isMidTerm = marksNum >= 40 && marksNum < 60;
   const college = options.college || "Pillai HOC College of Engineering and Technology, Rasayani";
   const status = options.status || "(Autonomous)";
   const department = options.department || "Department of Computer Application";
-  const examType = options.examType || (is60Marks ? "PRELIM EXAMINATION (Autonomous)" : (totalMarks <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination"));
+  const examType = options.examType || (isComprehensive ? "END SEMESTER UNIVERSITY EXAMINATION" : (is60Marks ? "PRELIM EXAMINATION (Autonomous)" : (marksNum <= 25 ? "Internal Assessment- I OSAY 2026-2027" : "Mid-Term Examination")));
   const branchName = options.branch || options.class || options.className || "Computer Application (MCA)";
   const semesterName = options.semester || "Semester: I";
   const subjectCode = options.subjectCode || "MCA104";
-  const dateStr = options.date || (is60Marks ? "04/12/2025" : "22/8/2026");
-  const timeStr = options.time || (is60Marks ? "02.00 Hours" : (totalMarks <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm"));
+  const dateStr = options.date || (is60Marks || isComprehensive ? "04/12/2025" : "22/8/2026");
+  const timeStr = options.time || (isComprehensive ? "03.00 Hours" : (is60Marks ? "02.00 Hours" : (marksNum <= 25 ? "10.30am - 11.30am" : "10.30am - 12.30pm")));
 
   const generateSingleSet = async (setNum) => {
     // Window the document across sets so each set covers different chapters/topics and stays well below TPM limits
@@ -509,7 +706,8 @@ async function generateQuestionPaper(text, subject, totalMarks = 20, timeHours =
     const offset = sets > 1 ? Math.floor(((setNum - 1) * (text.length - chunkSize)) / (sets - 1)) : 0;
     const docSlice = text.slice(Math.max(0, offset), Math.max(0, offset) + chunkSize);
 
-    const prompt = is60Marks ? `You are generating an official 60-marks autonomous university examination Question Paper based strictly on this document.
+    const is100Marks = marksNum === 100;
+    const prompt = (is60Marks || isComprehensive) ? `You are generating an official ${marksNum}-marks autonomous university examination Question Paper based strictly on this document.
 Subject: ${subject} | Branch: ${branchName} | Semester: ${semesterName} | Set: Set ${setNum} of ${sets}
 
 CRITICAL REQUIREMENT: Return ONLY valid, raw JSON (no markdown formatting, no code fences, no extra text).
@@ -519,25 +717,25 @@ Match this EXACT structure matching the university paper format:
   "college": "${college}",
   "status": "${status}",
   "department": "${department}",
-  "examType": "PRELIM EXAMINATION (Autonomous)",
+  "examType": "${examType}",
   "branch": "${branchName}",
   "class": "${branchName}",
   "semester": "${semesterName}",
   "subject": "${subject}",
   "subjectCode": "${subjectCode}",
   "date": "${dateStr}",
-  "time": "02.00 Hours",
-  "duration": "02.00 Hours",
-  "marks": "60",
+  "time": "${timeStr}",
+  "duration": "${timeStr}",
+  "marks": "${marksNum}",
   "nb": [
     "1. Q.1 is compulsory",
-    "2. Attempt any Three from the remaining five questions",
-    "3. Each Question carry 15 marks."
+    "${is100Marks ? '2. Attempt any Four from the remaining five questions' : '2. Attempt any Three from the remaining five questions'}",
+    "${isComprehensive ? (is100Marks ? '3. Q.1 carries 20 marks; Q.2 to Q.6 each carry 20 marks.' : '3. Q.1 carries 20 marks; Q.2 to Q.6 each carry 20 marks (attempt 3 = 60m).') : '3. Each Question carries 15 marks.'}"
   ],
   "sections": [
     {
       "qNum": "Q.1",
-      "instruction": "Attempt any 3",
+      "instruction": "${isComprehensive ? 'Attempt any 4 out of 5 (5 marks each = 20 Marks)' : 'Attempt any 3 out of 6 (5 marks each = 15 Marks)'}",
       "questions": [
         { "id": "a)", "text": "...", "marks": "5", "bt": "1", "co": "Co3" },
         { "id": "b)", "text": "...", "marks": "5", "bt": "2", "co": "Co1" },
@@ -551,40 +749,40 @@ Match this EXACT structure matching the university paper format:
       "qNum": "Q.2",
       "instruction": "Attempt All",
       "questions": [
-        { "id": "a)", "text": "...", "marks": "8", "bt": "2", "co": "Co2" },
-        { "id": "b)", "text": "...", "marks": "7", "bt": "6", "co": "Co4" }
+        { "id": "a)", "text": "...", "marks": "${isComprehensive ? '10' : '8'}", "bt": "2", "co": "Co2" },
+        { "id": "b)", "text": "...", "marks": "${isComprehensive ? '10' : '7'}", "bt": "6", "co": "Co4" }
       ]
     },
     {
       "qNum": "Q.3",
       "instruction": "Attempt All",
       "questions": [
-        { "id": "a)", "text": "...", "marks": "8", "bt": "6", "co": "Co3" },
-        { "id": "b)", "text": "...", "marks": "7", "bt": "2", "co": "Co5" }
+        { "id": "a)", "text": "...", "marks": "${isComprehensive ? '10' : '8'}", "bt": "6", "co": "Co3" },
+        { "id": "b)", "text": "...", "marks": "${isComprehensive ? '10' : '7'}", "bt": "2", "co": "Co5" }
       ]
     },
     {
       "qNum": "Q.4",
       "instruction": "Attempt All",
       "questions": [
-        { "id": "a)", "text": "...", "marks": "10", "bt": "5", "co": "Co5" },
-        { "id": "b)", "text": "...", "marks": "5", "bt": "1", "co": "Co4" }
+        { "id": "a)", "text": "...", "marks": "${isComprehensive ? '10' : '10'}", "bt": "5", "co": "Co5" },
+        { "id": "b)", "text": "...", "marks": "${isComprehensive ? '10' : '5'}", "bt": "1", "co": "Co4" }
       ]
     },
     {
       "qNum": "Q.5",
       "instruction": "Attempt All",
       "questions": [
-        { "id": "a)", "text": "...", "marks": "7", "bt": "2", "co": "Co1" },
-        { "id": "b)", "text": "...", "marks": "8", "bt": "2", "co": "Co2" }
+        { "id": "a)", "text": "...", "marks": "${isComprehensive ? '10' : '7'}", "bt": "2", "co": "Co1" },
+        { "id": "b)", "text": "...", "marks": "${isComprehensive ? '10' : '8'}", "bt": "2", "co": "Co2" }
       ]
     },
     {
       "qNum": "Q.6",
       "instruction": "Attempt All",
       "questions": [
-        { "id": "a)", "text": "...", "marks": "8", "bt": "1", "co": "Co6" },
-        { "id": "b)", "text": "...", "marks": "7", "bt": "6", "co": "Co3" }
+        { "id": "a)", "text": "...", "marks": "${isComprehensive ? '10' : '8'}", "bt": "1", "co": "Co6" },
+        { "id": "b)", "text": "...", "marks": "${isComprehensive ? '10' : '7'}", "bt": "6", "co": "Co3" }
       ]
     }
   ],
@@ -603,13 +801,13 @@ Match this EXACT structure matching the university paper format:
 RULES:
 - Formulate all questions directly from the provided text content.
 - Include practical scenario-based and numerical questions with tables in Q.2, Q.4, or Q.5 where appropriate.
-- Ensure Q.1 has 6 sub-questions (each 5m) where student attempts any 3 (=15m), and Q.2 to Q.6 each carry 15m (student attempts any 3 = 45m). Total marks = 60.
+- Ensure marks allocation adds up mathematically to ${marksNum}.
 
 Document Content:
 ${docSlice}` : `You are generating an autonomous engineering college examination Question Paper based ONLY on this document.
 Subject: ${subject}
 Set: Set ${setNum} of ${sets}
-Total Marks: ${totalMarks} | Duration: ${timeHours} Hour(s)
+Total Marks: ${marksNum} | Duration: ${timeHours} Hour(s)
 
 CRITICAL REQUIREMENT: Return ONLY valid, raw JSON (no markdown formatting, no code fences, no extra text).
 Match this EXACT structure:
@@ -624,35 +822,35 @@ Match this EXACT structure:
   "date": "${dateStr}",
   "time": "${timeStr}",
   "duration": "${timeHours}Hr",
-  "marks": "${totalMarks}",
+  "marks": "${marksNum}",
   "note": "Note: Assume suitable data wherever necessary.",
   "sections": [
     {
       "qNum": "1",
-      "instruction": "${totalMarks <= 25 ? 'Attempt Any Five out of Six' : 'Attempt Any Four out of Six'}",
+      "instruction": "${marksNum <= 25 ? 'Attempt Any Five out of Six' : 'Attempt Any Four out of Six'}",
       "questions": [
-        { "id": "A.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO3", "bl": "L2" },
-        { "id": "B.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO1", "bl": "L1" },
-        { "id": "C.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO2", "bl": "L2" },
-        { "id": "D.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO1", "bl": "L6" },
-        { "id": "E.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO1", "bl": "L2" },
-        { "id": "F.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO3", "bl": "L2" }
+        { "id": "A.", "text": "...", "marks": "${marksNum <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO3", "bl": "L2" },
+        { "id": "B.", "text": "...", "marks": "${marksNum <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO1", "bl": "L1" },
+        { "id": "C.", "text": "...", "marks": "${marksNum <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO2", "bl": "L2" },
+        { "id": "D.", "text": "...", "marks": "${marksNum <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO1", "bl": "L6" },
+        { "id": "E.", "text": "...", "marks": "${marksNum <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO1", "bl": "L2" },
+        { "id": "F.", "text": "...", "marks": "${marksNum <= 25 ? '[ 02 ]' : '[ 05 ]'}", "co": "CO3", "bl": "L2" }
       ]
     },
     {
       "qNum": "2",
       "instruction": "Attempt Any One",
       "questions": [
-        { "id": "A.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO1", "bl": "L2" },
-        { "id": "B.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO3", "bl": "L2" }
+        { "id": "A.", "text": "...", "marks": "${marksNum <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO1", "bl": "L2" },
+        { "id": "B.", "text": "...", "marks": "${marksNum <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO3", "bl": "L2" }
       ]
     },
     {
       "qNum": "3",
       "instruction": "Attempt Any One",
       "questions": [
-        { "id": "A.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO3", "bl": "L2" },
-        { "id": "B.", "text": "...", "marks": "${totalMarks <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO2", "bl": "L2" }
+        { "id": "A.", "text": "...", "marks": "${marksNum <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO3", "bl": "L2" },
+        { "id": "B.", "text": "...", "marks": "${marksNum <= 25 ? '[ 05 ]' : '[ 10 ]'}", "co": "CO2", "bl": "L2" }
       ]
     }
   ]
@@ -662,21 +860,21 @@ STRICT EXAM RULES:
 - All questions MUST be strictly extracted from the provided document content.
 - Include realistic Course Outcome tags (CO1, CO2, CO3, CO4, CO5) and Bloom's Taxonomy Level tags (L1, L2, L3, L4, L5, L6).
 - For SET ${setNum}, formulate completely fresh and distinct questions different from other sets.
-- Marks and totals must calculate accurately.
+- Marks and totals must calculate accurately to ${marksNum}.
 
 Document:
 ${docSlice}`;
 
     let paperData = null;
     try {
-      const result = await callAI('Return ONLY valid JSON.', prompt, is60Marks ? 3000 : 1200);
+      const result = await callAI('Return ONLY valid JSON.', prompt, (is60Marks || isComprehensive) ? 3500 : 1500);
       paperData = parseJSON(result, null);
     } catch (e) {
       console.warn(`[Paper Set ${setNum}] AI generation warning:`, e.message);
     }
 
     if (!paperData || !paperData.sections || !Array.isArray(paperData.sections)) {
-      const fallbackStr = pdf.makeQuestionPaper(docSlice, subject, totalMarks, timeHours, institution, options);
+      const fallbackStr = pdf.makeQuestionPaper(docSlice, subject, marksNum, timeHours, institution, options);
       paperData = parseJSON(fallbackStr, null);
     }
 
@@ -712,6 +910,78 @@ ${docSlice}`;
     }
   }
   return setsArray;
+}
+
+// ── University Official Answer Key & Step-by-Step Marking Scheme ──
+async function generatePaperAnswerKey(paperData, text, subject, lang = 'English', docPrimaryLang = 'eng') {
+  let paperObj = typeof paperData === 'string' ? parseJSON(paperData, null) : paperData;
+  if (!paperObj && typeof paperData === 'object' && paperData.structured) {
+    paperObj = paperData.structured;
+  }
+  if (!paperObj && typeof paperData === 'object' && paperData.content) {
+    paperObj = parseJSON(paperData.content, null);
+  }
+  if (!paperObj) {
+    paperObj = { subject, marks: "60", sections: [] };
+  }
+
+  const institution = paperObj.institution || "Mahatma Education Society's";
+  const college = paperObj.college || "Pillai HOC College of Engineering and Technology, Rasayani";
+  const examType = paperObj.examType || "Examination";
+  const marks = paperObj.marks || "60";
+
+  const prompt = `You are a senior university chief examiner creating the OFFICIAL UNIVERSITY MODEL ANSWER KEY & STEP-BY-STEP MARKING SCHEME.
+Subject: "${subject}" | Institution: "${institution}" | Total Marks: ${marks} | Language: ${lang}
+
+QUESTION PAPER STRUCTURE:
+${JSON.stringify(paperObj, null, 2).slice(0, 7000)}
+
+DOCUMENT REFERENCE TEXT:
+${text.slice(0, 14000)}
+
+REQUIREMENTS:
+1. Generate an exhaustive, university-grade Model Answer Key in Markdown format.
+2. For EVERY question in EVERY section:
+   - State Question ID and allocated Marks (e.g. "#### Q.1 a) Question Text [5 Marks]")
+   - **Comprehensive Model Answer:** Complete, high-scoring technical/academic answer.
+   - **Step-by-Step Marking Scheme:** Explicit mark allocation:
+     • Definition & Core Terms: [X Marks]
+     • Working / Block Diagram / Derivation: [Y Marks]
+     • Explanation & Applications: [Z Marks]
+   - **Examiner's Checklist:** Non-negotiable points/keywords students must include.
+   - **Grounding Reference:** [Page X] or chapter source.
+3. Total rubric marks must match each question's allocated marks.`;
+
+  const result = await callAI(
+    'You are an authoritative university chief examiner providing the official exam answer key and step-by-step marking rubrics.',
+    prompt,
+    4500
+  );
+
+  let markdownKey = result;
+  if (!markdownKey || markdownKey.length < 100) {
+    markdownKey = `# ${institution}\n## ${college}\n### OFFICIAL ANSWER KEY & STEP-BY-STEP MARKING SCHEME\n**Subject:** ${subject} | **Total Marks:** ${marks}\n\n---\n\n`;
+    for (const sec of (paperObj.sections || [])) {
+      markdownKey += `### ${sec.qNum || 'Section'}: ${sec.instruction || ''}\n\n`;
+      for (const q of (sec.questions || [])) {
+        markdownKey += `#### ${q.id || ''} ${q.text} (${q.marks || ''} Marks)\n\n`;
+        markdownKey += `**Model Answer:**\nExplain key principles, architectural components, and formulas for ${subject} as detailed in the course curriculum.\n\n`;
+        markdownKey += `**Step-by-Step Marking Rubric:**\n- Correct definition & terminology: 40% of marks\n- Detailed explanation & working: 40% of marks\n- Diagram / example: 20% of marks\n\n`;
+        markdownKey += `**Source Grounding:** [Page 1, ${subject}]\n\n---\n\n`;
+      }
+    }
+  }
+
+  return {
+    markdown: markdownKey,
+    paperMeta: {
+      institution,
+      college,
+      subject,
+      marks,
+      examType
+    }
+  };
 }
 
 async function generateHandwrittenNotes(text, title, subject, lang = 'English', docPrimaryLang = 'eng', docType = 'academic_textbook') {
@@ -1132,65 +1402,133 @@ ${text.slice(0, 10000)}`;
 }
 
 async function generateMindmap(text, title, lang = 'English') {
-  const prompt = `Create a comprehensive mind map from this document.
-Return ONLY valid JSON:
+  const prompt = `Create a comprehensive, multi-tier academic mind map from this document.
+Title: "${title}" | Output Language: ${lang}
+
+Return ONLY valid JSON matching this EXACT hierarchical structure:
 {
-  "central": "${title.slice(0,40)}",
+  "central": "${title.slice(0, 45)}",
   "branches": [
     {
-      "topic": "Main topic from document",
-      "color": "#4F46E5",
-      "subtopics": ["specific subtopic", "specific detail", "formula or fact"]
+      "topic": "Major Subject Domain / Chapter",
+      "color": "#059669",
+      "summary": "1-sentence high-level overview of this branch",
+      "subtopics": [
+        {
+          "title": "Subtopic or Core Principle",
+          "details": [
+            "Specific mechanism or property from text",
+            "Key formula, law, or equation",
+            "Real-world application or case"
+          ]
+        },
+        {
+          "title": "Methodology or Mechanism",
+          "details": [
+            "Step 1: Input & initialization",
+            "Step 2: Processing & state transitions",
+            "Step 3: Verification & termination"
+          ]
+        }
+      ]
     }
   ]
 }
 
 Rules:
-- 5-7 main branches covering all document topics  
-- 4-6 specific subtopics per branch
-- Subtopics should be actual content from document
+- 5 to 8 main branches covering the entire document systematically.
+- Each branch MUST have 2 to 4 structured subtopics.
+- Each subtopic MUST have 2 to 4 concrete details extracted directly from the text.
+- Ground all nodes strictly in the provided document content.
 
-Document:
-${text.slice(0, 7000)}`;
+Document Content:
+${text.slice(0, 10000)}`;
 
-  const result = await callAI('Return only valid JSON.', prompt, 2000);
-  const data = parseJSON(result, null);
-  if (data?.branches?.length > 0) return data;
+  const result = await callAI('Return ONLY valid JSON.', prompt, 3000);
+  let data = parseJSON(result, null);
+  if (data?.branches?.length > 0) {
+    const colors = ['#059669', '#0284C7', '#D97706', '#7C3AED', '#DC2626', '#0D9488', '#4F46E5', '#10B981'];
+    data.branches = data.branches.map((b, idx) => {
+      const normalizedSubtopics = Array.isArray(b.subtopics) ? b.subtopics.map(st => {
+        if (typeof st === 'string') {
+          return { title: st, details: [] };
+        }
+        return {
+          title: st.title || 'Concept',
+          details: Array.isArray(st.details) ? st.details : []
+        };
+      }) : [];
+      return {
+        topic: b.topic || `Topic ${idx + 1}`,
+        color: b.color || colors[idx % colors.length],
+        summary: b.summary || '',
+        subtopics: normalizedSubtopics
+      };
+    });
+    return data;
+  }
   return pdf.makeMindmap(text, title);
 }
 
 async function generateVocabulary(text, subject, lang = 'English', docPrimaryLang = 'eng') {
-  const prompt = `Extract key academic vocabulary from this document.
-Subject: ${subject}
+  const prompt = `Extract 15 to 20 key academic and technical vocabulary terms from this document.
+Subject: "${subject}" | Output Language: ${lang}
 
-Return ONLY valid JSON array:
+Return ONLY a valid JSON array of 7-field entries:
 [
   {
-    "word": "technical term from document",
-    "hindi": "Hindi translation",
-    "definition": "clear definition (2-3 sentences)",
-    "example": "example sentence from or inspired by document",
-    "context": "how it's used in Indian exams",
-    "formula": "formula if applicable, else empty string"
+    "word": "Technical term directly from text",
+    "meaning": "Rigorous academic definition (1-2 sentences)",
+    "explanation": "Intuitive student-friendly explanation (2-3 sentences)",
+    "context": "How it is applied or tested in university examinations",
+    "example": "Practical real-world or textual example",
+    "chapter": "Relevant chapter or domain",
+    "pageReference": "Page X",
+    "formula": "Formula or notation if applicable, else empty string"
   }
 ]
 
-Extract 12-15 important terms. Only terms that actually appear in document.
+STRICT RULES:
+- Extract ONLY terms that actually appear in the document.
+- Ensure all 7 fields are populated accurately.
+- Return ONLY the raw JSON array.
 
-Document:
-${text.slice(0, 7000)}`;
+Document Excerpt:
+${text.slice(0, 12000)}`;
 
-  const result = await callAI('Return only valid JSON array.', prompt, 2000);
-  const data = parseJSON(result, null);
-  if (Array.isArray(data) && data.length > 0) return data;
+  const result = await callAI('Return ONLY a valid JSON array.', prompt, 3000);
+  let data = parseJSON(result, null);
+  if (Array.isArray(data) && data.length > 0) {
+    return data.map((v, i) => ({
+      word: v.word || `Term ${i + 1}`,
+      meaning: v.meaning || v.definition || 'Academic concept from document.',
+      explanation: v.explanation || v.meaning || 'Core concept explained.',
+      context: v.context || `Tested in ${subject} examinations.`,
+      example: v.example || `Example application of ${v.word || 'this term'}.`,
+      chapter: v.chapter || subject || 'General',
+      pageReference: v.pageReference || `Page ${Math.floor(i / 2) + 1}`,
+      formula: v.formula || ''
+    }));
+  }
   return pdf.makeVocabulary(text, subject);
 }
 
 // FIXED: Detailed chatbot that gives thorough answers
-async function answerChat(question, docText, history = [], outputLang = 'english', docPrimaryLang = 'eng') {
-  if (!docText || docText.trim().length < 30) {
-    return "Please select a PDF document first. I can only answer questions based on your uploaded document content.";
+async function answerChat(question, docInput, history = [], outputLang = 'english', docPrimaryLang = 'eng', options = {}) {
+  const docObj = (docInput && typeof docInput === 'object') ? docInput : { extractedText: String(docInput || '') };
+  const rawText = docObj.extractedText || '';
+
+  if (!rawText || rawText.trim().length < 20) {
+    return {
+      reply: "Please select an academic document first. I can only answer questions based on your uploaded document content.",
+      citations: [],
+      passages: []
+    };
   }
+
+  // Retrieve page-grounded excerpts across the entire document
+  const retrievedPassages = searchDocumentPassages(docObj, question, { topK: 6 });
+  const groundingContext = buildGroundingContext(retrievedPassages);
 
   const histText = history.slice(-8).map(m => `${m.role === 'user' ? 'Student' : 'AI'}: ${m.content}`).join('\n\n');
   const targetInfo = resolveOutputLanguage(outputLang, docPrimaryLang);
@@ -1200,11 +1538,12 @@ async function answerChat(question, docText, history = [], outputLang = 'english
     : (qAnalysis.primaryLanguage !== 'eng' ? resolveOutputLanguage(qAnalysis.primaryLanguage).name : 'English');
 
   const langPrompt = getLanguageInstruction(responseLanguage, docPrimaryLang);
+  const allowGeneral = options.allowGeneralKnowledge === true;
 
-  const prompt = `You are an expert AI Tutor. Answer the student's question THOROUGHLY and COMPLETELY.
+  const prompt = `You are Notivexa's University-Level Academic AI Tutor. Answer the student's question with authoritative, document-grounded accuracy.
 
-DOCUMENT CONTENT (from uploaded PDF):
-${docText.slice(0, 10000)}
+AUTHENTIC DOCUMENT EXCERPTS (from student's uploaded material):
+${groundingContext}
 
 CONVERSATION HISTORY:
 ${histText}
@@ -1214,26 +1553,39 @@ STUDENT QUESTION: ${question}
 LANGUAGE INSTRUCTIONS:
 ${langPrompt}
 
-ANSWER REQUIREMENTS:
-1. Give a DETAILED, COMPLETE answer (at least 150-200 words)
-2. Respond in ${responseLanguage}
-3. If found in document: explain the concept fully with examples
-4. If it's a definition: give the definition + explanation + example
-5. If it's a formula: write it out + explain each component + show usage
-6. If it's a process: give step-by-step explanation
-7. Always relate back to exam context
-8. Use clear, friendly, educational tone
-9. If question NOT in document: say "This specific information is not in your uploaded document" (in ${responseLanguage}) but still try to help with what IS in the document
-
-DO NOT give one-line answers. Be thorough like a good teacher.`;
+STRICT ACADEMIC CITATION & GROUNDING RULES:
+1. Grounding First: Answer primarily and thoroughly using the provided document excerpts above.
+2. Mandatory Citations: For each key definition, algorithm step, formula, and conceptual explanation, explicitly cite the source page using bracketed citations, e.g. [Page X] or [Page X, Chapter Y].
+3. Anti-Hallucination: Never invent page numbers, textbook chapters, or fake quotes not present in the excerpts.
+4. Out-of-Document Queries: If the concept is not found in the uploaded excerpts:
+   ${allowGeneral 
+     ? '- State clearly: "This specific concept is not covered in your uploaded document." Then provide a clearly marked supplemental section: "### 🌐 Supplemental Academic Knowledge" explaining the topic from general academic curriculum.' 
+     : '- State clearly and honestly: "This specific concept is not covered in your uploaded document. I can only answer from the uploaded material unless General Knowledge mode is enabled."'}
+5. Tone & Depth: Provide a well-structured, university-examination ready answer (200-400 words) with clear headings, bullet points, formulas, and examples where applicable.
+6. Respond in ${responseLanguage}.`;
 
   const result = await callAI(
-    `You are a thorough, helpful AI tutor. Always give detailed, complete answers in ${responseLanguage}.`,
+    `You are a strict, authoritative university AI tutor. Always cite source pages like [Page X] and answer in ${responseLanguage}.`,
     prompt,
-    1500
+    2000
   );
-  
-  return result || pdf.answerQuestion(question, docText);
+
+  const finalReply = result || pdf.answerQuestion(question, rawText);
+  const citations = extractCitationsFromText(finalReply);
+
+  const responseObj = {
+    reply: finalReply,
+    citations,
+    passages: retrievedPassages.map(p => ({
+      pageNumber: p.pageNumber,
+      chapter: p.chapter,
+      snippet: p.snippet
+    }))
+  };
+
+  // Enable string coercion for backward compatibility
+  responseObj.toString = () => finalReply;
+  return responseObj;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1625,7 +1977,8 @@ module.exports = {
   extractFromImage,
   ocrImageBuffer,
   generateNotes, generateSummary, generateFlashcards, generateQuestions,
-  generateQuestionPaper, generateHandwrittenNotes, generateVideoScript,
+  generatePracticeQuiz, generateQuestionPaper, generatePaperAnswerKey,
+  generateHandwrittenNotes, generateVideoScript,
   generatePPT, generateMindmap, generateVocabulary,
   answerChat, generateAudio, translateFree, generatePodcast
 };

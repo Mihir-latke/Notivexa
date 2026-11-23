@@ -282,14 +282,14 @@ function resolveEffectiveDocType(req, doc, text) {
 exports.notes = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const { sectionIndex, font = 'caveat', style = 'yellow' } = req.body;
+    const { sectionIndex, font = 'caveat', style = 'yellow', mode = 'detailed', topic = '' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
     const subj = doc.subject || doc.title;
     const docType = resolveEffectiveDocType(req, doc, text);
-    console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language} docType=${docType} (source=${doc.primaryLanguage})`);
-    const content = await ai.generateNotes(text, doc.title, subj, language, doc.primaryLanguage, docType);
+    console.log(`[GEN] Notes "${doc.title}" ${text.length}c lang=${language} docType=${docType} mode=${mode} (source=${doc.primaryLanguage})`);
+    const content = await ai.generateNotes(text, doc.title, subj, language, doc.primaryLanguage, docType, { mode, topic });
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
@@ -297,23 +297,24 @@ exports.notes = async (req, res, next) => {
     if (doc.outputs) doc.outputs.push({ type:'notes', language, fileName:pdf.fileName, filePath:pdf.filePath, fileSize:pdf.fileSize });
     await safeDocSave(doc);
     await safeUserStatsUpdate(req.user?.id, { $inc: { 'studyStats.notesGenerated': 1 } });
-    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize, diagrams: doc.diagrams || [] });
+    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize, diagrams: doc.diagrams || [], mode });
   } catch(e) { next(e); }
 };
 
 exports.summary = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
-    const { sectionIndex, font = 'caveat', style = 'yellow' } = req.body;
+    const { sectionIndex, font = 'caveat', style = 'yellow', mode = 'full', length = 'medium' } = req.body;
     const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
     const langInfo = getResolvedLanguage(req, doc);
     const language = langInfo.name;
-    const content = await ai.generateSummary(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage);
+    console.log(`[GEN] Summary "${doc.title}" mode=${mode} length=${length} lang=${language}`);
+    const content = await ai.generateSummary(text, doc.title, doc.subject || doc.title, language, doc.primaryLanguage, { mode, length });
     const imagePaths = await resolveDocImages(doc);
     const docId = (doc._id || doc.id || '').toString();
     const finalContent = injectDiagramsIntoMarkdown(content, docId, imagePaths);
     const pdf = await handwrittenPDF(finalContent, { title: `${doc.title} — Summary`, subject: doc.subject || doc.title, style, fontName: font, imagePaths });
-    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize });
+    res.json({ success:true, content: finalContent, downloadUrl:`/uploads/generated/${pdf.fileName}`, fileName:pdf.fileName, fileSize:pdf.fileSize, mode, length });
   } catch(e) { next(e); }
 };
 
@@ -377,6 +378,24 @@ exports.questions = async (req, res, next) => {
   } catch(e) { next(e); }
 };
 
+exports.practiceQuiz = async (req, res, next) => {
+  try {
+    const documentId = req.body.documentId || req.body.docId || req.body.id;
+    const { sectionIndex, count = 10, difficulty = 'medium', types = ['mcq'] } = req.body;
+    const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const questions = await ai.generatePracticeQuiz(text, doc.subject || doc.title, {
+      count: parseInt(count) || 10,
+      difficulty,
+      types: Array.isArray(types) ? types : [types],
+      lang: language,
+      docPrimaryLang: doc.primaryLanguage
+    });
+    res.json({ success: true, questions, count: questions.length, subject: doc.subject || doc.title });
+  } catch(e) { next(e); }
+};
+
 exports.paper = async (req, res, next) => {
   try {
     const documentId = req.body.documentId || req.body.docId || req.body.id;
@@ -425,6 +444,44 @@ exports.paper = async (req, res, next) => {
       sets: paperSets,
       pdfFiles,
       message: `${paperSets.length} question paper set${paperSets.length > 1 ? 's' : ''} generated!`
+    });
+  } catch(e) { next(e); }
+};
+
+exports.paperAnswerKey = async (req, res, next) => {
+  try {
+    const documentId = req.body.documentId || req.body.docId || req.body.id;
+    const { sectionIndex, paperData } = req.body;
+    const { doc, text } = await getDocText(documentId, req.user?.id, sectionIndex);
+    const langInfo = getResolvedLanguage(req, doc);
+    const language = langInfo.name;
+    const answerKeyResult = await ai.generatePaperAnswerKey(
+      paperData,
+      text,
+      doc.subject || doc.title,
+      language,
+      doc.primaryLanguage
+    );
+    const pdf = await notesPDF(answerKeyResult.markdown, {
+      title: `${doc.title} — Official Model Answer Key`,
+      subject: doc.subject || doc.title
+    });
+    if (doc.outputs) {
+      doc.outputs.push({
+        type: 'answer_key',
+        language,
+        fileName: pdf.fileName,
+        filePath: pdf.filePath,
+        fileSize: pdf.fileSize
+      });
+      await safeDocSave(doc);
+    }
+    res.json({
+      success: true,
+      answerKey: answerKeyResult.markdown,
+      downloadUrl: `/uploads/generated/${pdf.fileName}`,
+      fileName: pdf.fileName,
+      fileSize: pdf.fileSize
     });
   } catch(e) { next(e); }
 };

@@ -633,13 +633,13 @@ export default function Notebook() {
   const [section, setSection] = useState('')
   const [tool, setTool] = useState('notes')
   const [lang, setLang] = useState('English')
-  const [marks, setMarks] = useState(20)
-  const [paperType, setPaperType] = useState('20_MARKS') // 20_MARKS or 60_MARKS
+  const [marks, setMarks] = useState(60)
+  const [paperType, setPaperType] = useState('60_MARKS') // 20_MARKS or 60_MARKS
   const [institution, setInstitution] = useState("Mahatma Education Society's")
   const [collegeName, setCollegeName] = useState("Pillai HOC College of Engineering and Technology, Rasayani.")
   const [departmentName, setDepartmentName] = useState("Department of Computer Application")
-  const [examTypeName, setExamTypeName] = useState("Internal Assessment- I OSAY 2026-2027")
-  const [className, setClassName] = useState("SY-MCA")
+  const [examTypeName, setExamTypeName] = useState("PRELIM EXAMINATION (Autonomous)")
+  const [className, setClassName] = useState("Computer Application (MCA)")
   const [showAdvancedPaperSettings, setShowAdvancedPaperSettings] = useState(false)
   const [sets, setSets] = useState(3)
   const [count, setCount] = useState(10)
@@ -651,6 +651,44 @@ export default function Notebook() {
   const [hwDownloading, setHwDownloading] = useState(false)
   const [result, setResult] = useState(null)
   const [activeSet, setActiveSet] = useState(0)
+
+  // Study Notes Mode
+  const [notesMode, setNotesMode] = useState('detailed') // 'detailed' | 'revision' | 'exam' | 'topic'
+  const [topicFilter, setTopicFilter] = useState('')
+
+  // Summary Mode & Length
+  const [summaryMode, setSummaryMode] = useState('full') // 'full' | 'concise'
+  const [summaryLength, setSummaryLength] = useState('medium') // 'short' | 'medium' | 'detailed'
+
+  // Interactive Practice Q&A Simulator
+  const [practiceMode, setPracticeMode] = useState('simulator') // 'simulator' | 'list'
+  const [practiceCount, setPracticeCount] = useState(10)
+  const [practiceDifficulty, setPracticeDifficulty] = useState('medium') // 'easy' | 'medium' | 'hard' | 'mixed'
+  const [currentQIndex, setCurrentQIndex] = useState(0)
+  const [userAnswers, setUserAnswers] = useState({})
+  const [revealedExplanations, setRevealedExplanations] = useState({})
+  const [quizSubmitted, setQuizSubmitted] = useState(false)
+  const [quizTimer, setQuizTimer] = useState(0)
+  const [quizActive, setQuizActive] = useState(false)
+  const [quizScoreModalOpen, setQuizScoreModalOpen] = useState(false)
+
+  // Question Paper & Answer Key
+  const [customMarks, setCustomMarks] = useState(60) // 20, 25, 30, 40, 50, 60, 75, 80, 100
+  const [generatingAnswerKey, setGeneratingAnswerKey] = useState(false)
+  const [answerKeyData, setAnswerKeyData] = useState(null)
+  const [answerKeyModalOpen, setAnswerKeyModalOpen] = useState(false)
+
+  // Interactive Mind Map
+  const [mindmapZoom, setMindmapZoom] = useState(1)
+  const [mindmapFilter, setMindmapFilter] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState(null)
+
+  // Vocabulary Explorer
+  const [vocabSearch, setVocabSearch] = useState('')
+  const [vocabStudyMode, setVocabStudyMode] = useState('cards') // 'cards' | 'test'
+  const [vocabCardIndex, setVocabCardIndex] = useState(0)
+  const [vocabFlipped, setVocabFlipped] = useState(false)
+  const [masteredVocab, setMasteredVocab] = useState({})
 
   // Editable content & export states
   const [isEditing, setIsEditing] = useState(false)
@@ -792,6 +830,45 @@ export default function Notebook() {
     }
   }, [docId])
 
+  // Quiz Timer interval
+  useEffect(() => {
+    let interval = null
+    if (quizActive && !quizSubmitted) {
+      interval = setInterval(() => {
+        setQuizTimer(t => t + 1)
+      }, 1000)
+    } else {
+      clearInterval(interval)
+    }
+    return () => clearInterval(interval)
+  }, [quizActive, quizSubmitted])
+
+  const handleGenerateAnswerKey = async () => {
+    if (!docId) { toast.error('Select a document first'); return }
+    const sets_data = result?.data?.sets || []
+    const currentPaper = sets_data[activeSet]?.structured || editPaperData || sets_data[0]?.structured
+    if (!currentPaper) { toast.error('Please generate a question paper first.'); return }
+    setGeneratingAnswerKey(true)
+    const tId = toast.loading('Generating official model answer key & step-by-step marking rubrics...')
+    try {
+      const res = await api.post('/generate/paper-answer-key', {
+        documentId: docId,
+        paperData: currentPaper,
+        sectionIndex: section !== '' ? parseInt(section) : undefined,
+        language: lang
+      })
+      if (res.data?.success) {
+        setAnswerKeyData(res.data)
+        setAnswerKeyModalOpen(true)
+        toast.success('✅ Model Answer Key & Marking Scheme ready!', { id: tId })
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate answer key.', { id: tId })
+    } finally {
+      setGeneratingAnswerKey(false)
+    }
+  }
+
   const generate = async () => {
     if (!docId) { toast.error('Select a document first'); return }
     setLoading(true); setResult(null)
@@ -803,14 +880,38 @@ export default function Notebook() {
         documentType: doc?.documentType || 'academic_textbook'
       }
       if (section !== '') payload.sectionIndex = parseInt(section)
+      if (tool === 'notes') {
+        payload.mode = notesMode
+        payload.topic = topicFilter
+      }
+      if (tool === 'summary') {
+        payload.mode = summaryMode
+        payload.length = summaryLength
+      }
+      if (tool === 'questions' && practiceMode === 'simulator') {
+        payload.count = practiceCount
+        payload.difficulty = practiceDifficulty
+        payload.types = ['mcq']
+        const res = await api.post('/generate/practice-quiz', payload)
+        setResult({ tool: 'questions', data: { questions: res.data.questions, isSimulator: true } })
+        setCurrentQIndex(0)
+        setUserAnswers({})
+        setRevealedExplanations({})
+        setQuizSubmitted(false)
+        setQuizTimer(0)
+        setQuizActive(true)
+        toast.success(`✅ Interactive quiz ready (${res.data.questions?.length || 0} questions)!`)
+        setLoading(false)
+        return
+      }
       if (tool === 'paper') {
-        payload.totalMarks = paperType === '20_MARKS' ? 20 : 60
-        payload.paperType = paperType
-        payload.timeHours = paperType === '20_MARKS' ? 1 : 2
+        payload.totalMarks = customMarks
+        payload.paperType = customMarks >= 60 ? '60_MARKS' : '20_MARKS'
+        payload.timeHours = customMarks >= 75 ? 3 : (customMarks >= 60 ? 2 : 1)
         payload.institution = institution || "Mahatma Education Society's"
         payload.college = collegeName || "Pillai HOC College of Engineering and Technology, Rasayani."
         payload.department = departmentName || "Department of Computer Application"
-        payload.examType = examTypeName || (paperType === '20_MARKS' ? "Internal Assessment- I OSAY 2026-2027" : "End Semester Examination")
+        payload.examType = examTypeName || (customMarks >= 75 ? "END SEMESTER UNIVERSITY EXAMINATION" : (customMarks === 60 ? "PRELIM EXAMINATION (Autonomous)" : "Internal Assessment- I OSAY 2026-2027"))
         payload.className = className || "SY-MCA"
         payload.sets = sets
       }
@@ -1416,7 +1517,161 @@ export default function Notebook() {
           >
             📋 Copy Paper
           </button>
+
+          {/* Official Model Answer Key & Marking Scheme */}
+          <button
+            className="btn btn-sm"
+            style={{
+              background: 'linear-gradient(135deg, #059669, #047857)',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 700,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              boxShadow: '0 2px 8px rgba(5,150,105,0.25)'
+            }}
+            onClick={handleGenerateAnswerKey}
+            disabled={generatingAnswerKey}
+          >
+            {generatingAnswerKey ? '⏳ Generating Answer Key…' : '📝 Official Model Answer Key & Marking Scheme'}
+          </button>
         </div>
+
+        {/* Answer Key & Marking Scheme Modal */}
+        {answerKeyModalOpen && answerKeyData && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(6, 28, 20, 0.75)',
+              backdropFilter: 'blur(6px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 9999,
+              padding: 20
+            }}
+            onClick={() => setAnswerKeyModalOpen(false)}
+          >
+            <div
+              style={{
+                background: 'var(--card)',
+                border: '1.5px solid var(--bdr)',
+                borderRadius: 16,
+                maxWidth: 850,
+                width: '100%',
+                maxHeight: '88vh',
+                display: 'flex',
+                flexDirection: 'column',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
+                overflow: 'hidden'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div
+                style={{
+                  padding: '18px 24px',
+                  background: 'linear-gradient(135deg, #059669, #047857)',
+                  color: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between'
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 17, fontWeight: 800, letterSpacing: -0.3 }}>
+                    📝 Official University Model Answer Key & Marking Scheme
+                  </div>
+                  <div style={{ fontSize: 12, opacity: 0.9, marginTop: 3 }}>
+                    {answerKeyData.subject || doc?.title} • Set {answerKeyData.setNumber || activeSet + 1} • Step-by-Step Marks Distribution & Page Citations
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAnswerKeyModalOpen(false)}
+                  style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    border: 'none',
+                    color: '#fff',
+                    borderRadius: '50%',
+                    width: 32,
+                    height: 32,
+                    cursor: 'pointer',
+                    fontSize: 16,
+                    fontWeight: 'bold',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Modal Actions */}
+              <div
+                style={{
+                  padding: '12px 24px',
+                  background: 'var(--bg)',
+                  borderBottom: '1px solid var(--bdr)',
+                  display: 'flex',
+                  gap: 10,
+                  alignItems: 'center',
+                  flexWrap: 'wrap'
+                }}
+              >
+                {answerKeyData.downloadUrl && (
+                  <a
+                    href={getAuthedMediaUrl(answerKeyData.downloadUrl)}
+                    download={`Model_Answer_Key_Set_${answerKeyData.setNumber || activeSet + 1}.pdf`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="btn btn-p btn-sm"
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    ⬇️ Download Official Marking Scheme PDF
+                  </a>
+                )}
+                <button
+                  className="btn btn-s btn-sm"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(answerKeyData.answerKey || '')
+                    toast.success('Answer Key copied to clipboard!')
+                  }}
+                >
+                  📋 Copy Markdown
+                </button>
+                <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--ink3)' }}>
+                  Verified with Academic Grounding Engine
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div
+                style={{
+                  padding: 24,
+                  overflowY: 'auto',
+                  flex: 1,
+                  fontSize: 14,
+                  lineHeight: 1.7,
+                  color: 'var(--ink)'
+                }}
+                className="scholar-markdown"
+              >
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm, remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                >
+                  {answerKeyData.answerKey || 'No answer key text generated.'}
+                </ReactMarkdown>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Edit Mode View */}
         {isEditing ? (
@@ -1662,43 +1917,828 @@ export default function Notebook() {
     if (t === 'handwritten') return renderHandwritten(data)
     if (t === 'paper') return renderPaper(data)
 
-    if (t === 'mindmap' && data.mindmapData) {
-      const mm = data.mindmapData
+    if (t === 'questions' && (data.isSimulator || Array.isArray(data.questions))) {
+      const qList = Array.isArray(data.questions) ? data.questions : []
+      if (qList.length === 0) {
+        return <div className="ib a">No assessment questions available. Try generating again.</div>
+      }
+
+      const currentQ = qList[currentQIndex] || qList[0]
+      const totalQ = qList.length
+      const answeredCount = Object.keys(userAnswers).length
+      const userSelected = userAnswers[currentQ.id || currentQIndex]
+      const isExplanationRevealed = revealedExplanations[currentQ.id || currentQIndex] || quizSubmitted
+
+      // Calculate score
+      let score = 0
+      qList.forEach((q, idx) => {
+        const uAns = userAnswers[q.id || idx]
+        if (uAns && (uAns === q.correctAnswer || (q.options && q.options.some(o => o.startsWith(uAns) || o === uAns)))) {
+          score++
+        }
+      })
+      const percentScore = Math.round((score / totalQ) * 100)
+
+      const mins = Math.floor(quizTimer / 60).toString().padStart(2, '0')
+      const secs = (quizTimer % 60).toString().padStart(2, '0')
+
       return (
         <div>
-          <div style={{ textAlign:'center', marginBottom:16 }}>
-            <span style={{ background:'var(--brand)', color:'#fff', padding:'9px 22px', borderRadius:20, fontFamily:'Sora,sans-serif', fontWeight:700, fontSize:14 }}>{mm.central}</span>
-          </div>
-          <div className="g2">
-            {mm.branches?.map((b,i) => (
-              <div key={i} style={{ background:'var(--card)', border:'1px solid var(--bdr)', borderRadius:11, padding:14 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:b.color||'var(--brand)', marginBottom:9 }}>● {b.topic}</div>
-                {b.subtopics?.map((s,j) => (
-                  <div key={j} style={{ fontSize:12.5, color:'var(--ink2)', paddingLeft:12, borderLeft:'2px solid '+(b.color||'var(--bdr2)'), marginBottom:5 }}>→ {s}</div>
-                ))}
+          {/* Header Bar */}
+          <div style={{ background:'var(--card)', border:'1.5px solid var(--bdr)', borderRadius:12, padding:'14px 18px', marginBottom:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:18 }}>🎯</span>
+                <div>
+                  <div style={{ fontFamily:'Sora,sans-serif', fontSize:14, fontWeight:700, color:'var(--ink)' }}>
+                    Interactive University Practice Assessment
+                  </div>
+                  <div style={{ fontSize:11.5, color:'var(--ink3)' }}>
+                    Question {currentQIndex + 1} of {totalQ} · {answeredCount} answered · Difficulty: <strong style={{ color:'var(--brand)' }}>{currentQ.difficulty || 'Medium'}</strong>
+                  </div>
+                </div>
               </div>
-            ))}
+
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6, background:'var(--bg2)', padding:'5px 12px', borderRadius:20, fontSize:12, fontWeight:700, color:'var(--ink)' }}>
+                  <span>⏱️</span>
+                  <span>{mins}:{secs}</span>
+                </div>
+
+                <button
+                  className="btn btn-sm"
+                  style={{ background: quizSubmitted ? '#059669' : 'var(--brand)', color:'#fff', fontWeight:700 }}
+                  onClick={() => {
+                    setQuizSubmitted(true)
+                    setQuizActive(false)
+                    setQuizScoreModalOpen(true)
+                  }}
+                >
+                  {quizSubmitted ? '📊 View Scorecard' : '🏁 Submit Assessment'}
+                </button>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={{ height:5, background:'var(--bg3)', borderRadius:4, marginTop:12, overflow:'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  background: 'linear-gradient(90deg, var(--brand), var(--brand2))',
+                  width: `${((currentQIndex + 1) / totalQ) * 100}%`,
+                  transition: 'width 0.3s ease'
+                }}
+              />
+            </div>
+          </div>
+
+          {/* Question Card */}
+          <div style={{ background:'var(--card)', border:'1.5px solid var(--bdr)', borderRadius:14, padding:22, marginBottom:16, boxShadow:'var(--sh)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:10, marginBottom:14 }}>
+              <span style={{ background:'rgba(5,150,105,0.1)', color:'var(--brand)', padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700 }}>
+                Q{currentQIndex + 1} · {currentQ.bloomsTaxonomy || 'Understand'}
+              </span>
+              <span style={{ fontSize:11.5, color:'var(--ink3)', fontWeight:600 }}>
+                📖 {currentQ.chapter || 'Curriculum Module'} · 📍 {currentQ.pageReference || 'Page 1'}
+              </span>
+            </div>
+
+            <h3 style={{ fontFamily:'Sora,sans-serif', fontSize:16, fontWeight:700, color:'var(--ink)', lineHeight:1.5, marginBottom:18 }}>
+              {currentQ.question}
+            </h3>
+
+            {/* Options */}
+            <div style={{ display:'flex', flexDirection:'column', gap:10, marginBottom:18 }}>
+              {(currentQ.options || []).map((opt, optIdx) => {
+                const optLetter = opt.trim().charAt(0).toUpperCase()
+                const isSelected = userSelected === optLetter || userSelected === opt
+                const isCorrect = currentQ.correctAnswer === optLetter || (opt.startsWith(currentQ.correctAnswer))
+                
+                let optBorder = '1.5px solid var(--bdr2)'
+                let optBg = 'var(--bg)'
+                let optColor = 'var(--ink)'
+
+                if (isSelected) {
+                  optBorder = '2px solid var(--brand)'
+                  optBg = 'rgba(5,150,105,0.08)'
+                  optColor = 'var(--brand)'
+                }
+
+                if (quizSubmitted || isExplanationRevealed) {
+                  if (isCorrect) {
+                    optBorder = '2px solid #059669'
+                    optBg = '#ECFDF5'
+                    optColor = '#065F46'
+                  } else if (isSelected && !isCorrect) {
+                    optBorder = '2px solid #E11D48'
+                    optBg = '#FFF1F2'
+                    optColor = '#9F1239'
+                  }
+                }
+
+                return (
+                  <div
+                    key={optIdx}
+                    onClick={() => {
+                      if (!quizSubmitted) {
+                        setUserAnswers({ ...userAnswers, [currentQ.id || currentQIndex]: optLetter })
+                      }
+                    }}
+                    style={{
+                      border: optBorder,
+                      background: optBg,
+                      color: optColor,
+                      padding: '12px 16px',
+                      borderRadius: 10,
+                      cursor: quizSubmitted ? 'default' : 'pointer',
+                      fontSize: 13.5,
+                      fontWeight: isSelected ? 600 : 500,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.15s'
+                    }}
+                  >
+                    <span>{opt}</span>
+                    {(quizSubmitted || isExplanationRevealed) && isCorrect && (
+                      <span style={{ fontSize:12, fontWeight:700, color:'#059669' }}>✓ Correct Answer</span>
+                    )}
+                    {(quizSubmitted || isExplanationRevealed) && isSelected && !isCorrect && (
+                      <span style={{ fontSize:12, fontWeight:700, color:'#E11D48' }}>✗ Your Choice</span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Explanation Toggle & Card */}
+            <div style={{ borderTop:'1px solid var(--bdr)', paddingTop:14, marginTop:14 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <button
+                  className="btn btn-g btn-sm"
+                  style={{ fontSize:12, fontWeight:600 }}
+                  onClick={() => {
+                    const key = currentQ.id || currentQIndex
+                    setRevealedExplanations(p => ({ ...p, [key]: !p[key] }))
+                  }}
+                >
+                  {isExplanationRevealed ? '▲ Hide Verified Explanation' : '💡 Show Detailed Explanation & Page Citation'}
+                </button>
+                <span style={{ fontSize:11.5, color:'var(--ink3)' }}>
+                  Verified against textbook: <strong style={{ color:'var(--brand)' }}>{currentQ.pageReference || 'Page reference'}</strong>
+                </span>
+              </div>
+
+              {isExplanationRevealed && (
+                <div style={{ marginTop:12, background:'#F0FDF4', border:'1px solid #86EFAC', borderRadius:10, padding:14, fontSize:13, lineHeight:1.6, color:'#14532D' }}>
+                  <div style={{ fontWeight:700, marginBottom:4, display:'flex', alignItems:'center', gap:6 }}>
+                    <span>💡 Academic Solution &amp; Rationale:</span>
+                    <span style={{ fontSize:11, background:'#DCFCE7', color:'#166534', padding:'1px 8px', borderRadius:10 }}>
+                      Correct: {currentQ.correctAnswer}
+                    </span>
+                  </div>
+                  <div>{currentQ.explanation}</div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Navigation Controls */}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10, marginBottom:16 }}>
+            <div style={{ display:'flex', gap:8 }}>
+              <button
+                className="btn btn-s btn-sm"
+                disabled={currentQIndex === 0}
+                onClick={() => setCurrentQIndex(i => Math.max(0, i - 1))}
+              >
+                ← Previous
+              </button>
+              <button
+                className="btn btn-p btn-sm"
+                disabled={currentQIndex === totalQ - 1}
+                onClick={() => setCurrentQIndex(i => Math.min(totalQ - 1, i + 1))}
+              >
+                Next Question →
+              </button>
+            </div>
+
+            {/* Question Quick Jump Pills */}
+            <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+              {qList.map((_, idx) => {
+                const isAns = Boolean(userAnswers[qList[idx]?.id || idx])
+                const isCurrent = currentQIndex === idx
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentQIndex(idx)}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: 6,
+                      fontSize: 11,
+                      fontWeight: 700,
+                      border: isCurrent ? '2px solid var(--brand)' : '1px solid var(--bdr2)',
+                      background: isCurrent ? 'var(--brand)' : isAns ? 'rgba(5,150,105,0.15)' : 'var(--bg2)',
+                      color: isCurrent ? '#fff' : isAns ? 'var(--brand)' : 'var(--ink2)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {idx + 1}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Scorecard Modal */}
+          {quizScoreModalOpen && (
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0,0,0,0.65)',
+                backdropFilter: 'blur(4px)',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 20
+              }}
+            >
+              <div
+                style={{
+                  background: 'var(--card)',
+                  borderRadius: 18,
+                  border: '1.5px solid var(--bdr2)',
+                  maxWidth: 520,
+                  width: '100%',
+                  padding: 28,
+                  textAlign: 'center',
+                  boxShadow: '0 24px 60px rgba(0,0,0,0.3)'
+                }}
+              >
+                <div style={{ fontSize: 44, marginBottom: 10 }}>
+                  {percentScore >= 80 ? '🏆' : percentScore >= 60 ? '🎯' : '📚'}
+                </div>
+                <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: 22, fontWeight: 800, color: 'var(--ink)', margin: '0 0 6px' }}>
+                  University Assessment Result
+                </h2>
+                <div style={{ fontSize: 13, color: 'var(--ink3)', marginBottom: 18 }}>
+                  {doc?.title} · Completed in {mins}:{secs}
+                </div>
+
+                <div
+                  style={{
+                    background: percentScore >= 70 ? 'rgba(5,150,105,0.08)' : 'rgba(217,119,6,0.08)',
+                    border: `1.5px solid ${percentScore >= 70 ? '#059669' : '#D97706'}`,
+                    borderRadius: 14,
+                    padding: '18px 20px',
+                    marginBottom: 20
+                  }}
+                >
+                  <div style={{ fontSize: 36, fontWeight: 800, color: percentScore >= 70 ? '#059669' : '#D97706', lineHeight: 1 }}>
+                    {score} / {totalQ}
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--ink)', marginTop: 6 }}>
+                    {percentScore}% Accuracy · Grade {percentScore >= 85 ? 'O (Outstanding)' : percentScore >= 70 ? 'A (Excellent)' : percentScore >= 55 ? 'B (Proficient)' : 'C (Review Required)'}
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20, textAlign: 'left', fontSize: 12 }}>
+                  <div style={{ background: 'var(--bg2)', padding: 10, borderRadius: 8 }}>
+                    <div style={{ color: 'var(--ink3)' }}>Correct Answers:</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#059669' }}>{score}</div>
+                  </div>
+                  <div style={{ background: 'var(--bg2)', padding: 10, borderRadius: 8 }}>
+                    <div style={{ color: 'var(--ink3)' }}>Mistakes / Skipped:</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: '#E11D48' }}>{totalQ - score}</div>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button
+                    className="btn btn-p"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setQuizScoreModalOpen(false)
+                    }}
+                  >
+                    🔍 Review All Explanations
+                  </button>
+                  <button
+                    className="btn btn-s"
+                    onClick={() => {
+                      setUserAnswers({})
+                      setRevealedExplanations({})
+                      setQuizSubmitted(false)
+                      setCurrentQIndex(0)
+                      setQuizTimer(0)
+                      setQuizActive(true)
+                      setQuizScoreModalOpen(false)
+                    }}
+                  >
+                    🔄 Retake
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (t === 'mindmap' && data.mindmapData) {
+      const mm = data.mindmapData
+      const branches = Array.isArray(mm.branches) ? mm.branches : []
+      const filteredBranches = mindmapFilter
+        ? branches.filter(b => (b.topic || '').toLowerCase().includes(mindmapFilter.toLowerCase()) || 
+            (b.subtopics || []).some(st => (typeof st === 'string' ? st : (st.title || '')).toLowerCase().includes(mindmapFilter.toLowerCase())))
+        : branches
+
+      return (
+        <div>
+          {/* Mind Map Toolbar */}
+          <div style={{ background:'var(--card)', border:'1.5px solid var(--bdr)', borderRadius:12, padding:'12px 16px', marginBottom:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:18 }}>🗺️</span>
+                <span style={{ fontFamily:'Sora,sans-serif', fontSize:13.5, fontWeight:700, color:'var(--ink)' }}>
+                  Interactive Hierarchical Mind Map
+                </span>
+                <span style={{ fontSize:11, background:'rgba(5,150,105,0.1)', color:'var(--brand)', padding:'2px 8px', borderRadius:10, fontWeight:700 }}>
+                  {branches.length} Primary Branches
+                </span>
+              </div>
+
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <input
+                  className="fi"
+                  style={{ width:180, padding:'5px 10px', fontSize:12 }}
+                  placeholder="🔍 Search nodes..."
+                  value={mindmapFilter}
+                  onChange={e => setMindmapFilter(e.target.value)}
+                />
+
+                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                  <button className="btn btn-g btn-sm" style={{ padding:'4px 8px' }} onClick={() => setMindmapZoom(z => Math.max(0.6, z - 0.15))}>🔍-</button>
+                  <button className="btn btn-g btn-sm" style={{ padding:'4px 8px' }} onClick={() => setMindmapZoom(1)}>Reset</button>
+                  <button className="btn btn-g btn-sm" style={{ padding:'4px 8px' }} onClick={() => setMindmapZoom(z => Math.min(1.8, z + 0.15))}>🔍+</button>
+                </div>
+
+                <button
+                  className="btn btn-p btn-sm"
+                  onClick={() => {
+                    const svgEl = document.getElementById('notivexa-mindmap-svg')
+                    if (!svgEl) return
+                    const serializer = new XMLSerializer()
+                    const source = serializer.serializeToString(svgEl)
+                    const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `${doc?.title || 'mindmap'}.svg`
+                    a.click()
+                    toast.success('✅ Mind map SVG downloaded!')
+                  }}
+                >
+                  ⬇️ Export SVG
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* SVG Canvas View */}
+          <div
+            style={{
+              background: 'var(--bg2)',
+              border: '1.5px solid var(--bdr2)',
+              borderRadius: 14,
+              overflow: 'hidden',
+              position: 'relative',
+              boxShadow: 'var(--sh)',
+              minHeight: 480
+            }}
+          >
+            <div
+              style={{
+                transform: `scale(${mindmapZoom})`,
+                transformOrigin: 'center center',
+                transition: 'transform 0.2s ease',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                padding: '30px 10px'
+              }}
+            >
+              <svg
+                id="notivexa-mindmap-svg"
+                width="880"
+                height={Math.max(480, filteredBranches.length * 90 + 100)}
+                viewBox={`0 0 880 ${Math.max(480, filteredBranches.length * 90 + 100)}`}
+                style={{ overflow: 'visible', maxWidth: '100%' }}
+              >
+                {/* Central Root Node */}
+                <g transform="translate(440, 60)">
+                  <rect
+                    x="-140"
+                    y="-24"
+                    width="280"
+                    height="48"
+                    rx="24"
+                    fill="#059669"
+                    stroke="#047857"
+                    strokeWidth="3"
+                    filter="drop-shadow(0 4px 10px rgba(5,150,105,0.25))"
+                  />
+                  <text
+                    x="0"
+                    y="6"
+                    textAnchor="middle"
+                    fill="#FFFFFF"
+                    fontFamily="Sora, sans-serif"
+                    fontSize="13.5"
+                    fontWeight="800"
+                  >
+                    {(mm.central || doc?.title || 'Mind Map').slice(0, 32)}
+                  </text>
+                </g>
+
+                {/* Branches */}
+                {filteredBranches.map((b, idx) => {
+                  const isLeft = idx % 2 === 0
+                  const yPos = 140 + Math.floor(idx / 2) * 110
+                  const xTarget = isLeft ? 190 : 690
+                  const branchColor = b.color || '#059669'
+
+                  // Connecting bezier curve
+                  const pathD = `M 440 60 C 440 ${yPos}, ${xTarget} 60, ${xTarget} ${yPos}`
+
+                  return (
+                    <g key={idx}>
+                      <path
+                        d={pathD}
+                        fill="none"
+                        stroke={branchColor}
+                        strokeWidth="2.5"
+                        opacity="0.85"
+                      />
+                      {/* Branch Box */}
+                      <g transform={`translate(${xTarget}, ${yPos})`}>
+                        <rect
+                          x={isLeft ? "-170" : "-170"}
+                          y="-20"
+                          width="340"
+                          height="40"
+                          rx="10"
+                          fill="#FFFFFF"
+                          stroke={branchColor}
+                          strokeWidth="2"
+                          filter="drop-shadow(0 2px 6px rgba(0,0,0,0.06))"
+                        />
+                        <circle cx={isLeft ? "-150" : "-150"} cy="0" r="6" fill={branchColor} />
+                        <text
+                          x={isLeft ? "-135" : "-135"}
+                          y="5"
+                          textAnchor="start"
+                          fill="#061C14"
+                          fontFamily="Inter, sans-serif"
+                          fontSize="12.5"
+                          fontWeight="700"
+                        >
+                          {(b.topic || `Topic ${idx + 1}`).slice(0, 36)}
+                        </text>
+                      </g>
+                    </g>
+                  )
+                })}
+              </svg>
+            </div>
+          </div>
+
+          {/* Detailed Branch Cards Grid */}
+          <div style={{ marginTop: 20 }}>
+            <h4 style={{ fontFamily: 'Sora, sans-serif', fontSize: 13.5, fontWeight: 700, color: 'var(--ink)', marginBottom: 12 }}>
+              🌿 Systematic Mind Map Breakdown:
+            </h4>
+            <div className="g2">
+              {filteredBranches.map((b, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: 'var(--card)',
+                    border: `1.5px solid ${b.color || 'var(--bdr)'}`,
+                    borderRadius: 12,
+                    padding: 16,
+                    boxShadow: 'var(--sh)'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: b.color || 'var(--brand)' }} />
+                    <span style={{ fontFamily: 'Sora, sans-serif', fontSize: 13.5, fontWeight: 700, color: b.color || 'var(--brand)' }}>
+                      {b.topic}
+                    </span>
+                  </div>
+                  {b.summary && (
+                    <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 10, fontStyle: 'italic' }}>
+                      {b.summary}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(b.subtopics || []).map((st, j) => {
+                      const isObj = typeof st === 'object' && st !== null
+                      const title = isObj ? st.title : String(st)
+                      const details = isObj && Array.isArray(st.details) ? st.details : []
+
+                      return (
+                        <div
+                          key={j}
+                          style={{
+                            background: 'var(--bg)',
+                            borderLeft: `3px solid ${b.color || 'var(--brand)'}`,
+                            borderRadius: '0 8px 8px 0',
+                            padding: '8px 12px'
+                          }}
+                        >
+                          <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ink)' }}>
+                            → {title}
+                          </div>
+                          {details.length > 0 && (
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+                              {details.map((d, di) => (
+                                <span
+                                  key={di}
+                                  style={{
+                                    fontSize: 10.5,
+                                    background: 'var(--card)',
+                                    border: '1px solid var(--bdr2)',
+                                    padding: '1px 6px',
+                                    borderRadius: 6,
+                                    color: 'var(--ink2)'
+                                  }}
+                                >
+                                  • {d}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )
     }
 
     if (t === 'vocabulary') {
-      const vocab = data.vocabulary || []
+      const vocab = Array.isArray(data.vocabulary) ? data.vocabulary : []
+      const filteredVocab = vocabSearch
+        ? vocab.filter(v => (v.word || '').toLowerCase().includes(vocabSearch.toLowerCase()) || 
+            (v.meaning || '').toLowerCase().includes(vocabSearch.toLowerCase()) ||
+            (v.explanation || '').toLowerCase().includes(vocabSearch.toLowerCase()))
+        : vocab
+
+      const curCard = filteredVocab[vocabCardIndex] || filteredVocab[0]
+      const isCurMastered = curCard && masteredVocab[curCard.word]
+
       return (
         <div>
-          {vocab.map((v,i) => (
-            <div key={i} style={{ borderBottom:'1px solid var(--bdr)', paddingBottom:11, marginBottom:11 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
-                <span style={{ fontWeight:700, fontSize:14 }}>{v.word}</span>
-                {v.hindi&&v.hindi!=='—'&&<span style={{ background:'#EDE9FE', color:'#5B21B6', fontSize:12, padding:'2px 9px', borderRadius:20, fontWeight:600 }}>{v.hindi}</span>}
-                {v.formula&&<span style={{ background:'#FEF9C3', color:'#854D0E', fontSize:12, padding:'2px 9px', borderRadius:20, fontWeight:600, fontFamily:'monospace' }}>{v.formula}</span>}
+          {/* Toolbar */}
+          <div style={{ background:'var(--card)', border:'1.5px solid var(--bdr)', borderRadius:12, padding:'12px 16px', marginBottom:16 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:18 }}>🔤</span>
+                <div>
+                  <div style={{ fontFamily:'Sora,sans-serif', fontSize:13.5, fontWeight:700, color:'var(--ink)' }}>
+                    7-Field Academic Vocabulary Explorer
+                  </div>
+                  <div style={{ fontSize:11.5, color:'var(--ink3)' }}>
+                    {vocab.length} key technical terms extracted · {Object.keys(masteredVocab).length} mastered
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize:13, color:'var(--ink2)', lineHeight:1.65 }}>{v.definition}</div>
-              {v.example&&<div style={{ fontSize:12, color:'var(--brand)', marginTop:4, fontStyle:'italic' }}>💡 Example: {v.example}</div>}
-              {v.context&&<div style={{ fontSize:12, color:'var(--grn)', marginTop:3 }}>📚 Exam: {v.context}</div>}
+
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <input
+                  className="fi"
+                  style={{ width:180, padding:'5px 10px', fontSize:12 }}
+                  placeholder="🔍 Search vocabulary..."
+                  value={vocabSearch}
+                  onChange={e => setVocabSearch(e.target.value)}
+                />
+
+                <div style={{ display:'flex', gap:4 }}>
+                  <button
+                    className="btn btn-sm"
+                    style={{
+                      background: vocabStudyMode === 'cards' ? 'var(--brand)' : 'var(--bg2)',
+                      color: vocabStudyMode === 'cards' ? '#fff' : 'var(--ink2)',
+                      fontSize: 11.5,
+                      fontWeight: 700
+                    }}
+                    onClick={() => setVocabStudyMode('cards')}
+                  >
+                    📚 Cards View
+                  </button>
+                  <button
+                    className="btn btn-sm"
+                    style={{
+                      background: vocabStudyMode === 'test' ? 'var(--brand)' : 'var(--bg2)',
+                      color: vocabStudyMode === 'test' ? '#fff' : 'var(--ink2)',
+                      fontSize: 11.5,
+                      fontWeight: 700
+                    }}
+                    onClick={() => {
+                      setVocabStudyMode('test')
+                      setVocabFlipped(false)
+                    }}
+                  >
+                    🃏 Test My Vocabulary
+                  </button>
+                </div>
+              </div>
             </div>
-          ))}
+          </div>
+
+          {/* Test My Vocabulary Flip Study Mode */}
+          {vocabStudyMode === 'test' && curCard ? (
+            <div style={{ maxWidth: 640, margin: '0 auto 20px', textAlign: 'center' }}>
+              <div style={{ fontSize: 12, color: 'var(--ink3)', marginBottom: 8 }}>
+                Card {vocabCardIndex + 1} of {filteredVocab.length} · Tap card to flip
+              </div>
+
+              <div
+                onClick={() => setVocabFlipped(f => !f)}
+                style={{
+                  minHeight: 280,
+                  background: 'var(--card)',
+                  border: `2px solid ${isCurMastered ? '#059669' : 'var(--bdr2)'}`,
+                  borderRadius: 16,
+                  padding: 28,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  boxShadow: '0 8px 30px rgba(0,0,0,0.08)',
+                  transition: 'all 0.2s',
+                  position: 'relative'
+                }}
+              >
+                {isCurMastered && (
+                  <span style={{ position: 'absolute', top: 12, right: 12, fontSize: 11, background: '#DCFCE7', color: '#166534', padding: '2px 8px', borderRadius: 10, fontWeight: 700 }}>
+                    ✓ Mastered
+                  </span>
+                )}
+
+                {!vocabFlipped ? (
+                  <div>
+                    <span style={{ fontSize: 11, background: 'rgba(5,150,105,0.1)', color: 'var(--brand)', padding: '3px 10px', borderRadius: 12, fontWeight: 700, textTransform: 'uppercase' }}>
+                      {curCard.chapter || 'Academic Term'}
+                    </span>
+                    <h2 style={{ fontFamily: 'Sora, sans-serif', fontSize: 26, fontWeight: 800, color: 'var(--ink)', margin: '14px 0 8px' }}>
+                      {curCard.word}
+                    </h2>
+                    {curCard.hindi && curCard.hindi !== '—' && (
+                      <div style={{ fontSize: 14, color: 'var(--brand)', fontWeight: 600 }}>
+                        {curCard.hindi}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: 'var(--ink3)', marginTop: 18 }}>
+                      🔄 Click to flip &amp; check explanation
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'left', width: '100%' }}>
+                    <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 18, fontWeight: 700, color: 'var(--brand)', marginBottom: 8 }}>
+                      {curCard.word}
+                    </div>
+                    <div style={{ fontSize: 13.5, color: 'var(--ink)', lineHeight: 1.6, marginBottom: 12 }}>
+                      <strong>Formal Definition:</strong> {curCard.meaning}
+                    </div>
+                    {curCard.explanation && (
+                      <div style={{ fontSize: 13, color: 'var(--ink2)', background: 'var(--bg)', padding: '8px 12px', borderRadius: 8, marginBottom: 10 }}>
+                        💡 <strong>In Plain English:</strong> {curCard.explanation}
+                      </div>
+                    )}
+                    {curCard.example && (
+                      <div style={{ fontSize: 12.5, color: 'var(--brand2)', fontStyle: 'italic', marginBottom: 8 }}>
+                        📍 Example: {curCard.example}
+                      </div>
+                    )}
+                    {curCard.context && (
+                      <div style={{ fontSize: 12, color: 'var(--grn)' }}>
+                        🎓 Exam Focus: {curCard.context}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Card Controls */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 14 }}>
+                <button
+                  className="btn btn-g btn-sm"
+                  disabled={vocabCardIndex === 0}
+                  onClick={() => {
+                    setVocabCardIndex(i => Math.max(0, i - 1))
+                    setVocabFlipped(false)
+                  }}
+                >
+                  ← Prev
+                </button>
+                <button
+                  className="btn btn-sm"
+                  style={{
+                    background: isCurMastered ? '#FEE2E2' : '#DCFCE7',
+                    color: isCurMastered ? '#991B1B' : '#166534',
+                    border: 'none',
+                    fontWeight: 700
+                  }}
+                  onClick={() => {
+                    setMasteredVocab(p => ({ ...p, [curCard.word]: !p[curCard.word] }))
+                  }}
+                >
+                  {isCurMastered ? '⚠️ Mark for Review' : '✅ Mastered'}
+                </button>
+                <button
+                  className="btn btn-g btn-sm"
+                  disabled={vocabCardIndex === filteredVocab.length - 1}
+                  onClick={() => {
+                    setVocabCardIndex(i => Math.min(filteredVocab.length - 1, i + 1))
+                    setVocabFlipped(false)
+                  }}
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Cards View */
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 14 }}>
+              {filteredVocab.map((v, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: 'var(--card)',
+                    border: '1.5px solid var(--bdr)',
+                    borderRadius: 12,
+                    padding: 16,
+                    boxShadow: 'var(--sh)',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                    <div style={{ fontFamily: 'Sora, sans-serif', fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>
+                      {v.word}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {v.hindi && v.hindi !== '—' && (
+                        <span style={{ background: '#ECFDF5', color: '#065F46', fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600 }}>
+                          {v.hindi}
+                        </span>
+                      )}
+                      {v.pageReference && (
+                        <span style={{ background: 'var(--bg2)', color: 'var(--ink3)', fontSize: 10.5, padding: '2px 6px', borderRadius: 6, fontWeight: 600 }}>
+                          {v.pageReference}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ fontSize: 13, color: 'var(--ink)', lineHeight: 1.5, marginBottom: 10 }}>
+                    {v.meaning || v.definition}
+                  </div>
+
+                  {v.explanation && (
+                    <div style={{ fontSize: 12.5, color: 'var(--ink2)', background: 'var(--bg)', padding: '6px 10px', borderRadius: 8, marginBottom: 8 }}>
+                      💡 {v.explanation}
+                    </div>
+                  )}
+
+                  {v.example && (
+                    <div style={{ fontSize: 12, color: 'var(--brand)', fontStyle: 'italic', marginBottom: 6 }}>
+                      📍 {v.example}
+                    </div>
+                  )}
+
+                  {v.context && (
+                    <div style={{ fontSize: 11.5, color: 'var(--grn)', marginTop: 'auto', paddingTop: 6, borderTop: '1px solid var(--bdr)' }}>
+                      🎓 {v.context}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )
     }
@@ -3243,27 +4283,278 @@ export default function Notebook() {
           </div>
         </div>
 
+        {/* Study Notes Modes */}
+        {tool === 'notes' && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="ch">
+              <div className="ct">📖 Academic Notes Structure</div>
+              <span className="bn">14-Point Standard</span>
+            </div>
+            <div className="cb">
+              <div className="fg">
+                <label className="fl">Study Mode</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 6 }}>
+                  {[
+                    { id: 'detailed', title: 'Comprehensive', desc: '14-Point University Standard', icon: '🎓' },
+                    { id: 'revision', title: 'Quick Revision', desc: 'Bullet points & formula sheets', icon: '⚡' },
+                    { id: 'exam', title: 'Exam Master', desc: 'High-yield points & viva questions', icon: '🎯' },
+                    { id: 'topic', title: 'Focused Topic', desc: 'Deep dive into single concept', icon: '🔍' }
+                  ].map(m => (
+                    <div
+                      key={m.id}
+                      onClick={() => setNotesMode(m.id)}
+                      style={{
+                        border: '2px solid ' + (notesMode === m.id ? 'var(--brand)' : 'var(--bdr2)'),
+                        borderRadius: 10,
+                        padding: '10px 8px',
+                        cursor: 'pointer',
+                        background: notesMode === m.id ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                        textAlign: 'center'
+                      }}
+                    >
+                      <div style={{ fontSize: 18, marginBottom: 2 }}>{m.icon}</div>
+                      <div style={{ fontWeight: 700, fontSize: 12, color: notesMode === m.id ? 'var(--brand)' : 'var(--ink)' }}>
+                        {m.title}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>{m.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {notesMode === 'topic' && (
+                <div className="fg">
+                  <label className="fl">Specific Topic / Chapter Filter</label>
+                  <input
+                    className="fi"
+                    placeholder="e.g. MapReduce Architecture or Chapter 3"
+                    value={topicFilter}
+                    onChange={e => setTopicFilter(e.target.value)}
+                    style={{ fontSize: 12.5 }}
+                  />
+                </div>
+              )}
+
+              <div style={{ background: 'var(--bg)', borderRadius: 9, padding: '10px 12px', fontSize: 12, color: 'var(--ink3)', lineHeight: 1.6 }}>
+                <strong style={{ color: 'var(--brand)' }}>✓ University Quality:</strong> Preserves exact source citations [Page X], structured definitions, algorithms, tables, and examination points.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Summary Modes */}
+        {tool === 'summary' && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="ch">
+              <div className="ct">📋 Academic Summary Settings</div>
+            </div>
+            <div className="cb">
+              <div className="fg">
+                <label className="fl">Summary Type</label>
+                <div className="g2" style={{ marginTop: 6 }}>
+                  <div
+                    onClick={() => setSummaryMode('academic')}
+                    style={{
+                      border: '2px solid ' + (summaryMode === 'academic' ? 'var(--brand)' : 'var(--bdr2)'),
+                      borderRadius: 10,
+                      padding: 10,
+                      cursor: 'pointer',
+                      background: summaryMode === 'academic' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ fontSize: 18, marginBottom: 2 }}>🏛️</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: summaryMode === 'academic' ? 'var(--brand)' : 'var(--ink)' }}>
+                      Mode A: Full Academic
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>
+                      Methodology, findings, core theorems & chapter synthesis
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setSummaryMode('concise')}
+                    style={{
+                      border: '2px solid ' + (summaryMode === 'concise' ? 'var(--brand)' : 'var(--bdr2)'),
+                      borderRadius: 10,
+                      padding: 10,
+                      cursor: 'pointer',
+                      background: summaryMode === 'concise' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ fontSize: 18, marginBottom: 2 }}>⚡</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: summaryMode === 'concise' ? 'var(--brand)' : 'var(--ink)' }}>
+                      Mode B: High-Yield
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>
+                      Key takeaways, formulas, bullet points & takeaways
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="fg">
+                <label className="fl">Summary Length</label>
+                <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                  {[
+                    { id: 'short', label: 'Short (~300w)' },
+                    { id: 'medium', label: 'Medium (~750w)' },
+                    { id: 'detailed', label: 'Detailed (~1500w)' }
+                  ].map(len => (
+                    <div
+                      key={len.id}
+                      onClick={() => setSummaryLength(len.id)}
+                      className={'lp' + (summaryLength === len.id ? ' on' : '')}
+                      style={{ flex: 1, textAlign: 'center', fontSize: 11.5 }}
+                    >
+                      {len.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Practice Q&A Settings */}
+        {tool === 'questions' && (
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="ch">
+              <div className="ct">❓ Assessment & Practice Simulator</div>
+              <span className="bn">Bloom's Taxonomy</span>
+            </div>
+            <div className="cb">
+              <div className="fg">
+                <label className="fl">Assessment Delivery Mode</label>
+                <div className="g2" style={{ marginTop: 6 }}>
+                  <div
+                    onClick={() => setPracticeMode('simulator')}
+                    style={{
+                      border: '2px solid ' + (practiceMode === 'simulator' ? 'var(--brand)' : 'var(--bdr2)'),
+                      borderRadius: 10,
+                      padding: 10,
+                      cursor: 'pointer',
+                      background: practiceMode === 'simulator' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ fontSize: 18, marginBottom: 2 }}>🎯</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: practiceMode === 'simulator' ? 'var(--brand)' : 'var(--ink)' }}>
+                      Interactive Simulator
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>
+                      Timed practice, instant citations & scorecard
+                    </div>
+                  </div>
+
+                  <div
+                    onClick={() => setPracticeMode('list')}
+                    style={{
+                      border: '2px solid ' + (practiceMode === 'list' ? 'var(--brand)' : 'var(--bdr2)'),
+                      borderRadius: 10,
+                      padding: 10,
+                      cursor: 'pointer',
+                      background: practiceMode === 'list' ? 'rgba(5, 150, 105, 0.08)' : 'var(--bg)',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <div style={{ fontSize: 18, marginBottom: 2 }}>📋</div>
+                    <div style={{ fontWeight: 700, fontSize: 12, color: practiceMode === 'list' ? 'var(--brand)' : 'var(--ink)' }}>
+                      Question Bank
+                    </div>
+                    <div style={{ fontSize: 10, color: 'var(--ink3)', marginTop: 2 }}>
+                      Full printable list with short & long answers
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {practiceMode === 'simulator' && (
+                <>
+                  <div className="fg">
+                    <label className="fl">Number of Questions: {practiceCount}</label>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      {[10, 15, 20, 30, 50].map(cnt => (
+                        <div
+                          key={cnt}
+                          onClick={() => setPracticeCount(cnt)}
+                          className={'lp' + (practiceCount === cnt ? ' on' : '')}
+                          style={{ flex: 1, textAlign: 'center', fontSize: 11.5 }}
+                        >
+                          {cnt} Qs
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="fg">
+                    <label className="fl">Cognitive Difficulty</label>
+                    <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                      {[
+                        { id: 'mixed', label: 'Balanced' },
+                        { id: 'easy', label: 'Easy (L1-L2)' },
+                        { id: 'medium', label: 'Medium (L3-L4)' },
+                        { id: 'hard', label: 'Hard (L5-L6)' }
+                      ].map(d => (
+                        <div
+                          key={d.id}
+                          onClick={() => setPracticeDifficulty(d.id)}
+                          className={'lp' + (practiceDifficulty === d.id ? ' on' : '')}
+                          style={{ flex: 1, textAlign: 'center', fontSize: 11 }}
+                        >
+                          {d.label}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Question paper settings */}
         {tool === 'paper' && (
           <div className="card" style={{ marginBottom:16 }}>
-            <div className="ch"><div className="ct">📄 Paper Settings</div></div>
+            <div className="ch"><div className="ct">📄 University Question Paper Settings</div></div>
             <div className="cb">
+              {/* Total Marks Selector */}
+              <div className="fg">
+                <label className="fl">Total University Marks: {customMarks} Marks</label>
+                <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginTop: 6 }}>
+                  {[20, 25, 30, 40, 50, 60, 75, 80, 100].map(m => (
+                    <div
+                      key={m}
+                      onClick={() => {
+                        setCustomMarks(m)
+                        setPaperType(m >= 60 ? '60_MARKS' : '20_MARKS')
+                      }}
+                      className={'lp' + (customMarks === m ? ' on' : '')}
+                      style={{ padding: '6px 10px', fontSize: 12, fontWeight: 700 }}
+                    >
+                      {m}M
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               {/* Paper Type */}
               <div className="fg">
-                <label className="fl">Exam Type</label>
+                <label className="fl">Exam Blueprint</label>
                 <div className="g2" style={{ marginTop:6 }}>
-                  <div onClick={()=>setPaperType('20_MARKS')}
-                    style={{ border:'2px solid '+(paperType==='20_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='20_MARKS'?'rgba(79,70,229,0.06)':'var(--bg)', textAlign:'center' }}>
+                  <div onClick={()=>{ setPaperType('20_MARKS'); setCustomMarks(20) }}
+                    style={{ border:'2px solid '+(paperType==='20_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='20_MARKS'?'rgba(5, 150, 105, 0.08)':'var(--bg)', textAlign:'center' }}>
                     <div style={{ fontSize:20, marginBottom:4 }}>📝</div>
-                    <div style={{ fontWeight:700, fontSize:13, color:paperType==='20_MARKS'?'var(--brand)':'var(--ink)' }}>20 Marks</div>
-                    <div style={{ fontSize:11, color:'var(--ink3)', marginTop:2 }}>Internal · 1 Hour<br/>MCQ + Short Answers</div>
+                    <div style={{ fontWeight:700, fontSize:13, color:paperType==='20_MARKS'?'var(--brand)':'var(--ink)' }}>Internal Assessment</div>
+                    <div style={{ fontSize:11, color:'var(--ink3)', marginTop:2 }}>Unit Tests · 1 Hour<br/>Compulsory + Short Answers</div>
                     {paperType==='20_MARKS' && <div style={{ fontSize:10, color:'var(--brand)', fontWeight:700, marginTop:4 }}>✓ Selected</div>}
                   </div>
-                  <div onClick={()=>setPaperType('60_MARKS')}
-                    style={{ border:'2px solid '+(paperType==='60_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='60_MARKS'?'rgba(79,70,229,0.06)':'var(--bg)', textAlign:'center' }}>
+                  <div onClick={()=>{ setPaperType('60_MARKS'); setCustomMarks(60) }}
+                    style={{ border:'2px solid '+(paperType==='60_MARKS'?'var(--brand)':'var(--bdr2)'), borderRadius:10, padding:'12px', cursor:'pointer', background:paperType==='60_MARKS'?'rgba(5, 150, 105, 0.08)':'var(--bg)', textAlign:'center' }}>
                     <div style={{ fontSize:20, marginBottom:4 }}>📋</div>
-                    <div style={{ fontWeight:700, fontSize:13, color:paperType==='60_MARKS'?'var(--brand)':'var(--ink)' }}>60 Marks</div>
-                    <div style={{ fontSize:11, color:'var(--ink3)', marginTop:2 }}>End Sem · 2 Hours<br/>Q1 + Any 3 from Q2–Q6</div>
+                    <div style={{ fontWeight:700, fontSize:13, color:paperType==='60_MARKS'?'var(--brand)':'var(--ink)' }}>End Semester Exam</div>
+                    <div style={{ fontSize:11, color:'var(--ink3)', marginTop:2 }}>Autonomous · 2–3 Hours<br/>Q1 + Choice Sections</div>
                     {paperType==='60_MARKS' && <div style={{ fontSize:10, color:'var(--brand)', fontWeight:700, marginTop:4 }}>✓ Selected</div>}
                   </div>
                 </div>
