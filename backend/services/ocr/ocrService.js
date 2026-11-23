@@ -302,10 +302,13 @@ class OcrWorkerPool {
       const elapsed = Date.now() - startTime;
 
       // Diagnostic check: if low confidence or sparse text, retry with script-tuned preprocessing
-      if (retryOnLowConfidence && (confidence < 60 || wordCount < 5) && Buffer.isBuffer(image)) {
+      const imgBufForRetry = Buffer.isBuffer(image)
+        ? image
+        : (typeof image === 'string' && fs.existsSync(image) ? fs.readFileSync(image) : null);
+      if (retryOnLowConfidence && (confidence < 60 || wordCount < 5) && imgBufForRetry) {
         console.warn(`[OCR Pool ⚠️] Low confidence (${confidence}%) or sparse text (${wordCount} words). Retrying with enhanced preprocessing...`);
         try {
-          const preprocessed = await preprocessImage(image, {
+          const preprocessed = await preprocessImage(imgBufForRetry, {
             level: 'aggressive',
             script: options.script
           });

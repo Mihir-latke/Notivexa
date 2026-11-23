@@ -182,9 +182,27 @@ exports.upload = async (req, res, next) => {
             extractImagesFromPDF(file.path, docId).then(imgs => {
               if (imgs.length > 0) {
                 const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
-                localStore.updateDoc(docId, { imagePaths: relPaths }, userId);
+                const diagrams = imgs.slice(0, 8).map(i => ({ page: i.page, fileName: i.fileName, base64: i.base64 })).filter(d => d.base64);
+                localStore.updateDoc(docId, { imagePaths: relPaths, diagrams }, userId);
               }
             }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
+          } else if (isImage) {
+            try {
+              const docId = (doc._id || doc.id).toString();
+              const extDir = path.join(__dirname, '../uploads/images/extracted', docId);
+              fs.mkdirSync(extDir, { recursive: true });
+              const safeName = 'image_1' + (path.extname(file.originalname) || '.png');
+              const targetPath = path.join(extDir, safeName);
+              if (fs.existsSync(file.path)) {
+                fs.copyFileSync(file.path, targetPath);
+                const buf = fs.readFileSync(file.path);
+                const relPath = `uploads/images/extracted/${docId}/${safeName}`;
+                const diagrams = [{ page: 1, fileName: safeName, base64: buf.toString('base64') }];
+                localStore.updateDoc(docId, { imagePaths: [relPath], diagrams }, userId);
+              }
+            } catch (err) {
+              console.warn('[Image Save Local]', err.message);
+            }
           }
 
           results.push({ doc, ok: true });
@@ -281,13 +299,33 @@ exports.upload = async (req, res, next) => {
           extractImagesFromPDF(file.path, docId).then(async imgs => {
             if (imgs.length > 0) {
               const relPaths = imgs.map(i => `uploads/images/extracted/${docId}/${i.fileName}`);
+              const diagrams = imgs.slice(0, 8).map(i => ({ page: i.page, fileName: i.fileName, base64: i.base64 })).filter(d => d.base64);
               try {
-                await Document.findByIdAndUpdate(doc._id, { imagePaths: relPaths });
+                await Document.findByIdAndUpdate(doc._id, { imagePaths: relPaths, diagrams });
               } catch (e) {
                 console.warn('[ImgExtract] DB update failed:', e.message);
               }
             }
           }).catch(e => console.warn('[ImgExtract] Background extraction failed:', e.message));
+        } else if (isImage) {
+          try {
+            const docId = doc._id.toString();
+            const extDir = path.join(__dirname, '../uploads/images/extracted', docId);
+            fs.mkdirSync(extDir, { recursive: true });
+            const safeName = 'image_1' + (path.extname(file.originalname) || '.png');
+            const targetPath = path.join(extDir, safeName);
+            if (fs.existsSync(file.path)) {
+              fs.copyFileSync(file.path, targetPath);
+              const buf = fs.readFileSync(file.path);
+              const relPath = `uploads/images/extracted/${docId}/${safeName}`;
+              const diagrams = [{ page: 1, fileName: safeName, base64: buf.toString('base64') }];
+              doc.imagePaths = [relPath];
+              doc.diagrams = diagrams;
+              await Document.findByIdAndUpdate(doc._id, { imagePaths: [relPath], diagrams });
+            }
+          } catch (err) {
+            console.warn('[Image Save Mongo]', err.message);
+          }
         }
 
         results.push({ doc, ok: true });

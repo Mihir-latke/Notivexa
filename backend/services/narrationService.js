@@ -7,11 +7,11 @@
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const ffmpeg = require('fluent-ffmpeg');
 const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+const { getFfmpegPath } = require('./mediaProbe');
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+ffmpeg.setFfmpegPath(getFfmpegPath());
 
 const AUDIO_DIR = path.join(__dirname, '../uploads/audio');
 fs.mkdirSync(AUDIO_DIR, { recursive: true });

@@ -8,8 +8,10 @@ const ensureDir = () => fs.mkdirSync(OUT, { recursive: true });
 
 function resolveLocalPath(p) {
   if (!p || typeof p !== 'string') return null;
-  if (fs.existsSync(p)) return p;
-  const norm = p.replace(/\\/g, '/');
+  let clean = p.split('?')[0].split('#')[0].trim();
+  try { clean = decodeURIComponent(clean); } catch {}
+  if (fs.existsSync(clean)) return clean;
+  const norm = clean.replace(/\\/g, '/');
   const idx = norm.indexOf('uploads/');
   if (idx !== -1) {
     const rel = norm.slice(idx);
@@ -201,12 +203,14 @@ async function notesPDF(content, { title='Notes', subject='General', imagePaths=
       }
 
       // Markdown image tag: ![Figure 1: Diagram from Document](/uploads/images/extracted/...)
-      const imgMatch = line.match(/^!\[(.*?)\]\((.*?)\)/);
+      const imgMatch = line.trim().match(/!\[(.*?)\]\((.*?)\)/);
       if (imgMatch) {
         const caption = imgMatch[1];
-        const imgUrl = imgMatch[2];
-        const localImg = resolveLocalPath(imgUrl) || 
-          (imgUrl.startsWith('/') ? path.join(__dirname, '..', imgUrl.slice(1)) : path.join(__dirname, '..', imgUrl));
+        let rawUrl = imgMatch[2];
+        let cleanUrl = rawUrl.split('?')[0].split('#')[0].trim();
+        try { cleanUrl = decodeURIComponent(cleanUrl); } catch {}
+        const localImg = resolveLocalPath(cleanUrl) || 
+          (cleanUrl.startsWith('/') ? path.join(__dirname, '..', cleanUrl.slice(1)) : path.join(__dirname, '..', cleanUrl));
         if (localImg && fs.existsSync(localImg)) {
           ensureSpace(230);
           try {
@@ -774,13 +778,15 @@ async function handwrittenPDF(content, { title='Notes', subject='General', style
       const upper = t.toUpperCase();
 
       // Markdown image tag: ![Figure 1: Diagram from Document](/uploads/images/extracted/...)
-      const imgMatch = t.match(/^!\[(.*?)\]\((.*?)\)/);
+      const imgMatch = t.match(/!\[(.*?)\]\((.*?)\)/);
       if (imgMatch) {
         flushMode();
         const caption = imgMatch[1];
-        const imgUrl = imgMatch[2];
-        const localImg = resolveLocalPath(imgUrl) || 
-          (imgUrl.startsWith('/') ? path.join(__dirname, '..', imgUrl.slice(1)) : path.join(__dirname, '..', imgUrl));
+        let rawUrl = imgMatch[2];
+        let cleanUrl = rawUrl.split('?')[0].split('#')[0].trim();
+        try { cleanUrl = decodeURIComponent(cleanUrl); } catch {}
+        const localImg = resolveLocalPath(cleanUrl) || 
+          (cleanUrl.startsWith('/') ? path.join(__dirname, '..', cleanUrl.slice(1)) : path.join(__dirname, '..', cleanUrl));
         if (localImg && fs.existsSync(localImg)) {
           drawDocumentImage(localImg, caption);
           const fn = path.basename(localImg);

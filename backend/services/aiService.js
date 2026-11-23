@@ -94,12 +94,12 @@ async function callAI(systemPrompt, userPrompt, maxTokens = 3000) {
 async function callGemini(system, user, maxTokens) {
   const key = process.env.GEMINI_API_KEY;
   const models = [
-    'gemini-3.5-flash-lite',
-    'gemini-3.5-flash',
-    'gemini-3.1-flash-lite',
-    'gemini-flash-lite-latest',
-    'gemini-3.8-flash',
-    'gemini-2.5-flash'
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.5-flash-lite',
+    'gemini-flash-latest',
+    'gemini-1.5-pro'
   ];
   let lastErr;
   for (const model of models) {
@@ -1382,8 +1382,8 @@ async function generateAudio(script, opts = {}) {
 
     await new Promise((res, rej) => {
       const timer = setTimeout(() => {
-        rej(new Error('Edge TTS WebSocket timeout (3.5s limit reached, fast fallback)'));
-      }, 3500);
+        rej(new Error('Edge TTS WebSocket timeout (10s limit reached, fast fallback)'));
+      }, 10000);
 
       try {
         const streamObj = tts.toStream(speakText);

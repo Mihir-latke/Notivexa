@@ -151,6 +151,14 @@ app.get('/uploads/images/extracted/:docId/:fileName', authenticateMediaRequest, 
         return res.sendFile(targetPath);
       }
     }
+
+    if (doc.filePath && fs.existsSync(doc.filePath) && doc.fileType === 'image') {
+      fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+      fs.copyFileSync(doc.filePath, targetPath);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-transform, max-age=3600');
+      return res.sendFile(targetPath);
+    }
   } catch (err) {
     console.warn('[Diagram Static Restore Error]', err.message);
   }

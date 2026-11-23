@@ -7,20 +7,27 @@
  * 2. A scanned PDF page fails local OCR or contains complex diagrams/handwriting.
  * 3. A user manually requests re-extraction/enhancement via AI Vision.
  * 
- * Powered by Google Gemini Vision (Flash 3.5 / 3.1 / Flash-Lite).
+ * Powered by Google Gemini Vision (Flash 2.5 / 1.5 / Flash-Lite) with Groq Vision fallback.
  */
 
+require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const axios = require('axios');
 const { detectTextLanguage } = require('./languageDetectionService');
 
 const GEMINI_VISION_MODELS = [
-  'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
-  'gemini-3.1-flash-lite',
-  'gemini-flash-lite-latest',
-  'gemini-3.8-flash'
+  'gemini-2.5-flash',
+  'gemini-1.5-flash',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
+  'gemini-1.5-pro'
+];
+
+const GROQ_VISION_MODELS = [
+  'llama-3.2-11b-vision-preview',
+  'llama-3.2-90b-vision-preview'
 ];
 
 /**
@@ -104,10 +111,6 @@ function parseTextIntoSections(fullText, defaultTitle = 'Overview & Concept Anal
  */
 async function extractWithGeminiVision(imageInput, mimeType = null, options = {}) {
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey || apiKey.startsWith('your_')) {
-    console.warn('[Gemini Vision] No GEMINI_API_KEY configured in environment.');
-    return null;
-  }
 
   let buffer;
   let detectedMime = mimeType;
@@ -155,7 +158,8 @@ Instructions:
 
   let lastError = null;
 
-  for (const model of GEMINI_VISION_MODELS) {
+  if (apiKey && !apiKey.startsWith('your_')) {
+    for (const model of GEMINI_VISION_MODELS) {
     try {
       console.log(`[Gemini Vision 👁️] Invoking ${model} for image: ${filename} (${(buffer.length / 1024).toFixed(1)} KB, ${detectedMime})...`);
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
@@ -227,8 +231,76 @@ Instructions:
       }
     }
   }
+  }
 
-  console.error('[Gemini Vision ❌] All Gemini Vision models exhausted or failed:', lastError?.message);
+  if (lastError) {
+    console.error('[Gemini Vision ❌] All Gemini Vision models exhausted or failed:', lastError?.message);
+  }
+
+  // Groq Vision fallback (e.g. when Gemini hits daily quota or is unconfigured)
+  const groqKey = process.env.GROQ_API_KEY;
+  if (groqKey && !groqKey.startsWith('your_')) {
+    console.log('[Groq Vision 👁️] Attempting Groq Vision multimodal OCR fallback...');
+    for (const groqModel of GROQ_VISION_MODELS) {
+      try {
+        const groqRes = await axios.post(
+          'https://api.groq.com/openai/v1/chat/completions',
+          {
+            model: groqModel,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: `${systemInstruction}\n\n${promptText}` },
+                  {
+                    type: 'image_url',
+                    image_url: {
+                      url: `data:${detectedMime};base64,${base64Data}`
+                    }
+                  }
+                ]
+              }
+            ],
+            temperature: 0.2,
+            max_tokens: 4096
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${groqKey}`
+            },
+            timeout: 45000
+          }
+        );
+
+        const gText = groqRes.data?.choices?.[0]?.message?.content?.trim() || '';
+        if (gText && gText.length > 20) {
+          const words = gText.split(/\s+/).filter(Boolean).length;
+          console.log(`[Groq Vision ✅] ${groqModel} succeeded: transcribed ${words} words!`);
+          const langAnalysis = detectTextLanguage(gText);
+          const sections = parseTextIntoSections(gText, options.subject || 'Key Concepts & Transcribed Notes');
+
+          return {
+            text: gText,
+            words,
+            sections,
+            pages: 1,
+            confidence: 96,
+            method: 'gemini_vision',
+            status: 'ready',
+            provider: `Groq Vision (${groqModel})`,
+            primaryLanguage: langAnalysis.primaryLanguage || 'eng',
+            detectedLanguages: langAnalysis.detectedLanguages || ['eng'],
+            isRTL: !!langAnalysis.isRTL,
+            scripts: langAnalysis.scripts || {}
+          };
+        }
+      } catch (gErr) {
+        console.warn(`[Groq Vision ⚠️] Model ${groqModel} error:`, gErr.response?.data?.error?.message || gErr.message);
+      }
+    }
+  }
+
   return null;
 }
 
@@ -236,6 +308,7 @@ module.exports = {
   resolveImageMimeType,
   parseTextIntoSections,
   extractWithGeminiVision,
-  GEMINI_VISION_MODELS
+  GEMINI_VISION_MODELS,
+  GROQ_VISION_MODELS
 };
 

@@ -109,6 +109,32 @@ async function resolveDocImages(doc) {
     }
   }
 
+  // 5. If doc has filePath to original uploaded image, copy & persist diagram on-the-fly
+  const realImgPath = resolveLocalPath(doc.filePath);
+  if (realImgPath && fs.existsSync(realImgPath) && doc.fileType === 'image') {
+    try {
+      fs.mkdirSync(outDir, { recursive: true });
+      const safeName = 'image_1' + (path.extname(realImgPath) || '.png');
+      const targetPath = path.join(outDir, safeName);
+      if (!fs.existsSync(targetPath)) {
+        fs.copyFileSync(realImgPath, targetPath);
+      }
+      const buf = fs.readFileSync(targetPath);
+      const relPath = `uploads/images/extracted/${docId}/${safeName}`;
+      const diagrams = [{ page: 1, fileName: safeName, base64: buf.toString('base64') }];
+      doc.imagePaths = [relPath];
+      doc.diagrams = diagrams;
+      if (isDbConnected() && doc._id) {
+        try { await Document.findByIdAndUpdate(doc._id, { imagePaths: [relPath], diagrams }); } catch {}
+      } else if (docId) {
+        try { localStore.updateDoc(docId, { imagePaths: [relPath], diagrams }); } catch {}
+      }
+      return [targetPath];
+    } catch (err) {
+      console.warn('[ImgExtract] Image on-the-fly restoration warning:', err.message);
+    }
+  }
+
   return [];
 }
 

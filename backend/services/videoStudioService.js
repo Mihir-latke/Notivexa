@@ -2,8 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const ffmpeg = require('fluent-ffmpeg');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+const { getFfmpegPath } = require('./mediaProbe');
+ffmpeg.setFfmpegPath(getFfmpegPath());
 
 const { callAI, generateAudio } = require('./aiService');
 const { resolveOutputLanguage } = require('./ocr/languageDetectionService');
@@ -467,67 +467,80 @@ Dialogue: 1,0:00:00.00,${formatAssTime(totalDuration)},TopHeader,,0,0,0,,{\\b1}ð
     hasAss = false;
   }
 
-  // 3. Render concatenated video with audio & subtitles
-  return new Promise((resolve, reject) => {
-    console.log(`[VideoStudio] Stitching ${clips.length} clips into final video (${totalDuration}s)...`);
-    let cmd = ffmpeg();
+  // 3. Render concatenated video with audio & subtitles (with fallback if ASS fails on Linux)
+  const renderStitch = (withSubtitles = true) => {
+    return new Promise((resolve, reject) => {
+      console.log(`[VideoStudio] Stitching ${clips.length} clips into final video (${totalDuration}s, subs=${withSubtitles && hasAss})...`);
+      let cmd = ffmpeg();
 
-    // Input 0: Concatenated video clips
-    cmd = cmd
-      .input(concatFile)
-      .inputOptions(['-f', 'concat', '-safe', '0']);
+      // Input 0: Concatenated video clips
+      cmd = cmd
+        .input(concatFile)
+        .inputOptions(['-f', 'concat', '-safe', '0']);
 
-    // Input 1: Narration audio (or synthetic fallback)
-    cmd = cmd.input(narrationAudioPath);
+      // Input 1: Narration audio (or synthetic fallback)
+      cmd = cmd.input(narrationAudioPath);
 
-    const complexFilter = [
-      `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[base_v]`
-    ];
+      const complexFilter = [
+        `[0:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,format=yuv420p[base_v]`
+      ];
 
-    if (hasAss && relAssPath) {
-      complexFilter.push(`[base_v]ass='${relAssPath}'[out_v]`);
-    } else {
-      complexFilter.push(`[base_v]copy[out_v]`);
-    }
+      if (withSubtitles && hasAss && relAssPath) {
+        complexFilter.push(`[base_v]ass='${relAssPath}'[out_v]`);
+      } else {
+        complexFilter.push(`[base_v]copy[out_v]`);
+      }
 
-    cmd
-      .complexFilter(complexFilter.join(';'))
-      .outputOptions([
-        '-map [out_v]',
-        '-map 1:a',
-        '-c:v libx264',
-        '-preset ultrafast',
-        '-crf 24',
-        '-maxrate 2.5M',
-        '-bufsize 5M',
-        '-r 24',
-        '-pix_fmt yuv420p',
-        '-movflags +faststart',
-        '-c:a aac',
-        '-b:a 128k',
-        '-t', String(totalDuration)
-      ])
-      .save(finalVideoPath)
-      .on('end', () => {
-        if (fs.existsSync(concatFile)) fs.unlinkSync(concatFile);
-        if (hasAss && fs.existsSync(assPath)) fs.unlinkSync(assPath);
-        const fileSize = fs.existsSync(finalVideoPath) ? fs.statSync(finalVideoPath).size : 0;
-        console.log(`[VideoStudio] Final video rendered: ${fileName} (${fileSize} bytes)`);
-        resolve({
-          fileName,
-          videoPath: finalVideoPath,
-          videoUrl: `/uploads/video/${fileName}`,
-          fileSize,
-          duration: totalDuration
+      cmd
+        .complexFilter(complexFilter.join(';'))
+        .outputOptions([
+          '-map [out_v]',
+          '-map 1:a',
+          '-c:v libx264',
+          '-preset ultrafast',
+          '-crf 24',
+          '-maxrate 2.5M',
+          '-bufsize 5M',
+          '-r 24',
+          '-pix_fmt yuv420p',
+          '-movflags +faststart',
+          '-c:a aac',
+          '-b:a 128k',
+          '-t', String(totalDuration)
+        ])
+        .save(finalVideoPath)
+        .on('end', () => {
+          if (fs.existsSync(concatFile)) fs.unlinkSync(concatFile);
+          if (hasAss && fs.existsSync(assPath)) fs.unlinkSync(assPath);
+          const fileSize = fs.existsSync(finalVideoPath) ? fs.statSync(finalVideoPath).size : 0;
+          console.log(`[VideoStudio] Final video rendered: ${fileName} (${fileSize} bytes)`);
+          resolve({
+            fileName,
+            videoPath: finalVideoPath,
+            videoUrl: `/uploads/video/${fileName}`,
+            fileSize,
+            duration: totalDuration
+          });
+        })
+        .on('error', (err) => {
+          console.error('[VideoStudio] Stitching error:', err.message);
+          reject(err);
         });
-      })
-      .on('error', (err) => {
-        if (fs.existsSync(concatFile)) fs.unlinkSync(concatFile);
-        if (hasAss && fs.existsSync(assPath)) fs.unlinkSync(assPath);
-        console.error('[VideoStudio] Stitching error:', err.message);
-        reject(err);
-      });
-  });
+    });
+  };
+
+  try {
+    return await renderStitch(true);
+  } catch (err) {
+    console.warn('[VideoStudio] Retrying video stitching without ASS subtitle filter:', err.message);
+    try {
+      return await renderStitch(false);
+    } catch (fallbackErr) {
+      if (fs.existsSync(concatFile)) fs.unlinkSync(concatFile);
+      if (hasAss && fs.existsSync(assPath)) fs.unlinkSync(assPath);
+      throw fallbackErr;
+    }
+  }
 }
 
 /**

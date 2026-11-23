@@ -7,10 +7,10 @@
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
-const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
 const ffmpeg = require('fluent-ffmpeg');
+const { getFfmpegPath } = require('./mediaProbe');
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+ffmpeg.setFfmpegPath(getFfmpegPath());
 
 const OUT_DIR = path.join(__dirname, '../uploads/video');
 fs.mkdirSync(OUT_DIR, { recursive: true });
