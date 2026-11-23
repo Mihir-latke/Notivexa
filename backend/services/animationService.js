@@ -268,6 +268,8 @@ async function renderPresenterScene({
   });
 }
 
+const { renderHandwrittenScene } = require('./handwrittenVideoService');
+
 /**
  * Main dispatcher: renders a scene in requested mode.
  */
@@ -282,8 +284,27 @@ async function renderScene({
   subject,
   language = 'English',
   lipSyncTimeline = null,
+  aspectRatio = '9:16',
+  paperStyle = 'graph_paper',
+  inkColor = null,
   outputPath
 }) {
+  if (mode === 'handwritten' || mode === 'animated_handwritten') {
+    return renderHandwrittenScene({
+      scene,
+      sceneIndex,
+      totalScenes,
+      duration,
+      audioPath,
+      title,
+      subject,
+      language,
+      aspectRatio,
+      paperStyle,
+      inkColor,
+      outputPath
+    });
+  }
   if (mode === 'presenter') {
     return renderPresenterScene({
       scene, sceneIndex, totalScenes, duration, audioPath, title, subject, language, lipSyncTimeline, outputPath
@@ -297,6 +318,7 @@ async function renderScene({
 module.exports = {
   renderScene,
   renderExplainerScene,
-  renderPresenterScene
+  renderPresenterScene,
+  renderHandwrittenScene
 };
 

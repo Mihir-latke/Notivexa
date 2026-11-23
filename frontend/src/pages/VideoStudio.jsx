@@ -1,13 +1,29 @@
 import { useState, useEffect, useRef } from 'react'
 import api, { getMediaUrlWithToken } from '../utils/api'
 import toast from 'react-hot-toast'
+import HandwrittenVideoPlayer from '../components/HandwrittenVideoPlayer'
 
 const STYLES = [
+  { id: 'animated_handwritten', label: 'Animated Handwritten Explainer', icon: '✍️', desc: 'Notebook grid, progressive handwriting with moving pen, and dynamic underlines' },
   { id: 'realistic_cinematic', label: 'Realistic Cinematic', icon: '🎥', desc: 'University classroom with professor, student & visual board' },
   { id: 'animated_explainer', label: 'Animated Explainer', icon: '🎨', desc: 'Clean vector illustration with bold visual emphasis' },
   { id: 'educational_documentary', label: 'Educational Documentary', icon: '🏛️', desc: 'Rich archival and authoritative documentary framing' },
   { id: '3d_simulation', label: '3D Simulation', icon: '🔬', desc: 'Scientific 3D models, anatomical and technical diagrams' },
   { id: 'blackboard_lecture', label: 'Blackboard Lecture', icon: '🧑‍🏫', desc: 'Authentic chalkboard equations and step-by-step notes' }
+]
+
+const PAPER_STYLES = [
+  { id: 'graph_paper', label: 'Graph Paper', icon: '📐' },
+  { id: 'ruled', label: 'Ruled Notebook', icon: '📓' },
+  { id: 'whiteboard', label: 'Whiteboard', icon: '📋' },
+  { id: 'chalkboard', label: 'Chalkboard', icon: '⬛' }
+]
+
+const INK_COLORS = [
+  { id: '#1D4ED8', label: 'Royal Blue', color: '#1D4ED8' },
+  { id: '#1E3A8A', label: 'Dark Navy', color: '#1E3A8A' },
+  { id: '#0F172A', label: 'Black Ink', color: '#0F172A' },
+  { id: '#78A2D2', label: 'Vista Blue', color: '#78A2D2' }
 ]
 
 const AUDIENCES = [
@@ -51,11 +67,13 @@ export default function VideoStudio() {
   const [customText, setCustomText] = useState('')
 
   // Step 2: Configuration
-  const [visualStyle, setVisualStyle] = useState('realistic_cinematic')
+  const [visualStyle, setVisualStyle] = useState('animated_handwritten')
+  const [paperStyle, setPaperStyle] = useState('graph_paper')
+  const [inkColor, setInkColor] = useState('#1D4ED8')
   const [audienceLevel, setAudienceLevel] = useState('intermediate')
   const [outputLanguage, setOutputLanguage] = useState('auto')
   const [durationSeconds, setDurationSeconds] = useState(18)
-  const [aspectRatio, setAspectRatio] = useState('16:9')
+  const [aspectRatio, setAspectRatio] = useState('9:16')
   const [includeNarration, setIncludeNarration] = useState(true)
   const [includeSubtitles, setIncludeSubtitles] = useState(true)
 
@@ -137,6 +155,8 @@ export default function VideoStudio() {
         customTitle: customTitle.trim(),
         customText: customText.trim(),
         visualStyle,
+        paperStyle,
+        inkColor,
         audienceLevel,
         outputLanguage,
         durationSeconds: parseInt(durationSeconds) || 18,
@@ -182,6 +202,8 @@ export default function VideoStudio() {
         customTitle: customTitle.trim(),
         customText: customText.trim(),
         visualStyle,
+        paperStyle,
+        inkColor,
         audienceLevel,
         outputLanguage,
         durationSeconds: parseInt(durationSeconds) || 18,
@@ -496,6 +518,55 @@ export default function VideoStudio() {
                 </div>
               </div>
 
+              {/* Handwritten Specific Options: Paper & Ink */}
+              {visualStyle === 'animated_handwritten' && (
+                <div style={{ background: 'rgba(120, 162, 210, 0.08)', border: '1px solid var(--bdr)', borderRadius: 10, padding: '10px 12px', marginBottom: 14 }}>
+                  <div className="fg" style={{ marginBottom: 10 }}>
+                    <label className="fl">📓 Notebook Paper Style</label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                      {PAPER_STYLES.map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className={`btn btn-sm ${paperStyle === p.id ? 'btn-p' : 'btn-s'}`}
+                          style={{ fontSize: 11.5, padding: '5px 8px' }}
+                          onClick={() => setPaperStyle(p.id)}
+                        >
+                          {p.icon} {p.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="fg" style={{ marginBottom: 0 }}>
+                    <label className="fl">✒️ Pen Ink Color</label>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {INK_COLORS.map(k => (
+                        <button
+                          key={k.id}
+                          type="button"
+                          onClick={() => setInkColor(k.color)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            fontSize: 11.5,
+                            padding: '4px 10px',
+                            borderRadius: 6,
+                            border: inkColor === k.color ? '2px solid var(--brand)' : '1px solid var(--bdr)',
+                            background: inkColor === k.color ? 'var(--bg3)' : 'var(--card)',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <span style={{ width: 12, height: 12, borderRadius: '50%', background: k.color }} />
+                          <span style={{ fontWeight: inkColor === k.color ? 700 : 500 }}>{k.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Audience Level & Duration */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div className="fg">
@@ -527,20 +598,27 @@ export default function VideoStudio() {
               {/* Aspect Ratio & Features */}
               <div className="fg">
                 <label className="fl">📐 Frame Aspect Ratio</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button
-                    type="button"
-                    className={`btn btn-sm ${aspectRatio === '16:9' ? 'btn-p' : 'btn-s'}`}
-                    onClick={() => setAspectRatio('16:9')}
-                  >
-                    🖥️ 16:9 Landscape
-                  </button>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6 }}>
                   <button
                     type="button"
                     className={`btn btn-sm ${aspectRatio === '9:16' ? 'btn-p' : 'btn-s'}`}
                     onClick={() => setAspectRatio('9:16')}
                   >
-                    📱 9:16 Portrait
+                    📱 9:16 Reel
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${aspectRatio === '16:9' ? 'btn-p' : 'btn-s'}`}
+                    onClick={() => setAspectRatio('16:9')}
+                  >
+                    🖥️ 16:9 Lecture
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${aspectRatio === '1:1' ? 'btn-p' : 'btn-s'}`}
+                    onClick={() => setAspectRatio('1:1')}
+                  >
+                    ⏹️ 1:1 Square
                   </button>
                 </div>
               </div>
@@ -685,6 +763,56 @@ export default function VideoStudio() {
             </div>
           )}
 
+          {/* Live Animated Handwritten Explainer Player Preview */}
+          {visualStyle === 'animated_handwritten' && (
+            <div className="card" style={{ marginBottom: 20 }}>
+              <div className="ch" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div className="ct" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>✍️ Live Animated Handwritten Preview</span>
+                  <span className="chip" style={{ background: 'var(--brand)', color: '#fff', fontSize: 10 }}>
+                    Real-time Canvas
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--ink3)' }}>
+                  Interactive Progressive Writing & Voice Sync
+                </div>
+              </div>
+              <div className="cb">
+                <HandwrittenVideoPlayer
+                  storyboard={storyboard || {
+                    title: customTitle || selectedDoc?.title || 'Academic Concept',
+                    language: outputLanguage === 'auto' ? 'English' : outputLanguage,
+                    scenes: [
+                      {
+                        sceneNumber: 1,
+                        heading: '1. Binary Search Algorithm',
+                        handwrittenLines: [
+                          '• Divides search interval in half repeatedly',
+                          '• Eliminates inactive partition efficiently',
+                          '• Guaranteed logarithmic complexity'
+                        ],
+                        formula: 'Time Complexity: O(log2 n)',
+                        narration: 'Binary search is an efficient search algorithm on sorted lists.',
+                        durationSeconds: 7
+                      }
+                    ]
+                  }}
+                  activeSceneIndex={activeSceneTab}
+                  onSceneChange={(idx) => setActiveSceneTab(idx)}
+                  aspectRatio={aspectRatio}
+                  paperStyle={paperStyle}
+                  inkColor={inkColor}
+                  language={outputLanguage === 'mr' ? 'Marathi' : (outputLanguage === 'hi' ? 'Hindi' : 'English')}
+                  onRegenerateScene={async (idx) => {
+                    toast('Regenerating scene direction...')
+                    await handleDraftStoryboard()
+                  }}
+                  onExportMp4={handleStartGeneration}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Interactive Storyboard Card */}
           {storyboard && storyboard.scenes && (
             <div className="card" style={{ marginBottom: 20 }}>
@@ -695,15 +823,15 @@ export default function VideoStudio() {
               <div className="cb">
                 <div style={{ marginBottom: 12 }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--ink1)', marginBottom: 4 }}>
-                    {storyboard.topic || 'Core Academic Topic'}
+                    {storyboard.topic || storyboard.title || 'Core Academic Topic'}
                   </div>
                   <div style={{ fontSize: 12.5, color: 'var(--ink3)' }}>
-                    🎯 Objective: {storyboard.learningObjective || 'Foundational syllabus mastery'}
+                    🎯 Objective: {storyboard.learningObjective || storyboard.overview || 'Foundational syllabus mastery'}
                   </div>
                 </div>
 
                 {/* Scene Tabs */}
-                <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--bdr)', paddingBottom: 8, marginBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 6, borderBottom: '1px solid var(--bdr)', paddingBottom: 8, marginBottom: 14, overflowX: 'auto' }}>
                   {storyboard.scenes.map((s, idx) => (
                     <button
                       key={idx}
@@ -717,10 +845,11 @@ export default function VideoStudio() {
                         color: activeSceneTab === idx ? '#fff' : 'var(--ink2)',
                         fontWeight: 600,
                         fontSize: 12,
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap'
                       }}
                     >
-                      Scene {s.sceneNumber || idx + 1} ({s.duration || 6}s)
+                      Scene {s.sceneNumber || idx + 1} ({s.durationSeconds || s.duration || 6}s)
                     </button>
                   ))}
                 </div>
@@ -731,21 +860,32 @@ export default function VideoStudio() {
                   return (
                     <div>
                       <div className="fg">
-                        <label className="fl">🎯 Learning Objective</label>
+                        <label className="fl">✍️ Scene Heading (Drawn in Bold Ink)</label>
                         <input
                           type="text"
                           className="fi"
-                          value={s.learningObjective || ''}
-                          onChange={e => handleSceneEdit(activeSceneTab, 'learningObjective', e.target.value)}
+                          value={s.heading || s.title || ''}
+                          onChange={e => handleSceneEdit(activeSceneTab, 'heading', e.target.value)}
                         />
                       </div>
                       <div className="fg">
-                        <label className="fl">🎬 Visual Prompt (Veo / Camera Motion Direction)</label>
+                        <label className="fl">📝 Handwritten Bullet Points (One per line)</label>
                         <textarea
                           className="fi"
                           rows={3}
-                          value={s.visualPrompt || ''}
-                          onChange={e => handleSceneEdit(activeSceneTab, 'visualPrompt', e.target.value)}
+                          value={Array.isArray(s.handwrittenLines) ? s.handwrittenLines.join('\n') : (s.handwrittenLines || '')}
+                          onChange={e => handleSceneEdit(activeSceneTab, 'handwrittenLines', e.target.value.split('\n'))}
+                          placeholder="• Point 1&#10;• Point 2&#10;• Point 3"
+                        />
+                      </div>
+                      <div className="fg">
+                        <label className="fl">📐 Highlighted Formula / Equation (Boxed in Accent Ink)</label>
+                        <input
+                          type="text"
+                          className="fi"
+                          value={s.formula || ''}
+                          onChange={e => handleSceneEdit(activeSceneTab, 'formula', e.target.value)}
+                          placeholder="e.g. T(n) = O(log n) or E = mc^2"
                         />
                       </div>
                       <div className="fg">
@@ -753,27 +893,30 @@ export default function VideoStudio() {
                         <textarea
                           className="fi"
                           rows={3}
-                          value={s.narrationScript || ''}
-                          onChange={e => handleSceneEdit(activeSceneTab, 'narrationScript', e.target.value)}
+                          value={s.narration || s.narrationScript || ''}
+                          onChange={e => {
+                            handleSceneEdit(activeSceneTab, 'narration', e.target.value)
+                            handleSceneEdit(activeSceneTab, 'narrationScript', e.target.value)
+                          }}
                         />
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div className="fg">
-                          <label className="fl">📝 On-Screen Text</label>
+                          <label className="fl">🎯 Learning Objective</label>
                           <input
                             type="text"
                             className="fi"
-                            value={s.onScreenText || ''}
-                            onChange={e => handleSceneEdit(activeSceneTab, 'onScreenText', e.target.value)}
+                            value={s.learningObjective || ''}
+                            onChange={e => handleSceneEdit(activeSceneTab, 'learningObjective', e.target.value)}
                           />
                         </div>
                         <div className="fg">
-                          <label className="fl">🎥 Camera Direction</label>
+                          <label className="fl">🎬 Visual Prompt / Notes</label>
                           <input
                             type="text"
                             className="fi"
-                            value={s.cameraDirection || ''}
-                            onChange={e => handleSceneEdit(activeSceneTab, 'cameraDirection', e.target.value)}
+                            value={s.visualDescription || s.visualPrompt || ''}
+                            onChange={e => handleSceneEdit(activeSceneTab, 'visualDescription', e.target.value)}
                           />
                         </div>
                       </div>

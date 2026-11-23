@@ -190,7 +190,9 @@ const videoJobSchema = new mongoose.Schema({
   subject:        { type: String, default: 'General' },
   language:       { type: String, default: 'English' },
   contentHash:    { type: String, index: true, default: '' },
-  mode:           { type: String, enum: ['explainer', 'presenter'], default: 'explainer' },
+  mode:           { type: String, enum: ['explainer', 'presenter', 'handwritten'], default: 'handwritten' },
+  paperStyle:     { type: String, default: 'graph_paper' },
+  inkColor:       { type: String, default: '#1D4ED8' },
   voice:          { type: String, default: 'auto' },
   narrationSpeed: { type: Number, default: 1.0 },
   presenterId:    { type: String, default: 'teacher_1' },
@@ -202,9 +204,9 @@ const videoJobSchema = new mongoose.Schema({
     lipSyncVerified:  { type: Boolean, default: false },
     verifiedAt:       { type: Date }
   },
-  style:          { type: String, default: 'realistic_cinematic' },
+  style:          { type: String, default: 'animated_handwritten' },
   audienceLevel:  { type: String, default: 'intermediate' },
-  aspectRatio:    { type: String, enum: ['16:9', '9:16'], default: '16:9' },
+  aspectRatio:    { type: String, enum: ['16:9', '9:16', '1:1'], default: '9:16' },
   durationSeconds:{ type: Number, default: 18 },
   storyboard: [{
     sceneNumber:       { type: Number },
@@ -214,6 +216,9 @@ const videoJobSchema = new mongoose.Schema({
     mainSubject:       { type: String },
     cameraDirection:   { type: String },
     onScreenText:      { type: String },
+    heading:           { type: String },
+    handwrittenLines:  [{ type: String }],
+    formula:           { type: String },
     durationSeconds:   { type: Number, default: 6 },
     narration:         { type: String },
     continuityNote:    { type: String }
@@ -228,7 +233,8 @@ const videoJobSchema = new mongoose.Schema({
     fileName: String,
     filePath: String,
     duration: Number,
-    isVeo: Boolean
+    isVeo: Boolean,
+    isHandwritten: Boolean
   }],
   finalVideoUrl:  { type: String, default: '' },
   finalVideoPath: { type: String, default: '' },

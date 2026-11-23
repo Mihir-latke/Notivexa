@@ -98,6 +98,8 @@ exports.getCapabilities = async (req, res, next) => {
       success: true,
       capabilities,
       styles: videoStudioService.SUPPORTED_STYLES,
+      paperStyles: videoStudioService.SUPPORTED_PAPER_STYLES,
+      inkColors: videoStudioService.SUPPORTED_INK_COLORS,
       aspectRatios: videoStudioService.SUPPORTED_ASPECT_RATIOS,
       durations: videoStudioService.SUPPORTED_DURATIONS
     });
@@ -149,13 +151,15 @@ exports.createVideoJob = async (req, res, next) => {
   try {
     const { text, title, subject, primaryLanguage, doc } = await resolveContent(req);
     const {
-      style = 'realistic_cinematic',
+      style = 'animated_handwritten',
       audienceLevel = 'intermediate',
       language = 'English',
-      aspectRatio = '16:9',
+      aspectRatio = (style === 'animated_handwritten' ? '9:16' : '16:9'),
+      paperStyle = 'graph_paper',
+      inkColor = '#1D4ED8',
       sceneCount = 3,
       storyboard: customStoryboard,
-      engine = 'google_veo'
+      engine = (style === 'animated_handwritten' ? 'handwritten_engine' : 'google_veo')
     } = req.body;
 
     const langInfo = resolveOutputLanguage(language, primaryLanguage);
@@ -186,7 +190,9 @@ exports.createVideoJob = async (req, res, next) => {
       language: langInfo.name,
       style,
       audienceLevel,
-      aspectRatio: aspectRatio === '9:16' ? '9:16' : '16:9',
+      aspectRatio: aspectRatio === '9:16' ? '9:16' : (aspectRatio === '1:1' ? '1:1' : '16:9'),
+      paperStyle: paperStyle || 'graph_paper',
+      inkColor: inkColor || '#1D4ED8',
       durationSeconds: finalStoryboard.totalDuration || (finalStoryboard.scenes.length * 6),
       storyboard: finalStoryboard.scenes,
       status: 'pending',

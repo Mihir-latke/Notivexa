@@ -7,6 +7,7 @@ ffmpeg.setFfmpegPath(getFfmpegPath());
 
 const { callAI, generateAudio } = require('./aiService');
 const { resolveOutputLanguage } = require('./ocr/languageDetectionService');
+const { renderHandwrittenScene } = require('./handwrittenVideoService');
 const mongoose = require('mongoose');
 const { VideoJob, Document } = require('../models');
 const localStore = require('../utils/localStore');
@@ -22,6 +23,7 @@ const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY 
 
 // Supported options
 const SUPPORTED_STYLES = [
+  { id: 'animated_handwritten', label: 'Animated Handwritten Explainer', desc: 'Notebook grid, progressive handwriting with moving pen, and dynamic underlines' },
   { id: 'realistic_cinematic', label: 'Realistic Cinematic', desc: 'Photorealistic filmic camera work with natural lighting' },
   { id: 'animated_explainer', label: 'Animated Explainer', desc: 'High-contrast 2D/3D motion graphics and vector diagrams' },
   { id: 'educational_documentary', label: 'Educational Documentary', desc: 'Narrative academic documentary with historical/scientific archival feel' },
@@ -29,7 +31,21 @@ const SUPPORTED_STYLES = [
   { id: 'presentation_visuals', label: 'Slide & Blackboard Lecture', desc: 'Dynamic digital blackboard with equations and step-by-step points' }
 ];
 
-const SUPPORTED_ASPECT_RATIOS = ['16:9', '9:16'];
+const SUPPORTED_PAPER_STYLES = [
+  { id: 'graph_paper', label: 'Off-White Graph Paper', desc: 'Subtle gray grid lines with classic red student margin rule' },
+  { id: 'ruled', label: 'College Ruled Notebook', desc: 'Horizontal ruled lines with pink margin' },
+  { id: 'whiteboard', label: 'Clean Whiteboard', desc: 'Modern white board with marker ink' },
+  { id: 'chalkboard', label: 'Dark Chalkboard', desc: 'Deep green slate with white and yellow chalk' }
+];
+
+const SUPPORTED_INK_COLORS = [
+  { id: '#1D4ED8', label: 'Royal Blue Ink', color: '#1D4ED8' },
+  { id: '#1E3A8A', label: 'Dark Navy Ink', color: '#1E3A8A' },
+  { id: '#0F172A', label: 'Academic Black', color: '#0F172A' },
+  { id: '#78A2D2', label: 'Vista Blue Ink', color: '#78A2D2' }
+];
+
+const SUPPORTED_ASPECT_RATIOS = ['9:16', '16:9', '1:1'];
 const SUPPORTED_DURATIONS = [
   { scenes: 1, duration: 6, label: '1 Scene (~6s Quick Hook)' },
   { scenes: 2, duration: 12, label: '2 Scenes (~12s Key Concept)' },
@@ -150,6 +166,12 @@ CRITICAL MANDATES:
       "mainSubject": "Central visual focus (e.g. Memory address bus, biological cell membrane)",
       "cameraDirection": "Push-in / Slow horizontal pan / Aerial tracking / Macro close-up",
       "onScreenText": "Key technical term or formula from source in ${normLang}",
+      "heading": "Dark blue bold handwritten heading in ${normLang}",
+      "handwrittenLines": [
+        "Concise handwritten point 1 in ${normLang}",
+        "Concise handwritten point 2 in ${normLang}"
+      ],
+      "formula": "Optional mathematical or algorithmic formula",
       "durationSeconds": ${durPerScene},
       "narration": "Concise, engaging 1-2 sentence spoken explanation in ${normLang} (15-20 words)",
       "continuityNote": "Seamless visual transition into next scene"
@@ -201,6 +223,12 @@ ${content.slice(0, 8000)}`;
         mainSubject: title,
         cameraDirection: i % 2 === 0 ? 'Cinematic slow push-in zoom' : 'Smooth lateral panning shot',
         onScreenText: title.toUpperCase(),
+        heading: `${i + 1}. ${title}`,
+        handwrittenLines: [
+          `• ${snippet.slice(0, 48)}`,
+          `• Exam Focus: ${title}`
+        ],
+        formula: i === 1 ? `${title.replace(/\s+/g, '')} = Core + Execution` : null,
         durationSeconds: durPerScene,
         narration: snippet.slice(0, 120) || defaultNarr,
         continuityNote: 'Continuous pedagogical progression'
@@ -227,6 +255,13 @@ ${content.slice(0, 8000)}`;
     mainSubject: sc.mainSubject || title,
     cameraDirection: sc.cameraDirection || 'Cinematic steady push-in',
     onScreenText: sc.onScreenText || title,
+    heading: sc.heading || sc.title || `${idx + 1}. ${sc.sourceTopic || sc.mainSubject || title}`,
+    handwrittenLines: Array.isArray(sc.handwrittenLines) && sc.handwrittenLines.length > 0
+      ? sc.handwrittenLines
+      : (Array.isArray(sc.boardPoints) && sc.boardPoints.length > 0
+        ? sc.boardPoints
+        : [`• ${sc.learningObjective || sc.mainSubject || title}`, `• ${(sc.narration || '').slice(0, 45)}`]),
+    formula: sc.formula || sc.diagram?.formula || null,
     durationSeconds: Number(sc.durationSeconds) || durPerScene,
     narration: sc.narration || `Analyzing ${title}`,
     continuityNote: sc.continuityNote || 'Standard educational transition'
@@ -598,8 +633,49 @@ async function processVideoStudioJob(jobId, userId) {
 
       let clipResult = null;
 
+      // Handle Animated Handwritten Explainer style
+      if (job.style === 'animated_handwritten') {
+        try {
+          const scNarration = sc.narration || `${job.title}. ${sc.heading || ''}`;
+          const scLangInfo = resolveOutputLanguage(job.language);
+          const scAudio = await generateAudio(scNarration, {
+            language: scLangInfo.code,
+            outputLanguage: job.language,
+            voiceStyle: 'male'
+          });
+
+          const clipName = `hw_sc_${sc.sceneNumber}_${uuidv4().slice(0, 8)}.mp4`;
+          const clipPath = path.join(OUT_DIR, clipName);
+
+          await renderHandwrittenScene({
+            scene: sc,
+            sceneIndex: i,
+            totalScenes: storyboard.scenes.length,
+            duration: sc.durationSeconds || 6,
+            audioPath: scAudio.filePath,
+            title: job.title,
+            subject: job.subject,
+            language: job.language,
+            aspectRatio: job.aspectRatio || '9:16',
+            paperStyle: job.paperStyle || 'graph_paper',
+            inkColor: job.inkColor || null,
+            outputPath: clipPath
+          });
+
+          clipResult = {
+            sceneNumber: sc.sceneNumber,
+            clipPath,
+            clipFileName: clipName,
+            duration: sc.durationSeconds || 6,
+            isHandwritten: true
+          };
+        } catch (hwErr) {
+          console.warn(`[VideoStudio] Handwritten render fallback for Scene ${sc.sceneNumber}:`, hwErr.message);
+        }
+      }
+
       // Try Google Veo if API key is provided and preferred
-      if (apiKey && !apiKey.startsWith('your_') && job.engine !== 'dynamic_scene_render') {
+      if (!clipResult && apiKey && !apiKey.startsWith('your_') && job.engine !== 'dynamic_scene_render') {
         try {
           const veoRes = await generateVeoClip({
             prompt: `${sc.visualDescription}. Visual style: ${job.style}. High educational fidelity.`,
@@ -680,10 +756,11 @@ async function processVideoStudioJob(jobId, userId) {
     });
 
     // Stage 5: Finalize and Save
+    const isHandwrittenJob = job.style === 'animated_handwritten' || generatedClips.some(c => c.isHandwritten);
     await updateJob({
       status: 'completed',
       progress: 'Video generation completed successfully!',
-      engine: isVeoEngine ? 'google_veo' : 'dynamic_scene_render',
+      engine: isHandwrittenJob ? 'handwritten_engine' : (isVeoEngine ? 'google_veo' : 'dynamic_scene_render'),
       finalVideoUrl: masterResult.videoUrl,
       finalVideoPath: masterResult.videoPath,
       audioUrl: `/uploads/audio/${audioRes.fileName}`,
@@ -694,7 +771,8 @@ async function processVideoStudioJob(jobId, userId) {
         fileName: c.clipFileName || c.fileName,
         filePath: c.clipPath,
         duration: c.duration,
-        isVeo: c.isVeo || false
+        isVeo: c.isVeo || false,
+        isHandwritten: c.isHandwritten || false
       })),
       completedAt: new Date()
     });
@@ -745,6 +823,8 @@ module.exports = {
   processVideoStudioJob,
   SUPPORTED_STYLES,
   SUPPORTED_ASPECT_RATIOS,
-  SUPPORTED_DURATIONS
+  SUPPORTED_DURATIONS,
+  SUPPORTED_PAPER_STYLES,
+  SUPPORTED_INK_COLORS
 };
 

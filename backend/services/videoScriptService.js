@@ -69,6 +69,10 @@ function buildOfflineGroundedScript(content, title, subject, language = 'English
           isMarathi ? `१. विषयाची मूलभूत व्याख्या` : `1. Core Academic Definition`,
           isMarathi ? `२. अभ्यासक्रमातील महत्त्व` : `2. Syllabus Scope & Importance`
         ],
+        handwrittenLines: [
+          isMarathi ? `१. विषयाची मूलभूत व्याख्या` : `1. Core Academic Definition`,
+          isMarathi ? `२. अभ्यासक्रमातील महत्त्व` : `2. Syllabus Scope & Importance`
+        ],
         diagram: {
           type: 'hierarchy',
           nodes: [
@@ -99,6 +103,11 @@ function buildOfflineGroundedScript(content, title, subject, language = 'English
           isMarathi ? `• पायरी २: प्रक्रियेचे नियोजन` : `• Step 2: System Processing`,
           isMarathi ? `• पायरी ३: अचूक निष्कर्ष` : `• Step 3: Verified Output`
         ],
+        handwrittenLines: [
+          isMarathi ? `• पायरी १: माहितीचे संकलन` : `• Step 1: Input & Data Preparation`,
+          isMarathi ? `• पायरी २: प्रक्रियेचे नियोजन` : `• Step 2: System Processing`,
+          isMarathi ? `• पायरी ३: अचूक निष्कर्ष` : `• Step 3: Verified Output`
+        ],
         diagram: {
           type: 'flowchart',
           nodes: [
@@ -125,6 +134,10 @@ function buildOfflineGroundedScript(content, title, subject, language = 'English
             : `To summarize, ${p3} Keep these core principles ready for your exams. Thank you!`),
         visualPrompt: `Review blackboard showing summary tick points and key equation card`,
         boardPoints: [
+          isMarathi ? `✔ मुख्य निष्कर्ष नोंदवा` : `✔ Key Principles Mastered`,
+          isMarathi ? `✔ परीक्षेसाठी उजळणी करा` : `✔ Ready for Assessment`
+        ],
+        handwrittenLines: [
           isMarathi ? `✔ मुख्य निष्कर्ष नोंदवा` : `✔ Key Principles Mastered`,
           isMarathi ? `✔ परीक्षेसाठी उजळणी करा` : `✔ Ready for Assessment`
         ],
@@ -201,6 +214,7 @@ RETURN ONLY VALID JSON matching this schema (no markdown fences, no extra text):
       "narration": "Spoken teacher voiceover script in ${normLang} (30-40 words)",
       "visualPrompt": "Visual animation instructions",
       "boardPoints": ["Point 1 in ${normLang}", "Point 2 in ${normLang}"],
+      "handwrittenLines": ["Line 1 written by teacher in ${normLang}", "Line 2 written by teacher in ${normLang}"],
       "diagram": {
         "type": "flowchart",
         "nodes": [
@@ -244,6 +258,13 @@ ${cleanContent}`;
         parsed.language = normLang;
         parsed.title = parsed.title || title;
         parsed.subject = parsed.subject || subject;
+        parsed.scenes.forEach(sc => {
+          if (!sc.handwrittenLines || !Array.isArray(sc.handwrittenLines) || sc.handwrittenLines.length === 0) {
+            sc.handwrittenLines = Array.isArray(sc.boardPoints) && sc.boardPoints.length > 0
+              ? sc.boardPoints
+              : [sc.title || 'Core Principle'];
+          }
+        });
         return parsed;
       }
     }
