@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { Document, Chat } = require('../models');
-const { answerChat } = require('../services/aiService');
+const { answerChat, generateAudio } = require('../services/aiService');
+const { resolveOutputLanguage } = require('../services/ocr/languageDetectionService');
 const { SAMPLE_DEMO_DOCS } = require('./documentController');
 const localStore = require('../utils/localStore');
 
@@ -132,5 +133,47 @@ exports.deleteSession = async (req, res, next) => {
     res.json({ success: true });
   } catch (e) {
     next(e);
+  }
+};
+
+exports.tts = async (req, res, next) => {
+  try {
+    const { text, language = 'english', voiceStyle = 'male', speed = 1.0 } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Text is required for TTS synthesis.' });
+    }
+
+    const clean = text
+      .replace(/```[\s\S]*?```/g, '')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/\$\$[\s\S]*?\$\$/g, '')
+      .replace(/\$([^$]+)\$/g, '$1')
+      .replace(/#{1,6}\s+/g, '')
+      .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/\[Page\s*\d+[^\]]*\]/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const langInfo = resolveOutputLanguage(language);
+    const result = await generateAudio(clean.slice(0, 1500), {
+      language: langInfo.code,
+      outputLanguage: langInfo.name,
+      voiceStyle,
+      speedMultiplier: Number(speed) || 1.0
+    });
+
+    const token = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+    const tokenParam = token ? `?token=${encodeURIComponent(token)}` : '';
+    const audioUrl = `/uploads/audio/${result.fileName}${tokenParam}`;
+
+    res.json({
+      success: true,
+      audioUrl,
+      fileName: result.fileName,
+      duration: result.duration
+    });
+  } catch (err) {
+    next(err);
   }
 };

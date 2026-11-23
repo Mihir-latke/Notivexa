@@ -7,6 +7,8 @@ import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
 import 'katex/dist/katex.min.css'
 import api from '../utils/api'
+import VoiceChatModal from '../components/VoiceChatModal'
+import TextToSpeechService from '../services/voice/TextToSpeechService'
 
 const SUGGESTED = [
   "Explain the core theoretical architecture and key principles",
@@ -34,8 +36,24 @@ export default function Chatbot() {
   ])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false)
+  const [speakingMsgIdx, setSpeakingMsgIdx] = useState(null)
   const bottom = useRef()
   const navigate = useNavigate()
+
+  const handleReadAloud = (content, index) => {
+    if (speakingMsgIdx === index) {
+      TextToSpeechService.stop()
+      setSpeakingMsgIdx(null)
+      return
+    }
+    setSpeakingMsgIdx(index)
+    TextToSpeechService.speak(content, {
+      language: chatLang,
+      onEnd: () => setSpeakingMsgIdx(null),
+      onError: () => setSpeakingMsgIdx(null)
+    })
+  }
 
   useEffect(() => {
     api.get('/documents?status=ready')
@@ -169,6 +187,26 @@ export default function Chatbot() {
           <option value="german">🇩🇪 German</option>
           <option value="spanish">🇪🇸 Spanish</option>
         </select>
+
+        <button
+          type="button"
+          className="btn btn-sm"
+          onClick={() => setVoiceModalOpen(true)}
+          style={{
+            background: 'linear-gradient(135deg, #10B981, #059669)',
+            color: '#fff',
+            fontWeight: 700,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            border: 'none',
+            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.35)',
+            cursor: 'pointer'
+          }}
+          title="Open ChatGPT-style Voice Conversation"
+        >
+          🎙️ Voice Mode
+        </button>
 
         <button className="btn btn-s btn-sm" onClick={reset} style={{ fontWeight: 600 }}>
           🔄 New Session
@@ -323,6 +361,20 @@ export default function Chatbot() {
               <div style={{ marginLeft: 44, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
                   className="btn btn-g btn-sm"
+                  style={{
+                    fontSize: 11,
+                    padding: '3px 8px',
+                    color: speakingMsgIdx === i ? '#EF4444' : 'var(--brand)',
+                    fontWeight: speakingMsgIdx === i ? 700 : 500
+                  }}
+                  onClick={() => handleReadAloud(m.content, i)}
+                  title={speakingMsgIdx === i ? "Stop speaking" : "Read answer aloud"}
+                >
+                  {speakingMsgIdx === i ? '⏹ Stop' : '🔊 Listen'}
+                </button>
+
+                <button
+                  className="btn btn-g btn-sm"
                   style={{ fontSize: 11, padding: '3px 8px' }}
                   onClick={() => {
                     navigator.clipboard?.writeText(m.content)
@@ -445,6 +497,25 @@ export default function Chatbot() {
 
       {/* Input Form */}
       <div style={{ display: 'flex', gap: 10, marginTop: 8, flexShrink: 0 }}>
+        <button
+          type="button"
+          className="btn btn-s"
+          onClick={() => setVoiceModalOpen(true)}
+          style={{
+            padding: '0 16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontWeight: 700,
+            background: 'rgba(16, 185, 129, 0.1)',
+            borderColor: 'rgba(16, 185, 129, 0.35)',
+            color: '#059669',
+            cursor: 'pointer'
+          }}
+          title="Start ChatGPT-style Voice Conversation"
+        >
+          🎙️ Speak
+        </button>
         <input
           className="fi"
           style={{ flex: 1, padding: '12px 16px', fontSize: 14 }}
@@ -462,6 +533,26 @@ export default function Chatbot() {
           Ask Tutor →
         </button>
       </div>
+
+      {/* ChatGPT-style Voice Chat Modal */}
+      <VoiceChatModal
+        isOpen={voiceModalOpen}
+        onClose={() => setVoiceModalOpen(false)}
+        selectedDoc={selectedDoc}
+        docId={docId}
+        sessId={sessId}
+        strictGrounded={strictGrounded}
+        chatLang={chatLang}
+        history={msgs}
+        onMessageSent={({ userQuestion, assistantReply, citations, passages, sessionId }) => {
+          if (sessionId) setSessId(sessionId)
+          setMsgs(prev => [
+            ...prev,
+            { role: 'user', content: userQuestion },
+            { role: 'assistant', content: assistantReply, citations: citations || [], passages: passages || [] }
+          ])
+        }}
+      />
     </div>
   )
 }

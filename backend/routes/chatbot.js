@@ -3,6 +3,7 @@ const c = require('../controllers/chatController');
 const { authenticate } = require('../middleware/auth');
 r.use(authenticate);
 r.post('/message',        c.message);
+r.post('/tts',            c.tts);
 r.get('/sessions',        c.sessions);
 r.get('/sessions/:id',    c.getSession);
 r.delete('/sessions/:id', c.deleteSession);
